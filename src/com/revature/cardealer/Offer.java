@@ -3,6 +3,7 @@ package com.revature.cardealer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Compatibility facade for inventory listings and purchase requests.
@@ -23,14 +24,21 @@ public class Offer {
     private Car cDetails;
     private String oCName;
 
+    public static Offer restore(List<InventoryListing> restoredListings,
+            List<PurchaseRequest> restoredRequests) {
+        Offer offer = new Offer();
+        offer.listings.addAll(Objects.requireNonNull(restoredListings, "restoredListings"));
+        offer.purchaseRequests.addAll(Objects.requireNonNull(restoredRequests, "restoredRequests"));
+        offer.refreshPendingFlag();
+        return offer;
+    }
+
     public void setpOffer(String customerName, int listingNumber) {
         InventoryListing listing = requireListing(listingNumber);
         if (!listing.isAvailable()) {
             throw new IllegalStateException("listing is not available");
         }
-
-        PurchaseRequest request = new PurchaseRequest(
-                purchaseRequests.size(), listingNumber, customerName);
+        PurchaseRequest request = new PurchaseRequest(purchaseRequests.size(), listingNumber, customerName);
         purchaseRequests.add(request);
         oPending = true;
         System.out.println("[" + request.getId() + "] " + listing.describe()
@@ -55,10 +63,8 @@ public class Offer {
     public void registerOffer(String make, String model, int year, int price, String avail, int amount) {
         Car car = new Car(make, model, year);
         boolean active = parseAvailability(avail);
-        InventoryListing listing = new InventoryListing(
-                listings.size(), car, price, amount, active);
+        InventoryListing listing = new InventoryListing(listings.size(), car, price, amount, active);
         listings.add(listing);
-
         cDetails = car;
         oPrice = price;
         oAvail = active && amount > 0 ? "yes" : "no";
@@ -109,100 +115,42 @@ public class Offer {
     }
 
     @Override
-    public String toString() {
-        return getOffer();
-    }
-
-    public void setPrice(int price) {
-        if (price < 0) {
-            throw new IllegalArgumentException("price must not be negative");
-        }
-        oPrice = price;
-    }
-
-    public int getPrice() {
-        return oPrice;
-    }
-
-    public void setMpay(int monthlyPayment) {
-        if (monthlyPayment < 0) {
-            throw new IllegalArgumentException("monthly payment must not be negative");
-        }
-        oMpay = monthlyPayment;
-    }
-
-    public int getMpay() {
-        return oMpay;
-    }
-
-    public String getAvail() {
-        return oAvail;
-    }
-
-    public void setAvail(String avail) {
-        oAvail = parseAvailability(avail) ? "yes" : "no";
-        oStatus = "yes".equals(oAvail) && oAmt > 0;
-    }
-
-    public void setAmt(int amount) {
-        if (amount < 0) {
-            throw new IllegalArgumentException("stock quantity must not be negative");
-        }
-        oAmt = amount;
-        oStatus = amount > 0 && "yes".equals(oAvail);
-    }
-
-    public int getAmt() {
-        return oAmt;
-    }
-
-    public boolean isAvail() {
-        return oStatus && oAmt > 0;
-    }
-
-    public void setStatus(boolean status) {
-        oStatus = status;
-    }
-
-    public boolean getStatus() {
-        return oStatus;
-    }
+    public String toString() { return getOffer(); }
+    public void setPrice(int price) { if (price < 0) throw new IllegalArgumentException("price must not be negative"); oPrice = price; }
+    public int getPrice() { return oPrice; }
+    public void setMpay(int monthlyPayment) { if (monthlyPayment < 0) throw new IllegalArgumentException("monthly payment must not be negative"); oMpay = monthlyPayment; }
+    public int getMpay() { return oMpay; }
+    public String getAvail() { return oAvail; }
+    public void setAvail(String avail) { oAvail = parseAvailability(avail) ? "yes" : "no"; oStatus = "yes".equals(oAvail) && oAmt > 0; }
+    public void setAmt(int amount) { if (amount < 0) throw new IllegalArgumentException("stock quantity must not be negative"); oAmt = amount; oStatus = amount > 0 && "yes".equals(oAvail); }
+    public int getAmt() { return oAmt; }
+    public boolean isAvail() { return oStatus && oAmt > 0; }
+    public void setStatus(boolean status) { oStatus = status; }
+    public boolean getStatus() { return oStatus; }
 
     public void getAccept(Offer[] ignored) {
         for (PurchaseRequest request : purchaseRequests) {
             if (request.getStatus() == PurchaseRequestStatus.ACCEPTED) {
                 InventoryListing listing = requireListing(request.getListingId());
-                System.out.println(listing.describe() + "   Offer Accepted: "
-                        + request.getCustomerName());
+                System.out.println(listing.describe() + "   Offer Accepted: " + request.getCustomerName());
             }
         }
     }
 
-    public void setAccept() {
-        oAccept = true;
-    }
+    public void setAccept() { oAccept = true; }
 
-    /**
-     * Decides one purchase request and returns its listing price for the
-     * ownership/payment-plan compatibility flow.
-     */
     public int setAccept(int requestNumber, int months, boolean accept) {
         PurchaseRequest request = requireRequest(requestNumber);
         InventoryListing listing = requireListing(request.getListingId());
-
         if (!accept) {
             request.reject();
             refreshPendingFlag();
             oAccept = false;
             return listing.getPrice();
         }
-
-        if (!listing.isAvailable()) {
-            throw new IllegalStateException("listing is not available");
-        }
+        if (!listing.isAvailable()) throw new IllegalStateException("listing is not available");
         request.accept(listing.getPrice(), months);
         listing.decrementStock();
-
         oAccept = true;
         oMpay = request.getMonthlyPayment();
         oPrice = listing.getPrice();
@@ -210,19 +158,14 @@ public class Offer {
         oStatus = listing.isAvailable();
         oAvail = listing.isAvailable() ? "yes" : "no";
         oCName = request.getCustomerName();
-        oDetails = listing.describe() + "   Offer Accepted: " + oCName
-                + "   Monthly Payment: " + oMpay;
+        oDetails = listing.describe() + "   Offer Accepted: " + oCName + "   Monthly Payment: " + oMpay;
         refreshPendingFlag();
         System.out.println(oDetails);
         return listing.getPrice();
     }
 
     public void rejectAllOffers() {
-        for (PurchaseRequest request : purchaseRequests) {
-            if (request.isPending()) {
-                request.reject();
-            }
-        }
+        for (PurchaseRequest request : purchaseRequests) if (request.isPending()) request.reject();
         refreshPendingFlag();
         System.out.println("\nMessage: All Pending Offers REJECTED!! ");
     }
@@ -233,47 +176,26 @@ public class Offer {
         System.out.println(listing.describe() + "\nMessage: Car Listing Removed!! ");
     }
 
-    public boolean getAccept() {
-        return oAccept;
-    }
-
-    public Car getCarDB(int listingNumber) {
-        return requireListing(listingNumber).getCar();
-    }
-
-    public int getListingCount() {
-        return listings.size();
-    }
-
-    public List<InventoryListing> getListings() {
-        return Collections.unmodifiableList(new ArrayList<>(listings));
-    }
-
-    public List<PurchaseRequest> getPurchaseRequests() {
-        return Collections.unmodifiableList(new ArrayList<>(purchaseRequests));
-    }
+    public boolean getAccept() { return oAccept; }
+    public Car getCarDB(int listingNumber) { return requireListing(listingNumber).getCar(); }
+    public int getListingCount() { return listings.size(); }
+    public List<InventoryListing> getListings() { return Collections.unmodifiableList(new ArrayList<>(listings)); }
+    public List<PurchaseRequest> getPurchaseRequests() { return Collections.unmodifiableList(new ArrayList<>(purchaseRequests)); }
 
     private InventoryListing requireListing(int listingNumber) {
-        if (listingNumber < 0 || listingNumber >= listings.size()) {
-            throw new IllegalArgumentException("unknown listing number: " + listingNumber);
-        }
+        if (listingNumber < 0 || listingNumber >= listings.size()) throw new IllegalArgumentException("unknown listing number: " + listingNumber);
         return listings.get(listingNumber);
     }
 
     private PurchaseRequest requireRequest(int requestNumber) {
-        if (requestNumber < 0 || requestNumber >= purchaseRequests.size()) {
-            throw new IllegalArgumentException("unknown purchase request number: " + requestNumber);
-        }
+        if (requestNumber < 0 || requestNumber >= purchaseRequests.size()) throw new IllegalArgumentException("unknown purchase request number: " + requestNumber);
         return purchaseRequests.get(requestNumber);
     }
 
-    private void refreshPendingFlag() {
-        oPending = purchaseRequests.stream().anyMatch(PurchaseRequest::isPending);
-    }
+    private void refreshPendingFlag() { oPending = purchaseRequests.stream().anyMatch(PurchaseRequest::isPending); }
 
     private static boolean parseAvailability(String availability) {
-        return availability != null
-                && ("yes".equalsIgnoreCase(availability.trim())
+        return availability != null && ("yes".equalsIgnoreCase(availability.trim())
                 || "y".equalsIgnoreCase(availability.trim())
                 || "true".equalsIgnoreCase(availability.trim()));
     }
