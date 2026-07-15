@@ -1,5 +1,6 @@
 package com.revature.service;
 
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.Car;
 import com.revature.cardealer.User;
 
@@ -20,8 +21,8 @@ public class CustomerLoginService extends UserLoginService {
     }
 
     @Override
-    public boolean authenticateUser(User user) {
-        return super.authenticateUser(user);
+    public User registerUser(String username, String password) {
+        return super.registerUser(username, password, AccountRole.CUSTOMER);
     }
 
     public void setCarsOwned(Car owned, int cprice, int pmths) {
