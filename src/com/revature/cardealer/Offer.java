@@ -1,287 +1,280 @@
 package com.revature.cardealer;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * Compatibility facade for inventory listings and purchase requests.
+ */
 public class Offer {
 
-	private String oAvail;
-	private int oAmt;
-	private int oMpay;
-	private int oPrice;
-	private boolean oAccept;
-	private boolean oStatus;
-	private boolean oPending;
-	//private String status;
-	private String oDetails;
-	private Offer[] oOfferDB= new Offer[20];
-	// private String offer; // Car - Make: model: Year: "+ Price: + Avail
-	String[] offerDB = new String[20];
-	private int oIndex = 0;
-	private Car cDetails;
-	private Car[] carDB = new Car[20];
-	private String cName[] = new String[20];
-	private int cpOffer[] = new int[20];
-	private int cpPrice[] = new int[20];
-	private int opIndex = 0;
-	private String oCName;
+    private final List<InventoryListing> listings = new ArrayList<>();
+    private final List<PurchaseRequest> purchaseRequests = new ArrayList<>();
 
-	// private Offer[] oOfferDB = new Offer[20];
-	// private int cIndex;
+    private String oAvail;
+    private int oAmt;
+    private int oMpay;
+    private int oPrice;
+    private boolean oAccept;
+    private boolean oStatus;
+    private boolean oPending;
+    private String oDetails;
+    private Car cDetails;
+    private String oCName;
 
-	/*
-	 * public Offer() {
-	 * 
-	 * Offer[] offerDB = {registerOffer("Honda", "Accord", 2018, 15456,"Yes",7),
-	 * registerOffer("Chevy", "Malibu", 2020, 17456,"Yes",4), registerOffer("Honda",
-	 * "Accord", 2016, 10456,"Yes",6), registerOffer("Honda", "Accord", 2014,
-	 * 13456,"Yes",3)};
-	 * 
-	 * for(int i=0; i>= offerDB.length;i++) {
-	 * System.out.println(offerDB[i].toString());
-	 * 
-	 * } }
-	 * 
-	 * 
-	 * 
-	 * public void setOfferDB(Offer offer) {
-	 * 
-	 * 
-	 * Offer[] offerDB = {registerOffer("Honda", "Accord", 2018, 15456,"Yes",7),
-	 * registerOffer("Chevy", "Malibu", 2020, 17456,"Yes",4), registerOffer("Honda",
-	 * "Accord", 2016, 10456,"Yes",6), registerOffer("Honda", "Accord", 2014,
-	 * 13456,"Yes",3)};
-	 * 
-	 * 
-	 * for(int i=0; i<= offerDB.length;i++) {
-	 * System.out.println(offerDB[i].toString());
-	 * 
-	 * 
-	 * 
-	 * oOfferDB[oIndex]= offer; oIndex++;
-	 * 
-	 * 
-	 * 
-	 * }
-	 */
+    public void setpOffer(String customerName, int listingNumber) {
+        InventoryListing listing = requireListing(listingNumber);
+        if (!listing.isAvailable()) {
+            throw new IllegalStateException("listing is not available");
+        }
 
-	public void setpOffer(String cname, int onum) {
+        PurchaseRequest request = new PurchaseRequest(
+                purchaseRequests.size(), listingNumber, customerName);
+        purchaseRequests.add(request);
+        oPending = true;
+        System.out.println("[" + request.getId() + "] " + listing.describe()
+                + "     Pending Offer for: " + request.getCustomerName());
+    }
 
-		cpOffer[opIndex] = onum;
-		cName[opIndex] = cname;
-		//status= "   Pending Offer: " + cName[onum];
-		//oDetails = "["+onum+"]"+ offerDB[onum] + " Pending Offer: " + cName[onum];
-		//2cpOffer[onum] =""+oDetails+ "   Pending Offer: " + cName[onum];
-		
-		System.out.println("["+onum+"]"+ offerDB[onum] + "     Pending Offer for : " + cName[onum]);
-		oPending=true;
-		oOfferDB[oIndex]=this;
-		oIndex++;
-		opIndex++;
+    public void getpOffers() {
+        boolean found = false;
+        for (PurchaseRequest request : purchaseRequests) {
+            if (request.isPending()) {
+                InventoryListing listing = requireListing(request.getListingId());
+                System.out.println("[" + request.getId() + "] " + listing.describe()
+                        + "   |---> Pending Offer: " + request.getCustomerName());
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("\nWe have no pending purchase requests at this time!");
+        }
+    }
 
-	}
+    public void registerOffer(String make, String model, int year, int price, String avail, int amount) {
+        Car car = new Car(make, model, year);
+        boolean active = parseAvailability(avail);
+        InventoryListing listing = new InventoryListing(
+                listings.size(), car, price, amount, active);
+        listings.add(listing);
 
-	
-	
-	public void getpOffers() {
-		
-		for (int i = 0; i <= cpOffer.length; i++) {
-			if(cpOffer[i]!=0 && cName[i] !=null)
-			{
-				int j = cpOffer[i];
-				System.out.println(offerDB[j] + "   |--->  Pending Offer:   " + cName[j]);
-			}
-		System.out.println("\nWe have no Cars to at this Time!");
-		}
+        cDetails = car;
+        oPrice = price;
+        oAvail = active && amount > 0 ? "yes" : "no";
+        oAmt = amount;
+        oStatus = listing.isAvailable();
+        oAccept = false;
+        oPending = false;
+        System.out.println(listing.describe());
+    }
 
-	}
+    public void setOffer(Car details, int price, String avail, int amount) {
+        cDetails = details;
+        oPrice = price;
+        oAvail = parseAvailability(avail) && amount > 0 ? "yes" : "no";
+        oAmt = amount;
+        oStatus = "yes".equals(oAvail);
+    }
 
-	public void registerOffer(String make, String model, int year, int price, String avail, int amt) {
+    public void setOffer(String make, String model, int year, int price, String avail, int amount) {
+        setOffer(new Car(make, model, year), price, avail, amount);
+        oAccept = false;
+        oPending = false;
+    }
 
-		cDetails = new Car(make, model, year);
-		setOffer(cDetails, price, avail, amt);
-		carDB[oIndex] = cDetails;
-		cpPrice[oIndex]=price;
-		//offerDB[oIndex]=oDetails;
-		offerDB[oIndex] = getOffer();
-		
-		/*
-		 * Offer offer = new Offer(); offer.cDetails=cDetails; offer.oPrice = price;
-		 * offer.oAvail=avail; offer.oAmt=amt; offer.oPending=false;
-		 * offer.oAccept=false; offer.oStatus=true; offer.oIndex=oIndex;
-		 */
-		  
-		//Used "this" store offer instend 
-		  
-		oOfferDB[oIndex]=this;   //stores this offer in offerDB
-		oIndex++;
+    public void getOfferAll() {
+        boolean found = false;
+        for (InventoryListing listing : listings) {
+            if (listing.isActive()) {
+                System.out.println(listing.describe());
+                found = true;
+            }
+        }
+        if (!found) {
+            System.out.println("\nWe have no cars at this time!");
+        }
+    }
 
-	}
+    public String getOffer() {
+        if (cDetails == null) {
+            return "";
+        }
+        String offer = "Car:-  " + cDetails.getCarMake() + "   Model: "
+                + cDetails.getCarModel() + "   Year: " + cDetails.getCarYear()
+                + "   Price: " + oPrice + "   Avail: " + oAvail
+                + "   Stock Qty: " + oAmt;
+        System.out.println(offer);
+        return offer;
+    }
 
-	public void setOffer(Car details, int price, String avail, int amt) {
+    @Override
+    public String toString() {
+        return getOffer();
+    }
 
-		cDetails = details;
-		oPrice = price;
-		oAvail = "yes";
-		oAmt = amt;
+    public void setPrice(int price) {
+        if (price < 0) {
+            throw new IllegalArgumentException("price must not be negative");
+        }
+        oPrice = price;
+    }
 
-		//oDetails = getOffer();
-		// offer= cDetails.toString()+price+avail+;
+    public int getPrice() {
+        return oPrice;
+    }
 
-	}
+    public void setMpay(int monthlyPayment) {
+        if (monthlyPayment < 0) {
+            throw new IllegalArgumentException("monthly payment must not be negative");
+        }
+        oMpay = monthlyPayment;
+    }
 
-	public void setOffer(String make, String model, int year, int price, String avail, int amt) {
-		cDetails = new Car(make, model, year);
-		oPrice = price;
-		oAvail = "yes";
-		oAmt = amt;
-		oStatus = true;
-		oAccept = false;
-		oPending=false;
-		
+    public int getMpay() {
+        return oMpay;
+    }
 
-		// offer= cDetails.getCarMake()+" "+cDetails.getCarModel()+"
-		// "+cDetails.getCarYear() + " "+ price+" "+avail+" "+amt;
-	}
+    public String getAvail() {
+        return oAvail;
+    }
 
-	public void getOfferAll() {
+    public void setAvail(String avail) {
+        oAvail = parseAvailability(avail) ? "yes" : "no";
+        oStatus = "yes".equals(oAvail) && oAmt > 0;
+    }
 
-		for (int i = 0; i <= offerDB.length-1; i++) {
-			if(offerDB[i]!=null)
-				System.out.println("[" + i + "]" + offerDB[i]);
-		}
-		System.out.println("\nWe have no Cars to at this Time!");
-	}
+    public void setAmt(int amount) {
+        if (amount < 0) {
+            throw new IllegalArgumentException("stock quantity must not be negative");
+        }
+        oAmt = amount;
+        oStatus = amount > 0 && "yes".equals(oAvail);
+    }
 
-	public String getOffer() {
+    public int getAmt() {
+        return oAmt;
+    }
 
-		String offer = "[" + oIndex + "]   " + " Car:-  " + cDetails.getCarMake() + "   Model: "
-				+ cDetails.getCarModel() + "   Year: " + cDetails.getCarYear() + "   Price: " + oPrice + "   Avail: "
-				+ oAvail + "   Stock Qty: " + oAmt;
-		System.out.println(offer);
-		return offer;
-	}
+    public boolean isAvail() {
+        return oStatus && oAmt > 0;
+    }
 
-	public String toString() {
-		return getOffer();
-	}
+    public void setStatus(boolean status) {
+        oStatus = status;
+    }
 
-	public void setPrice(int price) {
-		oPrice = price;
-	}
+    public boolean getStatus() {
+        return oStatus;
+    }
 
-	public int getPrice() {
-		return oPrice;
-	}
+    public void getAccept(Offer[] ignored) {
+        for (PurchaseRequest request : purchaseRequests) {
+            if (request.getStatus() == PurchaseRequestStatus.ACCEPTED) {
+                InventoryListing listing = requireListing(request.getListingId());
+                System.out.println(listing.describe() + "   Offer Accepted: "
+                        + request.getCustomerName());
+            }
+        }
+    }
 
-	public void setMpay(int mpay) {
-		
-		oMpay = mpay;
-	}
+    public void setAccept() {
+        oAccept = true;
+    }
 
-	public int getMpay() {
-		return oMpay;
-	}
+    /**
+     * Decides one purchase request and returns its listing price for the
+     * ownership/payment-plan compatibility flow.
+     */
+    public int setAccept(int requestNumber, int months, boolean accept) {
+        PurchaseRequest request = requireRequest(requestNumber);
+        InventoryListing listing = requireListing(request.getListingId());
 
-	public String getAvail() {
-		return oAvail;
-	}
+        if (!accept) {
+            request.reject();
+            refreshPendingFlag();
+            oAccept = false;
+            return listing.getPrice();
+        }
 
-	public void setAvail(String avail) {
-		oAvail = avail;
-	}
+        if (!listing.isAvailable()) {
+            throw new IllegalStateException("listing is not available");
+        }
+        request.accept(listing.getPrice(), months);
+        listing.decrementStock();
 
-	public void setAmt(int amt) {
-		oAmt = amt;
-	}
+        oAccept = true;
+        oMpay = request.getMonthlyPayment();
+        oPrice = listing.getPrice();
+        oAmt = listing.getStockQuantity();
+        oStatus = listing.isAvailable();
+        oAvail = listing.isAvailable() ? "yes" : "no";
+        oCName = request.getCustomerName();
+        oDetails = listing.describe() + "   Offer Accepted: " + oCName
+                + "   Monthly Payment: " + oMpay;
+        refreshPendingFlag();
+        System.out.println(oDetails);
+        return listing.getPrice();
+    }
 
-	public int getAmt() {
-		return oAmt;
-	}
+    public void rejectAllOffers() {
+        for (PurchaseRequest request : purchaseRequests) {
+            if (request.isPending()) {
+                request.reject();
+            }
+        }
+        refreshPendingFlag();
+        System.out.println("\nMessage: All Pending Offers REJECTED!! ");
+    }
 
-	public boolean isAvail() {
-		if (oAmt == 0)
-			oStatus = false;
-		return oStatus;
-	}
+    public void removeOffer(int listingNumber) {
+        InventoryListing listing = requireListing(listingNumber);
+        listing.remove();
+        System.out.println(listing.describe() + "\nMessage: Car Listing Removed!! ");
+    }
 
-	public void setStatus(boolean status) {
-		oStatus = status;
+    public boolean getAccept() {
+        return oAccept;
+    }
 
-	}
+    public Car getCarDB(int listingNumber) {
+        return requireListing(listingNumber).getCar();
+    }
 
-	public boolean getStatus() {
-		return oStatus;
-	}
+    public int getListingCount() {
+        return listings.size();
+    }
 
-	public void getAccept(Offer[] offerdb) {
-		for (int i = 0; i >= offerdb.length; i++) {
-			if (offerdb[i].oAccept)
-				System.out.println(offerdb[i].oDetails + "   Offer Accepted: " + offerdb[i].oCName);
-			oAccept = false;
-		}
+    public List<InventoryListing> getListings() {
+        return Collections.unmodifiableList(new ArrayList<>(listings));
+    }
 
-	}
+    public List<PurchaseRequest> getPurchaseRequests() {
+        return Collections.unmodifiableList(new ArrayList<>(purchaseRequests));
+    }
 
-	public void setAccept() {
-		oAccept=true;	
-	}
-	// serches
-	public int setAccept(int onum, int mth, boolean accept) {
-		if (accept) {
-			
-			
-			for (int i = 0; i >= cpOffer.length; i++) {
-				if (cpOffer[i]==onum ) {//onum is offer number
-					oAmt = oAmt - 1;
-					oAccept = true;
-					//System.out.println("Please Enter Number of Monthly Payments: ");					
-					System.out.println(offerDB[onum] + "   Offer Accepted: " + cName[onum]);
-					oMpay = cpPrice[onum]/mth;
-					oDetails= offerDB[onum] + "   Offer Accepted: " + cName[onum]+"   Monthly Payment:  "+oMpay; //remember to update amt
-					oCName = cName[onum];
-					oOfferDB[oIndex]=this;   //stores this offer in offerDB
-					oIndex++;
-					return oMpay;
-					// Offer accept = offerDB[i];
-				} else
-					oAccept = false;
-			}
+    private InventoryListing requireListing(int listingNumber) {
+        if (listingNumber < 0 || listingNumber >= listings.size()) {
+            throw new IllegalArgumentException("unknown listing number: " + listingNumber);
+        }
+        return listings.get(listingNumber);
+    }
 
-		}
-		return cpPrice[onum];
+    private PurchaseRequest requireRequest(int requestNumber) {
+        if (requestNumber < 0 || requestNumber >= purchaseRequests.size()) {
+            throw new IllegalArgumentException("unknown purchase request number: " + requestNumber);
+        }
+        return purchaseRequests.get(requestNumber);
+    }
 
-	}
+    private void refreshPendingFlag() {
+        oPending = purchaseRequests.stream().anyMatch(PurchaseRequest::isPending);
+    }
 
-	public void rejectAllOffers() {
-		
-		opIndex = 0;// could just do this 
-		for(int i=0; i<=cpOffer.length-1; i++)
-		{
-			cpOffer[0] = 0;
-			cpPrice[0] = 0;
-			cName[0]=" ";
-			
-			//offer ObjectDB Object.pending=false;
-		}
-	
-		System.out.println("\nMessage: All Pending Offers REJECTED!! ");
-	
-	}
-	
-	public void removeOffer(int onum) {
-		
-		System.out.println(offerDB[onum]+"\nMessage: Car Listing Removed!! ");
-		if(offerDB[onum]!=null)
-			offerDB[onum] = "";
-		//consider removing car for carDB?
-	    //Offer ObjectDB  [onum].status=false
-			
-	}
-	
-	public boolean getAccept() {
-		return oAccept;
-	}
-
-	public Car getCarDB(int pnum) {
-		return carDB[pnum];
-	}
-
+    private static boolean parseAvailability(String availability) {
+        return availability != null
+                && ("yes".equalsIgnoreCase(availability.trim())
+                || "y".equalsIgnoreCase(availability.trim())
+                || "true".equalsIgnoreCase(availability.trim()));
+    }
 }
