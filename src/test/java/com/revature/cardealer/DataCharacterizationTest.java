@@ -1,56 +1,47 @@
 package com.revature.cardealer;
 
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 
-import java.lang.reflect.Field;
-
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
+import com.revature.service.InMemoryUserAccountRepository;
+import com.revature.service.UserAccountRepository;
 
-@Tag("legacy-behavior")
-@DisplayName("Data legacy constructor characterization")
 class DataCharacterizationTest {
 
     @Test
-    @DisplayName("parameterized constructor retains login services and users")
-    void parameterizedConstructorRetainsAssignedCoreObjects() {
-        CustomerLoginService customerService = new CustomerLoginService();
-        EmployeeLoginService employeeService = new EmployeeLoginService();
-        User employee = new User();
-        User customer = new User();
+    @Tag("TARGET-BEHAVIOR")
+    void parameterizedConstructorAssignsRuntimeObjectsAndBuildsSnapshot() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        CustomerLoginService customerService = new CustomerLoginService(repository);
+        EmployeeLoginService employeeService = new EmployeeLoginService(repository);
+        User customer = customerService.registerUser("customer", "secret");
+        User employee = employeeService.registerUser("employee", "secret");
+        Offer inventory = new Offer();
+        inventory.registerOffer("Honda", "Accord", 2018, 15_000, "yes", 2);
+        inventory.setpOffer("customer", 0);
+        Payments payments = new Payments();
+        payments.setAmtOwed(15_000);
+        payments.makePayment("customer", 500);
+        customerService.setCarsOwned(new Car("Honda", "Accord", 2018), 15_000, 12);
 
-        Data data = new Data(customerService, employeeService, employee, customer, new Offer(), new Payments());
+        Data data = new Data(customerService, employeeService, employee, customer, inventory, payments);
+        ApplicationStateSnapshot snapshot = data.getSnapshot();
 
         assertSame(customerService, data.getCustomerLoginService());
         assertSame(employeeService, data.getEmployeeLoginService());
         assertSame(customer, data.getCustomer());
         assertSame(employee, data.getEmployee());
-    }
-
-    @Test
-    @Tag("known-defect")
-    @DisplayName("parameterized constructor currently omits Offer and Payments assignments")
-    void parameterizedConstructorCurrentlyOmitsOfferAndPayments() throws ReflectiveOperationException {
-        Data data = new Data(
-                new CustomerLoginService(),
-                new EmployeeLoginService(),
-                new User(),
-                new User(),
-                new Offer(),
-                new Payments());
-
-        assertNull(readField(data, "dCarlot"));
-        assertNull(readField(data, "dPayments"));
-    }
-
-    private static Object readField(Data data, String fieldName) throws ReflectiveOperationException {
-        Field field = Data.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return field.get(data);
+        assertSame(inventory, data.getOffer());
+        assertSame(payments, data.getPayments());
+        assertEquals(2, snapshot.getAccounts().size());
+        assertEquals(1, snapshot.getInventoryListings().size());
+        assertEquals(1, snapshot.getPurchaseRequests().size());
+        assertEquals(1, snapshot.getOwnedVehicles().size());
+        assertEquals(1, snapshot.getPaymentTransactions().size());
     }
 }

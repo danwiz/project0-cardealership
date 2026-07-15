@@ -33,11 +33,9 @@ public class UserLoginService {
         validateCredential("username", username);
         validateCredential("password", password);
         Objects.requireNonNull(role, "role");
-
         if (userRepository.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("username is already registered");
         }
-
         User newUser = new User();
         newUser.setUsername(username);
         newUser.setPassword(passwordHasher.hash(password));
@@ -55,7 +53,6 @@ public class UserLoginService {
         if (credentials == null || isBlank(credentials.getUsername()) || credentials.getPassword() == null) {
             return Optional.empty();
         }
-
         return userRepository.findByUsername(credentials.getUsername())
                 .filter(account -> passwordHasher.matches(credentials.getPassword(), account.getPassword()));
     }
@@ -64,22 +61,20 @@ public class UserLoginService {
         return authenticate(credentials).isPresent();
     }
 
+    public List<User> getUsers() {
+        return userRepository.findAll();
+    }
+
     public String[] getUserNames() {
-        List<User> users = userRepository.findAll();
+        List<User> users = getUsers();
         String[] usernames = new String[users.size()];
-        for (int i = 0; i < users.size(); i++) {
-            usernames[i] = users.get(i).getUsername();
-        }
+        for (int i = 0; i < users.size(); i++) usernames[i] = users.get(i).getUsername();
         return usernames;
     }
 
     private static void validateCredential(String fieldName, String value) {
-        if (value == null) {
-            throw new IllegalArgumentException(fieldName + " must not be null");
-        }
-        if (isBlank(value)) {
-            throw new IllegalArgumentException(fieldName + " must not be blank");
-        }
+        if (value == null) throw new IllegalArgumentException(fieldName + " must not be null");
+        if (isBlank(value)) throw new IllegalArgumentException(fieldName + " must not be blank");
     }
 
     private static boolean isBlank(String value) {

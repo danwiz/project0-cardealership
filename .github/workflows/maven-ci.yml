@@ -12,6 +12,7 @@ on:
       - refactor/ownership-payment-records
       - refactor/payment-ledger
       - refactor/inventory-purchase-requests
+      - refactor/versioned-persistence
   pull_request:
     branches:
       - master
@@ -23,6 +24,7 @@ on:
       - refactor/console-authorization-boundary
       - refactor/ownership-payment-records
       - refactor/payment-ledger
+      - refactor/inventory-purchase-requests
   workflow_dispatch:
 
 permissions:

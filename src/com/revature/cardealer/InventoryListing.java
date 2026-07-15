@@ -1,8 +1,11 @@
 package com.revature.cardealer;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class InventoryListing {
+public class InventoryListing implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final int id;
     private final Car car;
@@ -27,49 +30,24 @@ public class InventoryListing {
         this.active = active && stockQuantity > 0;
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public Car getCar() {
-        return car;
-    }
-
-    public int getPrice() {
-        return price;
-    }
+    public int getId() { return id; }
+    public Car getCar() { return car; }
+    public int getPrice() { return price; }
 
     public void setPrice(int price) {
-        if (price < 0) {
-            throw new IllegalArgumentException("price must not be negative");
-        }
+        if (price < 0) throw new IllegalArgumentException("price must not be negative");
         this.price = price;
     }
 
-    public int getStockQuantity() {
-        return stockQuantity;
-    }
-
-    public boolean isActive() {
-        return active;
-    }
-
-    public boolean isAvailable() {
-        return active && stockQuantity > 0;
-    }
-
-    public void remove() {
-        active = false;
-    }
+    public int getStockQuantity() { return stockQuantity; }
+    public boolean isActive() { return active; }
+    public boolean isAvailable() { return active && stockQuantity > 0; }
+    public void remove() { active = false; }
 
     public void decrementStock() {
-        if (!isAvailable()) {
-            throw new IllegalStateException("listing is not available");
-        }
+        if (!isAvailable()) throw new IllegalStateException("listing is not available");
         stockQuantity--;
-        if (stockQuantity == 0) {
-            active = false;
-        }
+        if (stockQuantity == 0) active = false;
     }
 
     public String describe() {
