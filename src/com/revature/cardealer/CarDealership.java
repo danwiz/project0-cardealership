@@ -19,12 +19,13 @@ import com.revature.service.UserLoginService;
 public class CarDealership {
 
     private static final String STATE_FILE = "CarDealer.dat";
-    private static final UserAccountRepository USER_REPOSITORY = new InMemoryUserAccountRepository();
-    private static final UserLoginService uls = new UserLoginService(USER_REPOSITORY);
-    private static final CustomerLoginService cls = new CustomerLoginService(USER_REPOSITORY);
-    private static final EmployeeLoginService els = new EmployeeLoginService(USER_REPOSITORY);
-    private static final AdminLoginService als = new AdminLoginService(USER_REPOSITORY);
+    private static UserAccountRepository userRepository = new InMemoryUserAccountRepository();
+    private static UserLoginService uls = new UserLoginService(userRepository);
+    private static CustomerLoginService cls = new CustomerLoginService(userRepository);
+    private static EmployeeLoginService els = new EmployeeLoginService(userRepository);
+    private static AdminLoginService als = new AdminLoginService(userRepository);
     private static final RoleAuthorizationService authorization = new RoleAuthorizationService();
+    private static final SnapshotRehydrator snapshotRehydrator = new SnapshotRehydrator();
 
     private static User customer = new User();
     private static User employee = new User();
@@ -52,13 +53,10 @@ public class CarDealership {
     private static void performUserAction(String option) {
         switch (option) {
         case "1": registerAccount(); break;
-        case "2": authenticateAndAuthorize(cls, Permission.VIEW_INVENTORY)
-                .ifPresent(CarDealership::showCustomerMenu); break;
-        case "3": authenticateAndAuthorize(els, Permission.MANAGE_INVENTORY)
-                .ifPresent(CarDealership::showEmployeeMenu); break;
+        case "2": authenticateAndAuthorize(cls, Permission.VIEW_INVENTORY).ifPresent(CarDealership::showCustomerMenu); break;
+        case "3": authenticateAndAuthorize(els, Permission.MANAGE_INVENTORY).ifPresent(CarDealership::showEmployeeMenu); break;
         case "4": System.out.println("goodbye"); break;
-        case "5": authenticateAndAuthorize(als, Permission.MANAGE_PERSISTENCE)
-                .ifPresent(CarDealership::showAdminMenu); break;
+        case "5": authenticateAndAuthorize(als, Permission.MANAGE_PERSISTENCE).ifPresent(CarDealership::showAdminMenu); break;
         default: System.out.println("did not understand input"); break;
         }
     }
@@ -68,22 +66,13 @@ public class CarDealership {
         System.out.println("[1] Register Customer");
         System.out.println("[2] Register Employee");
         System.out.println("[3] Register Administrator");
-        System.out.println("Select an option:  ");
         String option = scan.nextLine();
         User credentials = getUserInfo();
         try {
-            if ("1".equals(option)) {
-                customer = cls.registerUser(credentials.getUsername(), credentials.getPassword());
-                System.out.println("Customer registered");
-            } else if ("2".equals(option)) {
-                employee = els.registerUser(credentials.getUsername(), credentials.getPassword());
-                System.out.println("Employee registered");
-            } else if ("3".equals(option)) {
-                als.registerUser(credentials.getUsername(), credentials.getPassword());
-                System.out.println("Administrator registered");
-            } else {
-                System.out.println("did not understand input");
-            }
+            if ("1".equals(option)) { customer = cls.registerUser(credentials.getUsername(), credentials.getPassword()); System.out.println("Customer registered"); }
+            else if ("2".equals(option)) { employee = els.registerUser(credentials.getUsername(), credentials.getPassword()); System.out.println("Employee registered"); }
+            else if ("3".equals(option)) { als.registerUser(credentials.getUsername(), credentials.getPassword()); System.out.println("Administrator registered"); }
+            else System.out.println("did not understand input");
         } catch (IllegalArgumentException exception) {
             System.out.println("Registration failed: " + exception.getMessage());
         }
@@ -91,49 +80,31 @@ public class CarDealership {
 
     private static Optional<User> authenticateAndAuthorize(UserLoginService loginService, Permission permission) {
         Optional<User> authenticated = loginService.authenticate(getUserInfo());
-        if (!authenticated.isPresent()) {
-            currentAccount = null;
-            System.out.println("failure");
-            return Optional.empty();
-        }
+        if (!authenticated.isPresent()) { currentAccount = null; System.out.println("failure"); return Optional.empty(); }
         User account = authenticated.get();
-        if (!authorization.isAuthorized(account, permission)) {
-            currentAccount = null;
-            System.out.println("access denied");
-            return Optional.empty();
-        }
+        if (!authorization.isAuthorized(account, permission)) { currentAccount = null; System.out.println("access denied"); return Optional.empty(); }
         currentAccount = account;
         return authenticated;
     }
 
     private static void showCustomerMenu(User account) {
-        System.out.println("Welcome To The Dealership: \n");
-        System.out.println("[1] View Car Lot");
-        System.out.println("[2] View Cars Owned");
-        System.out.println("[3] View Payments");
-        System.out.println("\nSelect an option: ");
+        System.out.println("Welcome To The Dealership: \n[1] View Car Lot\n[2] View Cars Owned\n[3] View Payments");
         String option = scan.nextLine();
         if ("1".equals(option)) {
             authorization.requireAuthorized(account, Permission.VIEW_INVENTORY);
             seedInventoryIfEmpty();
             Carlot.getOfferAll();
-            System.out.println("\n\n Enter Listing Number to Request Purchase:");
             int listingNumber = Integer.parseInt(scan.nextLine());
             authorization.requireAuthorized(account, Permission.REQUEST_PURCHASE);
-            if (listingNumber >= 0 && listingNumber < Carlot.getListingCount()) {
-                Carlot.setpOffer(account.getUsername(), listingNumber);
-            } else {
-                System.out.println("Invalid listing number");
-            }
+            if (listingNumber >= 0 && listingNumber < Carlot.getListingCount()) Carlot.setpOffer(account.getUsername(), listingNumber);
+            else System.out.println("Invalid listing number");
         } else if ("2".equals(option)) {
             authorization.requireAuthorized(account, Permission.VIEW_OWNED_VEHICLES);
             cls.getCarsOwned();
         } else if ("3".equals(option)) {
             authorization.requireAuthorized(account, Permission.VIEW_OWN_PAYMENTS);
             PaymentsDB.getPaymentsAll();
-        } else {
-            System.out.println("did not understand input");
-        }
+        } else System.out.println("did not understand input");
     }
 
     private static void seedInventoryIfEmpty() {
@@ -145,42 +116,22 @@ public class CarDealership {
     }
 
     private static void showEmployeeMenu(User account) {
-        System.out.println("Employee View: \n");
-        System.out.println("[1] View Car Lot");
-        System.out.println("[2] View Pending Requests");
-        System.out.println("[3] View Customer Payments");
-        System.out.println("\n Select an option: ");
+        System.out.println("Employee View: \n[1] View Car Lot\n[2] View Pending Requests\n[3] View Customer Payments");
         String option = scan.nextLine();
-        if ("1".equals(option)) {
-            authorization.requireAuthorized(account, Permission.MANAGE_INVENTORY);
-            manageInventory();
-        } else if ("2".equals(option)) {
-            authorization.requireAuthorized(account, Permission.REVIEW_PURCHASE_REQUESTS);
-            reviewPurchaseRequests();
-        } else if ("3".equals(option)) {
-            authorization.requireAuthorized(account, Permission.VIEW_CUSTOMER_PAYMENTS);
-            PaymentsDB.getPaymentsAll();
-        } else {
-            System.out.println("did not understand input");
-        }
+        if ("1".equals(option)) { authorization.requireAuthorized(account, Permission.MANAGE_INVENTORY); manageInventory(); }
+        else if ("2".equals(option)) { authorization.requireAuthorized(account, Permission.REVIEW_PURCHASE_REQUESTS); reviewPurchaseRequests(); }
+        else if ("3".equals(option)) { authorization.requireAuthorized(account, Permission.VIEW_CUSTOMER_PAYMENTS); PaymentsDB.getPaymentsAll(); }
+        else System.out.println("did not understand input");
     }
 
     private static void manageInventory() {
         Carlot.getOfferAll();
-        System.out.println("\n[1] Add Car to Lot: ");
-        System.out.println("\n[2] Remove Car From Lot: ");
         String option = scan.nextLine();
         if ("1".equals(option)) {
             String[] input = scan.nextLine().split("\\s*,\\s*");
-            if (input.length != 5) {
-                System.out.println("Invalid vehicle input");
-                return;
-            }
-            Carlot.registerOffer(input[0], input[1], Integer.parseInt(input[2]),
-                    Integer.parseInt(input[3]), "yes", Integer.parseInt(input[4]));
-        } else if ("2".equals(option)) {
-            Carlot.removeOffer(Integer.parseInt(scan.nextLine()));
-        }
+            if (input.length != 5) { System.out.println("Invalid vehicle input"); return; }
+            Carlot.registerOffer(input[0], input[1], Integer.parseInt(input[2]), Integer.parseInt(input[3]), "yes", Integer.parseInt(input[4]));
+        } else if ("2".equals(option)) Carlot.removeOffer(Integer.parseInt(scan.nextLine()));
     }
 
     private static void reviewPurchaseRequests() {
@@ -191,18 +142,14 @@ public class CarDealership {
             PurchaseRequest request = Carlot.getPurchaseRequests().get(requestNumber);
             int price = Carlot.setAccept(requestNumber, months, true);
             cls.setCarsOwned(Carlot.getCarDB(request.getListingId()), price, months);
-        } else {
-            System.out.println("\nMessage: Can Not Accept The Payment terms ");
-        }
+        } else System.out.println("\nMessage: Can Not Accept The Payment terms ");
         String input = scan.nextLine();
         if ("yes".equalsIgnoreCase(input) || "y".equalsIgnoreCase(input)) Carlot.rejectAllOffers();
     }
 
     private static void showAdminMenu(User account) {
         authorization.requireAuthorized(account, Permission.MANAGE_PERSISTENCE);
-        System.out.println("You are now an Admin");
-        System.out.println("\n [1] Serialize and Save Data");
-        System.out.println("\n [2] Deserialize and Load Data");
+        System.out.println("You are now an Admin\n [1] Serialize and Save Data\n [2] Deserialize and Load Data");
         String input = scan.nextLine();
         CarDealership application = new CarDealership();
         if ("1".equals(input)) application.saveData();
@@ -219,24 +166,42 @@ public class CarDealership {
     }
 
     static User getCurrentAccount() { return currentAccount; }
+    static CustomerLoginService getCustomerService() { return cls; }
+    static Offer getInventory() { return Carlot; }
+    static Payments getPaymentLedger() { return PaymentsDB; }
 
     public LoadResult loadData() {
         LoadResult result = cDao.loadData(STATE_FILE);
-        if (result.isSuccess()) {
-            ApplicationStateSnapshot snapshot = result.getSnapshot().get();
-            System.out.println("Loaded application state version " + snapshot.getVersion()
-                    + " with " + snapshot.getAccounts().size() + " accounts.");
-        } else {
+        if (!result.isSuccess()) {
             System.out.println("Load failed [" + result.getStatus() + "]: " + result.getMessage());
+            return result;
         }
-        return result;
+        try {
+            RehydratedApplicationState replacement = snapshotRehydrator.rehydrate(result.getSnapshot().get());
+            apply(replacement);
+            currentAccount = null;
+            System.out.println("Application state loaded and activated.");
+            return result;
+        } catch (IllegalArgumentException exception) {
+            System.out.println("Load rejected [INVALID_CONTENT]: " + exception.getMessage());
+            return LoadResult.failure(LoadResult.Status.INVALID_CONTENT, exception.getMessage());
+        }
+    }
+
+    static void apply(RehydratedApplicationState replacement) {
+        userRepository = replacement.getAccountRepository();
+        uls = replacement.getUserLoginService();
+        cls = replacement.getCustomerLoginService();
+        els = replacement.getEmployeeLoginService();
+        als = replacement.getAdminLoginService();
+        Carlot = replacement.getInventory();
+        PaymentsDB = replacement.getPayments();
     }
 
     public SaveResult saveData() {
         Data state = new Data(cls, els, employee, customer, Carlot, PaymentsDB);
         SaveResult result = cDao.saveData(state, STATE_FILE);
-        System.out.println(result.isSuccess() ? "Application state saved." :
-                "Save failed [" + result.getStatus() + "]: " + result.getMessage());
+        System.out.println(result.isSuccess() ? "Application state saved." : "Save failed [" + result.getStatus() + "]: " + result.getMessage());
         return result;
     }
 }
