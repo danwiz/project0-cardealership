@@ -1,22 +1,44 @@
 package com.revature.cardealer;
 
-import java.util.Optional;
-
 import com.revature.DAOService.LoadResult;
 import com.revature.DAOService.SaveResult;
+import com.revature.application.AuthenticateAccountCommand;
+import com.revature.application.LoadStateCommand;
+import com.revature.application.ManageInventoryCommand;
+import com.revature.application.RegisterAccountCommand;
+import com.revature.application.RequestPurchaseCommand;
+import com.revature.application.ReviewPurchaseRequestCommand;
+import com.revature.application.SaveStateCommand;
+import com.revature.application.SeedDefaultInventoryCommand;
 import com.revature.service.Permission;
 import com.revature.service.UserLoginService;
 
-/** Coordinates console commands against an explicit application context. */
+/** Translates console input into application command invocations. */
 public final class ConsoleCommandHandler {
     private static final String STATE_FILE = "CarDealer.dat";
 
     private final DealershipApplicationContext context;
     private final ConsoleIO io;
+    private final RegisterAccountCommand registerAccount;
+    private final AuthenticateAccountCommand authenticateAccount;
+    private final ManageInventoryCommand manageInventory;
+    private final RequestPurchaseCommand requestPurchase;
+    private final ReviewPurchaseRequestCommand reviewPurchaseRequest;
+    private final SaveStateCommand saveState;
+    private final LoadStateCommand loadState;
+    private final SeedDefaultInventoryCommand seedDefaultInventory;
 
     public ConsoleCommandHandler(DealershipApplicationContext context, ConsoleIO io) {
         this.context = context;
         this.io = io;
+        this.registerAccount = new RegisterAccountCommand(context);
+        this.authenticateAccount = new AuthenticateAccountCommand(context);
+        this.manageInventory = new ManageInventoryCommand(context);
+        this.requestPurchase = new RequestPurchaseCommand(context);
+        this.reviewPurchaseRequest = new ReviewPurchaseRequestCommand(context);
+        this.saveState = new SaveStateCommand(context);
+        this.loadState = new LoadStateCommand(context);
+        this.seedDefaultInventory = new SeedDefaultInventoryCommand(context);
     }
 
     public void run() {
@@ -35,15 +57,24 @@ public final class ConsoleCommandHandler {
 
     public void handleMainCommand(String option) {
         switch (option) {
-        case "1": registerAccount(); break;
-        case "2": authenticateAndAuthorize(context.getCustomerLoginService(), Permission.VIEW_INVENTORY)
-                .ifPresent(this::showCustomerMenu); break;
-        case "3": authenticateAndAuthorize(context.getEmployeeLoginService(), Permission.MANAGE_INVENTORY)
-                .ifPresent(this::showEmployeeMenu); break;
-        case "4": io.writeLine("goodbye"); break;
-        case "5": authenticateAndAuthorize(context.getAdminLoginService(), Permission.MANAGE_PERSISTENCE)
-                .ifPresent(this::showAdminMenu); break;
-        default: io.writeLine("did not understand input"); break;
+        case "1":
+            registerAccount();
+            break;
+        case "2":
+            authenticate(context.getCustomerLoginService(), Permission.VIEW_INVENTORY, this::showCustomerMenu);
+            break;
+        case "3":
+            authenticate(context.getEmployeeLoginService(), Permission.MANAGE_INVENTORY, this::showEmployeeMenu);
+            break;
+        case "4":
+            io.writeLine("goodbye");
+            break;
+        case "5":
+            authenticate(context.getAdminLoginService(), Permission.MANAGE_PERSISTENCE, this::showAdminMenu);
+            break;
+        default:
+            io.writeLine("did not understand input");
+            break;
         }
     }
 
@@ -55,43 +86,23 @@ public final class ConsoleCommandHandler {
         String option = io.readLine();
         User credentials = readCredentials();
         try {
-            if ("1".equals(option)) {
-                User account = context.getCustomerLoginService().registerUser(
-                        credentials.getUsername(), credentials.getPassword());
-                context.setLatestCustomer(account);
-                io.writeLine("Customer registered");
-            } else if ("2".equals(option)) {
-                User account = context.getEmployeeLoginService().registerUser(
-                        credentials.getUsername(), credentials.getPassword());
-                context.setLatestEmployee(account);
-                io.writeLine("Employee registered");
-            } else if ("3".equals(option)) {
-                context.getAdminLoginService().registerUser(
-                        credentials.getUsername(), credentials.getPassword());
-                io.writeLine("Administrator registered");
-            } else {
-                io.writeLine("did not understand input");
-            }
+            AccountRole role = roleForOption(option);
+            registerAccount.execute(role, credentials.getUsername(), credentials.getPassword());
+            io.writeLine(roleLabel(role) + " registered");
         } catch (IllegalArgumentException exception) {
             io.writeLine("Registration failed: " + exception.getMessage());
         }
     }
 
-    private Optional<User> authenticateAndAuthorize(UserLoginService service, Permission permission) {
-        Optional<User> authenticated = service.authenticate(readCredentials());
-        if (!authenticated.isPresent()) {
-            context.setCurrentAccount(null);
+    private void authenticate(UserLoginService service, Permission permission, AccountConsumer consumer) {
+        AuthenticateAccountCommand.Result result = authenticateAccount.execute(service, readCredentials(), permission);
+        if (result.getStatus() == AuthenticateAccountCommand.Status.INVALID_CREDENTIALS) {
             io.writeLine("failure");
-            return Optional.empty();
-        }
-        User account = authenticated.get();
-        if (!context.getAuthorizationService().isAuthorized(account, permission)) {
-            context.setCurrentAccount(null);
+        } else if (result.getStatus() == AuthenticateAccountCommand.Status.ACCESS_DENIED) {
             io.writeLine("access denied");
-            return Optional.empty();
+        } else {
+            consumer.accept(result.getAccount().get());
         }
-        context.setCurrentAccount(account);
-        return authenticated;
     }
 
     private void showCustomerMenu(User account) {
@@ -99,13 +110,11 @@ public final class ConsoleCommandHandler {
         String option = io.readLine();
         if ("1".equals(option)) {
             context.getAuthorizationService().requireAuthorized(account, Permission.VIEW_INVENTORY);
-            seedInventoryIfEmpty();
+            seedDefaultInventory.execute();
             context.getInventory().getOfferAll();
-            int listingNumber = Integer.parseInt(io.readLine());
-            context.getAuthorizationService().requireAuthorized(account, Permission.REQUEST_PURCHASE);
-            if (listingNumber >= 0 && listingNumber < context.getInventory().getListingCount()) {
-                context.getInventory().setpOffer(account.getUsername(), listingNumber);
-            } else {
+            try {
+                requestPurchase.execute(account, Integer.parseInt(io.readLine()));
+            } catch (IllegalArgumentException exception) {
                 io.writeLine("Invalid listing number");
             }
         } else if ("2".equals(option)) {
@@ -123,11 +132,9 @@ public final class ConsoleCommandHandler {
         io.writeLine("Employee View: \n[1] View Car Lot\n[2] View Pending Requests\n[3] View Customer Payments");
         String option = io.readLine();
         if ("1".equals(option)) {
-            context.getAuthorizationService().requireAuthorized(account, Permission.MANAGE_INVENTORY);
-            manageInventory();
+            handleInventoryCommand(account);
         } else if ("2".equals(option)) {
-            context.getAuthorizationService().requireAuthorized(account, Permission.REVIEW_PURCHASE_REQUESTS);
-            reviewPurchaseRequests();
+            handlePurchaseReview(account);
         } else if ("3".equals(option)) {
             context.getAuthorizationService().requireAuthorized(account, Permission.VIEW_CUSTOMER_PAYMENTS);
             context.getPayments().getPaymentsAll();
@@ -136,38 +143,36 @@ public final class ConsoleCommandHandler {
         }
     }
 
-    private void manageInventory() {
+    private void handleInventoryCommand(User account) {
         context.getInventory().getOfferAll();
         String option = io.readLine();
-        if ("1".equals(option)) {
-            String[] input = io.readLine().split("\\s*,\\s*");
-            if (input.length != 5) {
-                io.writeLine("Invalid vehicle input");
-                return;
+        try {
+            if ("1".equals(option)) {
+                String[] input = io.readLine().split("\\s*,\\s*");
+                if (input.length != 5) {
+                    io.writeLine("Invalid vehicle input");
+                    return;
+                }
+                manageInventory.add(account, input[0], input[1], Integer.parseInt(input[2]),
+                        Integer.parseInt(input[3]), Integer.parseInt(input[4]));
+            } else if ("2".equals(option)) {
+                manageInventory.remove(account, Integer.parseInt(io.readLine()));
             }
-            context.getInventory().registerOffer(input[0], input[1], Integer.parseInt(input[2]),
-                    Integer.parseInt(input[3]), "yes", Integer.parseInt(input[4]));
-        } else if ("2".equals(option)) {
-            context.getInventory().removeOffer(Integer.parseInt(io.readLine()));
+        } catch (IllegalArgumentException exception) {
+            io.writeLine("Invalid vehicle input");
         }
     }
 
-    private void reviewPurchaseRequests() {
+    private void handlePurchaseReview(User account) {
         context.getInventory().getpOffers();
-        int requestNumber = Integer.parseInt(io.readLine());
-        int months = Integer.parseInt(io.readLine());
-        if (months > 0 && requestNumber >= 0
-                && requestNumber < context.getInventory().getPurchaseRequests().size()) {
-            PurchaseRequest request = context.getInventory().getPurchaseRequests().get(requestNumber);
-            int price = context.getInventory().setAccept(requestNumber, months, true);
-            context.getCustomerLoginService().setCarsOwned(
-                    context.getInventory().getCarDB(request.getListingId()), price, months);
-        } else {
+        try {
+            int requestNumber = Integer.parseInt(io.readLine());
+            int months = Integer.parseInt(io.readLine());
+            String rejectInput = io.readLine();
+            boolean rejectOthers = "yes".equalsIgnoreCase(rejectInput) || "y".equalsIgnoreCase(rejectInput);
+            reviewPurchaseRequest.approve(account, requestNumber, months, rejectOthers);
+        } catch (IllegalArgumentException exception) {
             io.writeLine("\nMessage: Can Not Accept The Payment terms ");
-        }
-        String input = io.readLine();
-        if ("yes".equalsIgnoreCase(input) || "y".equalsIgnoreCase(input)) {
-            context.getInventory().rejectAllOffers();
         }
     }
 
@@ -175,30 +180,27 @@ public final class ConsoleCommandHandler {
         context.getAuthorizationService().requireAuthorized(account, Permission.MANAGE_PERSISTENCE);
         io.writeLine("You are now an Admin\n [1] Serialize and Save Data\n [2] Deserialize and Load Data");
         String input = io.readLine();
-        if ("1".equals(input)) saveData();
-        else if ("2".equals(input)) loadData();
+        if ("1".equals(input)) {
+            saveData();
+        } else if ("2".equals(input)) {
+            loadData();
+        }
     }
 
     public LoadResult loadData() {
-        LoadResult result = context.getDataStore().loadData(STATE_FILE);
-        if (!result.isSuccess()) {
-            io.writeLine("Load failed [" + result.getStatus() + "]: " + result.getMessage());
-            return result;
-        }
-        try {
-            RehydratedApplicationState replacement = context.getSnapshotRehydrator()
-                    .rehydrate(result.getSnapshot().get());
-            context.replaceRuntime(replacement);
+        LoadResult result = loadState.execute(STATE_FILE);
+        if (result.isSuccess()) {
             io.writeLine("Application state loaded and activated.");
-            return result;
-        } catch (IllegalArgumentException exception) {
-            io.writeLine("Load rejected [INVALID_CONTENT]: " + exception.getMessage());
-            return LoadResult.failure(LoadResult.Status.INVALID_CONTENT, exception.getMessage());
+        } else if (result.getStatus() == LoadResult.Status.INVALID_CONTENT) {
+            io.writeLine("Load rejected [INVALID_CONTENT]: " + result.getMessage());
+        } else {
+            io.writeLine("Load failed [" + result.getStatus() + "]: " + result.getMessage());
         }
+        return result;
     }
 
     public SaveResult saveData() {
-        SaveResult result = context.getDataStore().saveData(context.snapshotSource(), STATE_FILE);
+        SaveResult result = saveState.execute(STATE_FILE);
         io.writeLine(result.isSuccess() ? "Application state saved."
                 : "Save failed [" + result.getStatus() + "]: " + result.getMessage());
         return result;
@@ -213,11 +215,20 @@ public final class ConsoleCommandHandler {
         return user;
     }
 
-    private void seedInventoryIfEmpty() {
-        if (context.getInventory().getListingCount() > 0) return;
-        context.getInventory().registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
-        context.getInventory().registerOffer("Chevy ", "Malibu ", 2020, 17456, "yes", 4);
-        context.getInventory().registerOffer("BMW   ", "4Series", 2016, 10456, "yes", 6);
-        context.getInventory().registerOffer("Toyota", "Corolla", 2014, 13456, "yes", 3);
+    private static AccountRole roleForOption(String option) {
+        if ("1".equals(option)) return AccountRole.CUSTOMER;
+        if ("2".equals(option)) return AccountRole.EMPLOYEE;
+        if ("3".equals(option)) return AccountRole.ADMINISTRATOR;
+        throw new IllegalArgumentException("did not understand input");
+    }
+
+    private static String roleLabel(AccountRole role) {
+        if (role == AccountRole.CUSTOMER) return "Customer";
+        if (role == AccountRole.EMPLOYEE) return "Employee";
+        return "Administrator";
+    }
+
+    private interface AccountConsumer {
+        void accept(User account);
     }
 }
