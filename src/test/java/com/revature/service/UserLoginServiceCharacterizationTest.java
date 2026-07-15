@@ -3,6 +3,8 @@ package com.revature.service;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -32,9 +34,9 @@ class UserLoginServiceCharacterizationTest {
     @Test
     void registeredUserAuthenticatesWithMatchingPassword() {
         UserLoginService service = new UserLoginService();
-        User registered = service.registerUser("dane", "secret");
+        service.registerUser("dane", "secret");
 
-        assertTrue(service.authenticateUser(registered));
+        assertTrue(service.authenticateUser(user("dane", "secret")));
     }
 
     @Test
@@ -42,9 +44,7 @@ class UserLoginServiceCharacterizationTest {
         UserLoginService service = new UserLoginService();
         service.registerUser("dane", "secret");
 
-        User attempt = user("dane", "wrong");
-
-        assertFalse(service.authenticateUser(attempt));
+        assertFalse(service.authenticateUser(user("dane", "wrong")));
     }
 
     @Test
@@ -52,11 +52,11 @@ class UserLoginServiceCharacterizationTest {
     @Tag("TARGET-BEHAVIOR")
     void authenticationDoesNotPrintStoredPasswordToStandardOutput() {
         UserLoginService service = new UserLoginService();
-        User registered = service.registerUser("dane", "secret");
+        service.registerUser("dane", "secret");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         System.setOut(new PrintStream(output));
 
-        service.authenticateUser(registered);
+        service.authenticateUser(user("dane", "secret"));
 
         assertFalse(output.toString().contains("secret"));
     }
@@ -65,17 +65,17 @@ class UserLoginServiceCharacterizationTest {
     @Tag("TARGET-BEHAVIOR")
     void constructingAnotherServiceDoesNotResetExistingServiceState() {
         UserLoginService first = new UserLoginService();
-        User registered = first.registerUser("dane", "secret");
+        first.registerUser("dane", "secret");
 
         new UserLoginService();
 
-        assertTrue(first.authenticateUser(registered));
+        assertTrue(first.authenticateUser(user("dane", "secret")));
     }
 
     @Test
     @Tag("TARGET-BEHAVIOR")
     void registrationIsNotLimitedToTenAccounts() {
-        UserLoginService service = new UserLoginService();
+        UserLoginService service = serviceWithFastHasher();
         for (int i = 0; i < 25; i++) {
             service.registerUser("user" + i, "pw" + i);
         }
@@ -86,7 +86,7 @@ class UserLoginServiceCharacterizationTest {
     @Test
     @Tag("TARGET-BEHAVIOR")
     void getUserNamesReturnsOnlyRegisteredUsersInRegistrationOrder() {
-        UserLoginService service = new UserLoginService();
+        UserLoginService service = serviceWithFastHasher();
         service.registerUser("dane", "secret");
         service.registerUser("alex", "pw");
 
@@ -95,20 +95,21 @@ class UserLoginServiceCharacterizationTest {
 
     @Test
     void removeUserMakesPreviouslyRegisteredUserUnavailable() {
-        UserLoginService service = new UserLoginService();
+        UserLoginService service = serviceWithFastHasher();
         User registered = service.registerUser("dane", "secret");
 
         service.removeUser(registered);
 
-        assertFalse(service.authenticateUser(registered));
+        assertFalse(service.authenticateUser(user("dane", "secret")));
     }
 
     @Test
     @Tag("TARGET-BEHAVIOR")
     void servicesCanShareAnExplicitRepository() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
-        UserLoginService registrationService = new UserLoginService(repository);
-        UserLoginService authenticationService = new UserLoginService(repository);
+        PasswordHasher hasher = new DeterministicPasswordHasher();
+        UserLoginService registrationService = new UserLoginService(repository, hasher);
+        UserLoginService authenticationService = new UserLoginService(repository, hasher);
 
         registrationService.registerUser("dane", "secret");
 
@@ -116,13 +117,54 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    void registrationPreservesExactCredentialStrings() {
-        UserLoginService service = new UserLoginService();
+    @Tag("SECURITY")
+    @Tag("TARGET-BEHAVIOR")
+    void registrationStoresAnEncodedPasswordInsteadOfPlaintext() {
+        UserLoginService service = serviceWithFastHasher();
 
         User registered = service.registerUser(" Dane ", " Secret ");
 
         assertEquals(" Dane ", registered.getUsername());
-        assertEquals(" Secret ", registered.getPassword());
+        assertNotEquals(" Secret ", registered.getPassword());
+        assertEquals("encoded: Secret ", registered.getPassword());
+        assertTrue(service.authenticateUser(user(" Dane ", " Secret ")));
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    void duplicateUsernameIsRejectedWithoutReplacingExistingCredential() {
+        UserLoginService service = serviceWithFastHasher();
+        service.registerUser("dane", "first");
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.registerUser("dane", "second"));
+        assertTrue(service.authenticateUser(user("dane", "first")));
+        assertFalse(service.authenticateUser(user("dane", "second")));
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    void nullAndBlankCredentialsAreRejectedAtRegistration() {
+        UserLoginService service = serviceWithFastHasher();
+
+        assertThrows(IllegalArgumentException.class, () -> service.registerUser(null, "secret"));
+        assertThrows(IllegalArgumentException.class, () -> service.registerUser("   ", "secret"));
+        assertThrows(IllegalArgumentException.class, () -> service.registerUser("dane", null));
+        assertThrows(IllegalArgumentException.class, () -> service.registerUser("dane", "   "));
+    }
+
+    @Test
+    void invalidAuthenticationInputIsRejectedWithoutException() {
+        UserLoginService service = serviceWithFastHasher();
+
+        assertFalse(service.authenticateUser(null));
+        assertFalse(service.authenticateUser(user(null, "secret")));
+        assertFalse(service.authenticateUser(user("   ", "secret")));
+        assertFalse(service.authenticateUser(user("dane", null)));
+    }
+
+    private static UserLoginService serviceWithFastHasher() {
+        return new UserLoginService(new InMemoryUserAccountRepository(), new DeterministicPasswordHasher());
     }
 
     private static User user(String username, String password) {
@@ -130,5 +172,18 @@ class UserLoginServiceCharacterizationTest {
         user.setUsername(username);
         user.setPassword(password);
         return user;
+    }
+
+    private static final class DeterministicPasswordHasher implements PasswordHasher {
+
+        @Override
+        public String hash(String plaintextPassword) {
+            return "encoded:" + plaintextPassword;
+        }
+
+        @Override
+        public boolean matches(String plaintextPassword, String encodedPassword) {
+            return encodedPassword != null && encodedPassword.equals(hash(plaintextPassword));
+        }
     }
 }
