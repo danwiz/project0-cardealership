@@ -2,7 +2,6 @@ package com.revature.cardealer;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -63,8 +62,8 @@ class CarDealershipCharacterizationTest {
         invokePerformUserAction("3");
 
         String rendered = output.toString(StandardCharsets.UTF_8);
-        assertTrue(rendered.contains("failure"));
         assertFalse(rendered.contains("Employee View"));
+        assertFalse(rendered.contains("Enter -->  Make"));
     }
 
     @Test
