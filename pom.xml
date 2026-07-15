@@ -39,6 +39,9 @@
                     <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <showWarnings>true</showWarnings>
+                    <excludes>
+                        <exclude>test/**</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
 
