@@ -1,5 +1,6 @@
 package com.revature.service;
 
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 public class EmployeeLoginService extends UserLoginService {
@@ -13,7 +14,7 @@ public class EmployeeLoginService extends UserLoginService {
     }
 
     @Override
-    public boolean authenticateUser(User user) {
-        return super.authenticateUser(user);
+    public User registerUser(String username, String password) {
+        return super.registerUser(username, password, AccountRole.EMPLOYEE);
     }
 }
