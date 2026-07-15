@@ -14,6 +14,7 @@ on:
       - refactor/inventory-purchase-requests
       - refactor/versioned-persistence
       - refactor/runtime-rehydration
+      - refactor/application-context-command-handlers
   pull_request:
     branches:
       - master
@@ -27,6 +28,7 @@ on:
       - refactor/payment-ledger
       - refactor/inventory-purchase-requests
       - refactor/versioned-persistence
+      - refactor/runtime-rehydration
   workflow_dispatch:
 
 permissions:
