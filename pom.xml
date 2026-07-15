@@ -41,6 +41,9 @@
                     <showWarnings>true</showWarnings>
                     <excludes>
                         <exclude>test/**</exclude>
+                        <!-- Archived Eclipse copies with public classes and noncanonical filenames. -->
+                        <exclude>com/revature/cardealer/Carlot - Copy.java</exclude>
+                        <exclude>com/revature/cardealer/Customer - Copy.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>
