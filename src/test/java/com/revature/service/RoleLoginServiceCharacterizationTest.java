@@ -95,7 +95,7 @@ class RoleLoginServiceCharacterizationTest {
         }
 
         assertEquals(25, service.getOwnedVehicleRecords().size());
-        assertEquals("Make24", service.getOwnedVehicle(24).getVehicle().getMake());
+        assertEquals("Make24", service.getOwnedVehicle(24).getVehicle().getCarMake());
     }
 
     @Test
