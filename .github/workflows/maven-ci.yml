@@ -11,8 +11,6 @@ on:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: write
 
 concurrency:
   group: maven-ci-${{ github.ref }}
@@ -67,29 +65,6 @@ jobs:
           set -o pipefail
           mvn --batch-mode --no-transfer-progress verify 2>&1 | tee target/ci-logs/verify-java-${{ matrix.java }}.log
 
-      - name: Publish failure diagnostics to pull request
-        if: failure() && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          {
-            echo "### Maven CI diagnostics — Java ${{ matrix.java }}"
-            echo
-            echo '```text'
-            if [[ -f target/ci-logs/compile-java-${{ matrix.java }}.log ]]; then
-              tail -n 80 target/ci-logs/compile-java-${{ matrix.java }}.log
-            elif [[ -f target/ci-logs/test-java-${{ matrix.java }}.log ]]; then
-              tail -n 80 target/ci-logs/test-java-${{ matrix.java }}.log
-            elif [[ -f target/ci-logs/verify-java-${{ matrix.java }}.log ]]; then
-              tail -n 80 target/ci-logs/verify-java-${{ matrix.java }}.log
-            else
-              echo "No Maven diagnostic log was produced."
-            fi
-            echo '```'
-          } > target/ci-logs/pr-diagnostic-java-${{ matrix.java }}.md
-          gh pr comment "${{ github.event.pull_request.number }}" --body-file target/ci-logs/pr-diagnostic-java-${{ matrix.java }}.md
-
       - name: Upload Maven diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -107,3 +82,38 @@ jobs:
           path: target/surefire-reports/
           if-no-files-found: warn
           retention-days: 14
+
+  diagnostics:
+    name: Diagnostics for Java ${{ matrix.java }}
+    if: always()
+    needs: verify
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java:
+          - '11'
+          - '17'
+
+    steps:
+      - name: Download Maven diagnostics
+        uses: actions/download-artifact@v4
+        with:
+          name: maven-diagnostics-java-${{ matrix.java }}
+          path: diagnostics
+
+      - name: Print relevant Maven diagnostic tail
+        shell: bash
+        run: |
+          echo "Maven diagnostics for Java ${{ matrix.java }}"
+          if [[ -f diagnostics/compile-java-${{ matrix.java }}.log ]]; then
+            tail -n 60 diagnostics/compile-java-${{ matrix.java }}.log
+          elif [[ -f diagnostics/test-java-${{ matrix.java }}.log ]]; then
+            tail -n 60 diagnostics/test-java-${{ matrix.java }}.log
+          elif [[ -f diagnostics/verify-java-${{ matrix.java }}.log ]]; then
+            tail -n 60 diagnostics/verify-java-${{ matrix.java }}.log
+          else
+            echo "No Maven diagnostic log was found."
+            exit 1
+          fi
