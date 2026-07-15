@@ -5,10 +5,12 @@ on:
     branches:
       - refactor/baseline-and-characterization
       - refactor/authentication-remediation
+      - refactor/account-repository
   pull_request:
     branches:
       - master
       - refactor/baseline-and-characterization
+      - refactor/authentication-remediation
   workflow_dispatch:
 
 permissions:
@@ -22,51 +24,40 @@ jobs:
   verify:
     name: Verify on Java ${{ matrix.java }}
     runs-on: ubuntu-latest
-
     strategy:
       fail-fast: false
       matrix:
-        java:
-          - '11'
-          - '17'
-
+        java: ['11', '17']
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
-
       - name: Display tool versions
         run: |
           java -version
           mvn --version
-
       - name: Prepare CI log directory
         run: mkdir -p ci-logs
-
       - name: Compile production sources
         shell: bash
         run: |
           set -o pipefail
           mvn --batch-mode --no-transfer-progress clean compile 2>&1 | tee ci-logs/compile-java-${{ matrix.java }}.log
-
       - name: Run characterization tests
         shell: bash
         run: |
           set -o pipefail
           mvn --batch-mode --no-transfer-progress test 2>&1 | tee ci-logs/test-java-${{ matrix.java }}.log
-
       - name: Verify package lifecycle
         shell: bash
         run: |
           set -o pipefail
           mvn --batch-mode --no-transfer-progress verify 2>&1 | tee ci-logs/verify-java-${{ matrix.java }}.log
-
       - name: Upload Maven diagnostics
         if: always()
         uses: actions/upload-artifact@v4
@@ -75,7 +66,6 @@ jobs:
           path: ci-logs/
           if-no-files-found: error
           retention-days: 14
-
       - name: Upload test reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -84,38 +74,3 @@ jobs:
           path: target/surefire-reports/
           if-no-files-found: warn
           retention-days: 14
-
-  diagnostics:
-    name: Diagnostics for Java ${{ matrix.java }}
-    if: always()
-    needs: verify
-    runs-on: ubuntu-latest
-
-    strategy:
-      fail-fast: false
-      matrix:
-        java:
-          - '11'
-          - '17'
-
-    steps:
-      - name: Download Maven diagnostics
-        uses: actions/download-artifact@v4
-        with:
-          name: maven-diagnostics-java-${{ matrix.java }}
-          path: diagnostics
-
-      - name: Print relevant Maven diagnostic tail
-        shell: bash
-        run: |
-          echo "Maven diagnostics for Java ${{ matrix.java }}"
-          if [[ -f diagnostics/compile-java-${{ matrix.java }}.log ]]; then
-            tail -n 60 diagnostics/compile-java-${{ matrix.java }}.log
-          elif [[ -f diagnostics/test-java-${{ matrix.java }}.log ]]; then
-            tail -n 60 diagnostics/test-java-${{ matrix.java }}.log
-          elif [[ -f diagnostics/verify-java-${{ matrix.java }}.log ]]; then
-            tail -n 60 diagnostics/verify-java-${{ matrix.java }}.log
-          else
-            echo "No Maven diagnostic log was found."
-            exit 1
-          fi

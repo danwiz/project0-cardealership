@@ -1,8 +1,8 @@
 package com.revature.service;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
@@ -15,7 +15,6 @@ import org.junit.jupiter.api.Test;
 
 import com.revature.cardealer.User;
 
-@Tag("LEGACY-BEHAVIOR")
 class UserLoginServiceCharacterizationTest {
 
     private PrintStream originalOut;
@@ -43,9 +42,7 @@ class UserLoginServiceCharacterizationTest {
         UserLoginService service = new UserLoginService();
         service.registerUser("dane", "secret");
 
-        User attempt = new User();
-        attempt.setUsername("dane");
-        attempt.setPassword("wrong");
+        User attempt = user("dane", "wrong");
 
         assertFalse(service.authenticateUser(attempt));
     }
@@ -65,35 +62,35 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void constructingAnotherServiceResetsSharedStaticUserDatabase() {
+    @Tag("TARGET-BEHAVIOR")
+    void constructingAnotherServiceDoesNotResetExistingServiceState() {
         UserLoginService first = new UserLoginService();
         User registered = first.registerUser("dane", "secret");
 
         new UserLoginService();
 
-        assertFalse(first.authenticateUser(registered));
+        assertTrue(first.authenticateUser(registered));
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void registeringBeyondFixedCapacityThrowsArrayIndexException() {
+    @Tag("TARGET-BEHAVIOR")
+    void registrationIsNotLimitedToTenAccounts() {
         UserLoginService service = new UserLoginService();
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < 25; i++) {
             service.registerUser("user" + i, "pw" + i);
         }
 
-        assertThrows(ArrayIndexOutOfBoundsException.class,
-                () -> service.registerUser("overflow", "pw"));
+        assertTrue(service.authenticateUser(user("user24", "pw24")));
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void getUserNamesFailsWhenDatabaseIsNotCompletelyPopulated() {
+    @Tag("TARGET-BEHAVIOR")
+    void getUserNamesReturnsOnlyRegisteredUsersInRegistrationOrder() {
         UserLoginService service = new UserLoginService();
         service.registerUser("dane", "secret");
+        service.registerUser("alex", "pw");
 
-        assertThrows(NullPointerException.class, service::getUserNames);
+        assertArrayEquals(new String[] {"dane", "alex"}, service.getUserNames());
     }
 
     @Test
@@ -107,6 +104,18 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
+    @Tag("TARGET-BEHAVIOR")
+    void servicesCanShareAnExplicitRepository() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        UserLoginService registrationService = new UserLoginService(repository);
+        UserLoginService authenticationService = new UserLoginService(repository);
+
+        registrationService.registerUser("dane", "secret");
+
+        assertTrue(authenticationService.authenticateUser(user("dane", "secret")));
+    }
+
+    @Test
     void registrationPreservesExactCredentialStrings() {
         UserLoginService service = new UserLoginService();
 
@@ -114,5 +123,12 @@ class UserLoginServiceCharacterizationTest {
 
         assertEquals(" Dane ", registered.getUsername());
         assertEquals(" Secret ", registered.getPassword());
+    }
+
+    private static User user(String username, String password) {
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(password);
+        return user;
     }
 }

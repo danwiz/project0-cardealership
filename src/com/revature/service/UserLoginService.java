@@ -1,69 +1,53 @@
 package com.revature.service;
 
+import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+
 import com.revature.cardealer.User;
 
 public class UserLoginService {
 
-	private static User[] userDB;
+    private final UserAccountRepository userRepository;
 
-	private static int userIndex;
+    public UserLoginService() {
+        this(new InMemoryUserAccountRepository());
+    }
 
-	public User registerUser(String username, String password) {
+    public UserLoginService(UserAccountRepository userRepository) {
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
+    }
 
-		User newUser = new User();
-		newUser.setPassword(password);
-		newUser.setUsername(username);
+    public User registerUser(String username, String password) {
+        User newUser = new User();
+        newUser.setPassword(password);
+        newUser.setUsername(username);
+        return userRepository.save(newUser);
+    }
 
-		userDB[userIndex] = newUser;
-		userIndex++;
+    public void removeUser(User user) {
+        if (user != null) {
+            userRepository.removeByUsername(user.getUsername());
+        }
+    }
 
-		return newUser;
+    public boolean authenticateUser(User user) {
+        if (user == null) {
+            return false;
+        }
 
-	}
+        Optional<User> registeredUser = userRepository.findByUsername(user.getUsername());
+        return registeredUser
+                .map(account -> Objects.equals(account.getPassword(), user.getPassword()))
+                .orElse(false);
+    }
 
-	private int findUserIndex(User user) {
-		for (int i = 0; i < userIndex; i++) {
-			if (userDB[i] != null) {
-				if (userDB[i].getUsername().equals(user.getUsername())) {
-					return i;
-				}
-			}
-		}
-		return -1; // denotes the user was not found
-	}
-
-	public void removeUser(User user) {
-		int index = findUserIndex(user);
-		if (index > -1) {
-			userDB[index] = userDB[userIndex - 1];
-			userDB[userIndex - 1] = null;
-			userIndex--;
-		}
-	}
-
-	public boolean authenticateUser(User user) {
-
-		int index = findUserIndex(user);
-
-		if (index > -1) {
-			String userPassword = userDB[index].getPassword();
-			return userPassword.equals(user.getPassword());
-		} else {
-			return false;
-		}
-	}
-	
-  public String[] getUserNames() {
-	  String[] usernames = new String[userDB.length-1];
-		for(int i=0; i <= userDB.length-1; i++)
-			usernames[i]= userDB[i].getUsername();
-		return usernames;
-  }
-
-	public UserLoginService() {
-
-		userDB = new User[10];
-		userIndex = 0;
-
-	}
+    public String[] getUserNames() {
+        List<User> users = userRepository.findAll();
+        String[] usernames = new String[users.size()];
+        for (int i = 0; i < users.size(); i++) {
+            usernames[i] = users.get(i).getUsername();
+        }
+        return usernames;
+    }
 }
