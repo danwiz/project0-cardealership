@@ -16,6 +16,7 @@ on:
       - refactor/runtime-rehydration
       - refactor/application-context-command-handlers
       - refactor/application-command-services
+      - refactor/query-response-models
   pull_request:
     branches:
       - master
@@ -31,6 +32,7 @@ on:
       - refactor/versioned-persistence
       - refactor/runtime-rehydration
       - refactor/application-context-command-handlers
+      - refactor/application-command-services
   workflow_dispatch:
 
 permissions:
