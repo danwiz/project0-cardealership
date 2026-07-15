@@ -45,33 +45,33 @@ jobs:
           mvn --version
 
       - name: Prepare CI log directory
-        run: mkdir -p target/ci-logs
+        run: mkdir -p ci-logs
 
       - name: Compile production sources
         shell: bash
         run: |
           set -o pipefail
-          mvn --batch-mode --no-transfer-progress clean compile 2>&1 | tee target/ci-logs/compile-java-${{ matrix.java }}.log
+          mvn --batch-mode --no-transfer-progress clean compile 2>&1 | tee ci-logs/compile-java-${{ matrix.java }}.log
 
       - name: Run characterization tests
         shell: bash
         run: |
           set -o pipefail
-          mvn --batch-mode --no-transfer-progress test 2>&1 | tee target/ci-logs/test-java-${{ matrix.java }}.log
+          mvn --batch-mode --no-transfer-progress test 2>&1 | tee ci-logs/test-java-${{ matrix.java }}.log
 
       - name: Verify package lifecycle
         shell: bash
         run: |
           set -o pipefail
-          mvn --batch-mode --no-transfer-progress verify 2>&1 | tee target/ci-logs/verify-java-${{ matrix.java }}.log
+          mvn --batch-mode --no-transfer-progress verify 2>&1 | tee ci-logs/verify-java-${{ matrix.java }}.log
 
       - name: Upload Maven diagnostics
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: maven-diagnostics-java-${{ matrix.java }}
-          path: target/ci-logs/
-          if-no-files-found: warn
+          path: ci-logs/
+          if-no-files-found: error
           retention-days: 14
 
       - name: Upload test reports
