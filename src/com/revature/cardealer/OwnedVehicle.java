@@ -1,11 +1,12 @@
 package com.revature.cardealer;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-/**
- * One customer-owned vehicle and its associated payment plan.
- */
-public class OwnedVehicle {
+/** One customer-owned vehicle and its associated payment plan. */
+public class OwnedVehicle implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final Car vehicle;
     private final PaymentPlan paymentPlan;
@@ -15,11 +16,6 @@ public class OwnedVehicle {
         this.paymentPlan = Objects.requireNonNull(paymentPlan, "paymentPlan");
     }
 
-    public Car getVehicle() {
-        return vehicle;
-    }
-
-    public PaymentPlan getPaymentPlan() {
-        return paymentPlan;
-    }
+    public Car getVehicle() { return vehicle; }
+    public PaymentPlan getPaymentPlan() { return paymentPlan; }
 }
