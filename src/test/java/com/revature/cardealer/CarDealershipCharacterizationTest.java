@@ -39,7 +39,7 @@ class CarDealershipCharacterizationTest {
 
     @Test
     @Tag("KNOWN-DEFECT")
-    void adminMenuUsesReferenceEqualityForChoiceStrings() throws Exception {
+    void adminMenuUsesReferenceEqualityForChoiceStrings() throws Throwable {
         replaceScanner(new String("1") + "\n");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
