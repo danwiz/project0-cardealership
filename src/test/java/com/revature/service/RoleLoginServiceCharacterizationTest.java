@@ -60,16 +60,16 @@ class RoleLoginServiceCharacterizationTest {
     @Tag("TARGET-BEHAVIOR")
     void roleServicesAuthenticateRegisteredCredentials() {
         CustomerLoginService customerService = new CustomerLoginService();
-        User customer = customerService.registerUser("customer", "secret");
-        assertTrue(customerService.authenticateUser(customer));
+        customerService.registerUser("customer", "secret");
+        assertTrue(customerService.authenticateUser(user("customer", "secret")));
 
         EmployeeLoginService employeeService = new EmployeeLoginService();
-        User employee = employeeService.registerUser("employee", "secret");
-        assertTrue(employeeService.authenticateUser(employee));
+        employeeService.registerUser("employee", "secret");
+        assertTrue(employeeService.authenticateUser(user("employee", "secret")));
 
         AdminLoginService adminService = new AdminLoginService();
-        User admin = adminService.registerUser("admin", "secret");
-        assertTrue(adminService.authenticateUser(admin));
+        adminService.registerUser("admin", "secret");
+        assertTrue(adminService.authenticateUser(user("admin", "secret")));
     }
 
     @Test

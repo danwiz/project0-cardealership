@@ -6,11 +6,13 @@ on:
       - refactor/baseline-and-characterization
       - refactor/authentication-remediation
       - refactor/account-repository
+      - refactor/credential-hardening
   pull_request:
     branches:
       - master
       - refactor/baseline-and-characterization
       - refactor/authentication-remediation
+      - refactor/account-repository
   workflow_dispatch:
 
 permissions:
