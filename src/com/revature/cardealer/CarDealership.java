@@ -117,7 +117,7 @@ public class CarDealership {
         }
 
         User account = authenticated.get();
-        if (!authorization.isAllowed(account, permission)) {
+        if (!authorization.isAuthorized(account, permission)) {
             currentAccount = null;
             System.out.println("access denied");
             return Optional.empty();
@@ -136,23 +136,23 @@ public class CarDealership {
         String option = scan.nextLine();
 
         if ("1".equals(option)) {
-            authorization.require(account, Permission.VIEW_INVENTORY);
+            authorization.requireAuthorized(account, Permission.VIEW_INVENTORY);
             Carlot.registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
             Carlot.registerOffer("Chevy ", "Malibu ", 2020, 17456, "Yes", 4);
             Carlot.registerOffer("BMW   ", "4Series", 2016, 10456, "Yes", 6);
             Carlot.registerOffer("Toyota", "Corolla", 2014, 13456, "Yes", 3);
             System.out.println("\n\n Enter Offer Number to Request Purchase:");
             int offerNumber = Integer.parseInt(scan.nextLine());
-            authorization.require(account, Permission.REQUEST_PURCHASE);
-            if (offerNumber < Carlot.offerDB.length) {
+            authorization.requireAuthorized(account, Permission.REQUEST_PURCHASE);
+            if (offerNumber >= 0 && offerNumber < Carlot.offerDB.length) {
                 Carlot.setpOffer(account.getUsername(), offerNumber);
             }
         } else if ("2".equals(option)) {
-            authorization.require(account, Permission.VIEW_OWNED_VEHICLES);
+            authorization.requireAuthorized(account, Permission.VIEW_OWNED_VEHICLES);
             System.out.println(" Cars Owned:-  \n\n");
             cls.getCarsOwned();
         } else if ("3".equals(option)) {
-            authorization.require(account, Permission.VIEW_OWN_PAYMENTS);
+            authorization.requireAuthorized(account, Permission.VIEW_OWN_PAYMENTS);
             System.out.println(" View Car Payments\n\n");
         } else {
             System.out.println("did not understand input");
@@ -168,13 +168,13 @@ public class CarDealership {
         String option = scan.nextLine();
 
         if ("1".equals(option)) {
-            authorization.require(account, Permission.MANAGE_INVENTORY);
+            authorization.requireAuthorized(account, Permission.MANAGE_INVENTORY);
             manageInventory();
         } else if ("2".equals(option)) {
-            authorization.require(account, Permission.REVIEW_PURCHASE_REQUESTS);
+            authorization.requireAuthorized(account, Permission.REVIEW_PURCHASE_REQUESTS);
             reviewPurchaseRequests();
         } else if ("3".equals(option)) {
-            authorization.require(account, Permission.VIEW_CUSTOMER_PAYMENTS);
+            authorization.requireAuthorized(account, Permission.VIEW_CUSTOMER_PAYMENTS);
             System.out.println("[3] View Customer Payments");
         } else {
             System.out.println("did not understand input");
@@ -227,7 +227,7 @@ public class CarDealership {
     }
 
     private static void showAdminMenu(User account) {
-        authorization.require(account, Permission.MANAGE_PERSISTENCE);
+        authorization.requireAuthorized(account, Permission.MANAGE_PERSISTENCE);
         System.out.println("You are now an Admin");
         System.out.println("\n [1] Serialize and Save Data");
         System.out.println("\n [2] Deserialize and Load Data");
