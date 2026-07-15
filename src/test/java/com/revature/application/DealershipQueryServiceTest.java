@@ -62,6 +62,7 @@ class DealershipQueryServiceTest {
         List<OwnershipView> ownership = queries.ownership(customer);
         PaymentReportView customerPayments = queries.payments(customer);
         PaymentReportView employeePayments = queries.payments(employee);
+        PaymentReportView administratorPayments = queries.payments(admin);
 
         assertEquals(1, pending.size());
         assertEquals(0, pending.get(0).getListingId());
@@ -70,9 +71,9 @@ class DealershipQueryServiceTest {
         assertEquals(900, customerPayments.getBalance());
         assertEquals(1, customerPayments.getTransactions().size());
         assertEquals(customerPayments.getTransactions().size(), employeePayments.getTransactions().size());
+        assertEquals(customerPayments.getTransactions().size(), administratorPayments.getTransactions().size());
         assertThrows(SecurityException.class, () -> queries.pendingRequests(customer));
         assertThrows(SecurityException.class, () -> queries.ownership(employee));
-        assertThrows(SecurityException.class, () -> queries.payments(admin));
         assertTrue(queries.inventory(employee).get(0).isAvailable());
     }
 }
