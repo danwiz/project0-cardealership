@@ -2,6 +2,7 @@ package com.revature.cardealer;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -52,11 +53,18 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void employeeInventoryInputIsSplitIntoCharactersInsteadOfFields() throws Exception {
-        replaceScanner("employee\npassword\n1\n1\nHonda Accord 2020 15000 2\n");
+    @Tag("TARGET-BEHAVIOR")
+    @Tag("SECURITY")
+    void unregisteredEmployeeCannotReachInventoryManagementFlow() throws Throwable {
+        replaceScanner("employee\npassword\n");
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
 
-        assertThrows(NumberFormatException.class, () -> invokePerformUserAction("3"));
+        invokePerformUserAction("3");
+
+        String rendered = output.toString(StandardCharsets.UTF_8);
+        assertTrue(rendered.contains("failure"));
+        assertFalse(rendered.contains("Employee View"));
     }
 
     @Test
