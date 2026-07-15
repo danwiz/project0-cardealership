@@ -4,19 +4,10 @@ import com.revature.cardealer.User;
 
 //import com.revature.cardealer.Employee;
 
+public class EmployeeLoginService extends UserLoginService {
 
-public class EmployeeLoginService extends UserLoginService{
-
-
-	@Override //annotation, guarentees you are actually overriding a method
+	@Override
 	public boolean authenticateUser(User user) {
-		
-		
-		return true;
+		return super.authenticateUser(user);
 	}
-		
-		
-		
-	}
-
-
+}
