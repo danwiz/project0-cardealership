@@ -47,8 +47,7 @@ public class UserLoginService {
 
 		if (index > -1) {
 			String userPassword = userDB[index].getPassword();
-			System.out.println(userDB[index].getPassword());
-			return (userPassword.equals(user.getPassword()));
+			return userPassword.equals(user.getPassword());
 		} else {
 			return false;
 		}
@@ -67,5 +66,4 @@ public class UserLoginService {
 		userIndex = 0;
 
 	}
-
 }
