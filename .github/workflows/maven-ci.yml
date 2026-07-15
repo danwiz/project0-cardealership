@@ -7,12 +7,14 @@ on:
       - refactor/authentication-remediation
       - refactor/account-repository
       - refactor/credential-hardening
+      - refactor/role-authorization
   pull_request:
     branches:
       - master
       - refactor/baseline-and-characterization
       - refactor/authentication-remediation
       - refactor/account-repository
+      - refactor/credential-hardening
   workflow_dispatch:
 
 permissions:
