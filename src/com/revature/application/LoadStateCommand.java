@@ -4,26 +4,23 @@ import java.util.Objects;
 
 import com.revature.DAOService.LoadResult;
 import com.revature.cardealer.DealershipApplicationContext;
-import com.revature.cardealer.RehydratedApplicationState;
 
-/** Application use case for loading, validating, and activating persisted state. */
 public final class LoadStateCommand {
-
-    private final DealershipApplicationContext context;
+    private final ApplicationPorts.Persistence storage;
 
     public LoadStateCommand(DealershipApplicationContext context) {
-        this.context = Objects.requireNonNull(context, "context");
+        this(new ContextPersistenceAdapter(context));
+    }
+
+    public LoadStateCommand(ApplicationPorts.Persistence storage) {
+        this.storage = Objects.requireNonNull(storage, "storage");
     }
 
     public LoadResult execute(String filename) {
-        LoadResult result = context.getDataStore().loadData(filename);
-        if (!result.isSuccess()) {
-            return result;
-        }
+        LoadResult result = storage.load(filename);
+        if (!result.isSuccess()) return result;
         try {
-            RehydratedApplicationState replacement = context.getSnapshotRehydrator()
-                    .rehydrate(result.getSnapshot().get());
-            context.replaceRuntime(replacement);
+            storage.activateLoadedSnapshot(result);
             return result;
         } catch (IllegalArgumentException exception) {
             return LoadResult.failure(LoadResult.Status.INVALID_CONTENT, exception.getMessage());
