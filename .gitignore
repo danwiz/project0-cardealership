@@ -1,0 +1,32 @@
+# Maven
+/target/
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+replay_pid*
+
+# Eclipse
+.metadata/
+.settings/
+*.launch
+
+# IntelliJ IDEA
+.idea/
+*.iml
+out/
+
+# Visual Studio Code
+.vscode/
+
+# Operating systems
+.DS_Store
+Thumbs.db
+
+# Local runtime data and logs
+*.log
+*.dat
+*.tmp
