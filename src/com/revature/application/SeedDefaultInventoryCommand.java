@@ -6,21 +6,22 @@ import com.revature.cardealer.DealershipApplicationContext;
 
 /** Idempotently seeds the default dealership inventory. */
 public final class SeedDefaultInventoryCommand {
-
-    private final DealershipApplicationContext context;
+    private final ApplicationPorts.Inventory inventory;
 
     public SeedDefaultInventoryCommand(DealershipApplicationContext context) {
-        this.context = Objects.requireNonNull(context, "context");
+        this(new ContextDomainAdapter(context));
+    }
+
+    public SeedDefaultInventoryCommand(ApplicationPorts.Inventory inventory) {
+        this.inventory = Objects.requireNonNull(inventory, "inventory");
     }
 
     public boolean execute() {
-        if (context.getInventory().getListingCount() > 0) {
-            return false;
-        }
-        context.getInventory().registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
-        context.getInventory().registerOffer("Chevy ", "Malibu ", 2020, 17456, "yes", 4);
-        context.getInventory().registerOffer("BMW   ", "4Series", 2016, 10456, "yes", 6);
-        context.getInventory().registerOffer("Toyota", "Corolla", 2014, 13456, "yes", 3);
+        if (inventory.listingCount() > 0) return false;
+        inventory.addListing("Honda ", "Accord ", 2017, 15000, 7);
+        inventory.addListing("Chevy ", "Malibu ", 2020, 17456, 4);
+        inventory.addListing("BMW   ", "4Series", 2016, 10456, 6);
+        inventory.addListing("Toyota", "Corolla", 2014, 13456, 3);
         return true;
     }
 }

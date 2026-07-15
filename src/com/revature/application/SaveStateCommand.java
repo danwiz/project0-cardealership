@@ -5,16 +5,18 @@ import java.util.Objects;
 import com.revature.DAOService.SaveResult;
 import com.revature.cardealer.DealershipApplicationContext;
 
-/** Application use case for persisting the current application state. */
 public final class SaveStateCommand {
-
-    private final DealershipApplicationContext context;
+    private final ApplicationPorts.Persistence storage;
 
     public SaveStateCommand(DealershipApplicationContext context) {
-        this.context = Objects.requireNonNull(context, "context");
+        this(new ContextPersistenceAdapter(context));
+    }
+
+    public SaveStateCommand(ApplicationPorts.Persistence storage) {
+        this.storage = Objects.requireNonNull(storage, "storage");
     }
 
     public SaveResult execute(String filename) {
-        return context.getDataStore().saveData(context.snapshotSource(), filename);
+        return storage.save(storage.snapshotSource(), filename);
     }
 }

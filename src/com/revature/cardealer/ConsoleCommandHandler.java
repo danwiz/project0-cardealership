@@ -12,7 +12,6 @@ import com.revature.application.ReviewPurchaseRequestCommand;
 import com.revature.application.SaveStateCommand;
 import com.revature.application.SeedDefaultInventoryCommand;
 import com.revature.service.Permission;
-import com.revature.service.UserLoginService;
 
 /** Translates console input into application command and query invocations. */
 public final class ConsoleCommandHandler {
@@ -63,10 +62,10 @@ public final class ConsoleCommandHandler {
     public void handleMainCommand(String option) {
         switch (option) {
         case "1": registerAccount(); break;
-        case "2": authenticate(context.getCustomerLoginService(), Permission.VIEW_INVENTORY, this::showCustomerMenu); break;
-        case "3": authenticate(context.getEmployeeLoginService(), Permission.MANAGE_INVENTORY, this::showEmployeeMenu); break;
+        case "2": authenticate(AccountRole.CUSTOMER, Permission.VIEW_INVENTORY, this::showCustomerMenu); break;
+        case "3": authenticate(AccountRole.EMPLOYEE, Permission.MANAGE_INVENTORY, this::showEmployeeMenu); break;
         case "4": io.writeLine("goodbye"); break;
-        case "5": authenticate(context.getAdminLoginService(), Permission.MANAGE_PERSISTENCE, this::showAdminMenu); break;
+        case "5": authenticate(AccountRole.ADMINISTRATOR, Permission.MANAGE_PERSISTENCE, this::showAdminMenu); break;
         default: io.writeLine("did not understand input"); break;
         }
     }
@@ -88,8 +87,8 @@ public final class ConsoleCommandHandler {
         }
     }
 
-    private void authenticate(UserLoginService service, Permission permission, AccountConsumer consumer) {
-        AuthenticateAccountCommand.Result result = authenticateAccount.execute(service, readCredentials(), permission);
+    private void authenticate(AccountRole role, Permission permission, AccountConsumer consumer) {
+        AuthenticateAccountCommand.Result result = authenticateAccount.execute(role, readCredentials(), permission);
         if (result.getStatus() == AuthenticateAccountCommand.Status.INVALID_CREDENTIALS) io.writeLine("failure");
         else if (result.getStatus() == AuthenticateAccountCommand.Status.ACCESS_DENIED) io.writeLine("access denied");
         else {
@@ -107,11 +106,9 @@ public final class ConsoleCommandHandler {
             renderer.inventory(queries.inventory(account));
             try { requestPurchase.execute(account, Integer.parseInt(io.readLine())); }
             catch (IllegalArgumentException exception) { io.writeLine("Invalid listing number"); }
-        } else if ("2".equals(option)) {
-            renderer.ownership(queries.ownership(account));
-        } else if ("3".equals(option)) {
-            renderer.payments(queries.payments(account));
-        } else io.writeLine("did not understand input");
+        } else if ("2".equals(option)) renderer.ownership(queries.ownership(account));
+        else if ("3".equals(option)) renderer.payments(queries.payments(account));
+        else io.writeLine("did not understand input");
     }
 
     private void showEmployeeMenu(User account) {

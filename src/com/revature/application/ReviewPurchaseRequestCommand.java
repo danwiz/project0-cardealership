@@ -9,35 +9,37 @@ import com.revature.service.Permission;
 
 /** Application use case for approving or rejecting purchase requests. */
 public final class ReviewPurchaseRequestCommand {
-
-    private final DealershipApplicationContext context;
+    private final ApplicationPorts.Authorization authorization;
+    private final ApplicationPorts.Inventory inventory;
+    private final ApplicationPorts.Ownership ownership;
 
     public ReviewPurchaseRequestCommand(DealershipApplicationContext context) {
-        this.context = Objects.requireNonNull(context, "context");
+        this(new ContextDomainAdapter(context), new ContextDomainAdapter(context),
+                new ContextDomainAdapter(context));
+    }
+
+    public ReviewPurchaseRequestCommand(ApplicationPorts.Authorization authorization,
+            ApplicationPorts.Inventory inventory, ApplicationPorts.Ownership ownership) {
+        this.authorization = Objects.requireNonNull(authorization, "authorization");
+        this.inventory = Objects.requireNonNull(inventory, "inventory");
+        this.ownership = Objects.requireNonNull(ownership, "ownership");
     }
 
     public int approve(User actor, int requestId, int paymentMonths, boolean rejectOtherPending) {
-        context.getAuthorizationService().requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
-        if (paymentMonths <= 0) {
-            throw new IllegalArgumentException("payment months must be positive");
-        }
-        if (requestId < 0 || requestId >= context.getInventory().getPurchaseRequests().size()) {
+        authorization.requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
+        if (paymentMonths <= 0) throw new IllegalArgumentException("payment months must be positive");
+        if (requestId < 0 || requestId >= inventory.purchaseRequests().size()) {
             throw new IllegalArgumentException("unknown purchase request number: " + requestId);
         }
-
-        PurchaseRequest request = context.getInventory().getPurchaseRequests().get(requestId);
-        int price = context.getInventory().setAccept(requestId, paymentMonths, true);
-        context.getCustomerLoginService().setCarsOwned(
-                context.getInventory().getCarDB(request.getListingId()), price, paymentMonths);
-
-        if (rejectOtherPending) {
-            context.getInventory().rejectAllOffers();
-        }
+        PurchaseRequest request = inventory.purchaseRequests().get(requestId);
+        int price = inventory.decideRequest(requestId, paymentMonths, true);
+        ownership.addOwnedVehicle(inventory.carForListing(request.getListingId()), price, paymentMonths);
+        if (rejectOtherPending) inventory.rejectAllPendingRequests();
         return price;
     }
 
     public void reject(User actor, int requestId) {
-        context.getAuthorizationService().requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
-        context.getInventory().setAccept(requestId, 1, false);
+        authorization.requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
+        inventory.decideRequest(requestId, 1, false);
     }
 }

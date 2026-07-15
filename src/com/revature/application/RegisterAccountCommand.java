@@ -8,29 +8,19 @@ import com.revature.cardealer.User;
 
 /** Application use case for registering a role-specific account. */
 public final class RegisterAccountCommand {
-
-    private final DealershipApplicationContext context;
+    private final ApplicationPorts.Identity identity;
 
     public RegisterAccountCommand(DealershipApplicationContext context) {
-        this.context = Objects.requireNonNull(context, "context");
+        this(new ContextIdentityAdapter(context));
+    }
+
+    public RegisterAccountCommand(ApplicationPorts.Identity identity) {
+        this.identity = Objects.requireNonNull(identity, "identity");
     }
 
     public User execute(AccountRole role, String username, String password) {
-        Objects.requireNonNull(role, "role");
-        User account;
-        switch (role) {
-        case CUSTOMER:
-            account = context.getCustomerLoginService().registerUser(username, password);
-            context.setLatestCustomer(account);
-            return account;
-        case EMPLOYEE:
-            account = context.getEmployeeLoginService().registerUser(username, password);
-            context.setLatestEmployee(account);
-            return account;
-        case ADMINISTRATOR:
-            return context.getAdminLoginService().registerUser(username, password);
-        default:
-            throw new IllegalArgumentException("unsupported account role: " + role);
-        }
+        User account = identity.register(Objects.requireNonNull(role, "role"), username, password);
+        identity.rememberRegisteredAccount(account);
+        return account;
     }
 }
