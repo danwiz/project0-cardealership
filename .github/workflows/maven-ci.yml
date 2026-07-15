@@ -13,6 +13,7 @@ on:
       - refactor/payment-ledger
       - refactor/inventory-purchase-requests
       - refactor/versioned-persistence
+      - refactor/runtime-rehydration
   pull_request:
     branches:
       - master
@@ -25,6 +26,7 @@ on:
       - refactor/ownership-payment-records
       - refactor/payment-ledger
       - refactor/inventory-purchase-requests
+      - refactor/versioned-persistence
   workflow_dispatch:
 
 permissions:
