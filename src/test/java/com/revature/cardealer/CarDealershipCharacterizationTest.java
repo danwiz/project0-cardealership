@@ -1,7 +1,9 @@
 package com.revature.cardealer;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -16,6 +18,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import com.revature.service.AccountRole;
+
 class CarDealershipCharacterizationTest {
 
     private final PrintStream originalOut = System.out;
@@ -26,44 +30,85 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void customerRegistrationDowncastsBaseLoginServiceAndFails() throws Exception {
-        replaceScanner("1\nalice\nsecret\n");
+    @Tag("TARGET-BEHAVIOR")
+    void customerRegistrationUsesSharedServiceWithoutUnsafeDowncast() throws Throwable {
+        String username = uniqueUsername("customer");
+        ByteArrayOutputStream output = captureOutput();
+        replaceScanner("1\n" + username + "\nsecret\n");
 
-        ClassCastException exception = assertThrows(ClassCastException.class,
-                () -> invokePerformUserAction("1"));
+        invokePerformUserAction("1");
 
-        // The exact message is JVM-specific; the exception type captures the unsafe cast.
-        assertFalse(exception.getMessage() == null && exception.getCause() != null);
-    }
-
-    @Test
-    @Tag("KNOWN-DEFECT")
-    void adminMenuUsesReferenceEqualityForChoiceStrings() throws Throwable {
-        replaceScanner(new String("1") + "\n");
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
-
-        invokePerformUserAction("5");
-
-        String rendered = output.toString(StandardCharsets.UTF_8);
-        assertFalse(rendered.contains("You better be sure"),
-                "A dynamically read string with value 1 is not matched by the legacy == comparison");
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("Customer registered"));
     }
 
     @Test
     @Tag("TARGET-BEHAVIOR")
     @Tag("SECURITY")
     void unregisteredEmployeeCannotReachInventoryManagementFlow() throws Throwable {
-        replaceScanner("employee\npassword\n");
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
+        ByteArrayOutputStream output = captureOutput();
+        replaceScanner(uniqueUsername("unknown") + "\npassword\n");
 
         invokePerformUserAction("3");
 
         String rendered = output.toString(StandardCharsets.UTF_8);
+        assertTrue(rendered.contains("failure"));
         assertFalse(rendered.contains("Employee View"));
-        assertFalse(rendered.contains("Enter -->  Make"));
+        assertFalse(rendered.contains("Add Car to Lot"));
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    @Tag("SECURITY")
+    void customerCredentialsCannotEnterEmployeeMenu() throws Throwable {
+        String username = uniqueUsername("customer-role");
+        ByteArrayOutputStream output = captureOutput();
+
+        replaceScanner("1\n" + username + "\nsecret\n");
+        invokePerformUserAction("1");
+
+        replaceScanner(username + "\nsecret\n");
+        invokePerformUserAction("3");
+
+        String rendered = output.toString(StandardCharsets.UTF_8);
+        assertTrue(rendered.contains("access denied"));
+        assertFalse(rendered.contains("Employee View"));
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    void registeredEmployeeReachesOnlyAuthorizedEmployeeMenu() throws Throwable {
+        String username = uniqueUsername("employee");
+        ByteArrayOutputStream output = captureOutput();
+
+        replaceScanner("2\n" + username + "\nsecret\n");
+        invokePerformUserAction("1");
+
+        replaceScanner(username + "\nsecret\n3\n");
+        invokePerformUserAction("3");
+
+        String rendered = output.toString(StandardCharsets.UTF_8);
+        assertTrue(rendered.contains("Employee View"));
+        assertTrue(rendered.contains("View Customer Payments"));
+        assertEquals(username, CarDealership.getCurrentAccount().getUsername());
+        assertEquals(AccountRole.EMPLOYEE, CarDealership.getCurrentAccount().getRole());
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    @Tag("SECURITY")
+    void administratorFeaturesRequireAuthenticatedAdministratorRole() throws Throwable {
+        String username = uniqueUsername("administrator");
+        ByteArrayOutputStream output = captureOutput();
+
+        replaceScanner("3\n" + username + "\nsecret\n");
+        invokePerformUserAction("1");
+
+        replaceScanner(username + "\nsecret\n9\n");
+        invokePerformUserAction("5");
+
+        String rendered = output.toString(StandardCharsets.UTF_8);
+        assertTrue(rendered.contains("You are now an Admin"));
+        assertEquals(AccountRole.ADMINISTRATOR, CarDealership.getCurrentAccount().getRole());
     }
 
     @Test
@@ -72,6 +117,16 @@ class CarDealershipCharacterizationTest {
         CarDealership application = new CarDealership();
 
         assertThrows(NullPointerException.class, application::loadData);
+    }
+
+    private static ByteArrayOutputStream captureOutput() throws Exception {
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(output, true, StandardCharsets.UTF_8));
+        return output;
+    }
+
+    private static String uniqueUsername(String prefix) {
+        return prefix + "-" + System.nanoTime();
     }
 
     private static void replaceScanner(String input) throws Exception {
