@@ -5,110 +5,116 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.lang.reflect.Field;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-@Tag("LEGACY-BEHAVIOR")
+@Tag("TARGET-BEHAVIOR")
 class OfferCharacterizationTest {
 
     @Test
-    @DisplayName("setOffer ignores the supplied availability text and stores yes")
-    void setOfferForcesAvailabilityToYes() {
+    void setOfferRespectsAvailability() {
         Offer offer = new Offer();
-
-        offer.setOffer(new Car("Honda", "Accord", 2018), 15_000, "no", 2);
-
-        assertEquals("yes", offer.getAvail());
-        assertEquals(15_000, offer.getPrice());
+        offer.setOffer(new Car("Honda", "Accord", 2018), 15000, "no", 2);
+        assertEquals("no", offer.getAvail());
+        assertFalse(offer.isAvail());
+        assertEquals(15000, offer.getPrice());
         assertEquals(2, offer.getAmt());
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    @DisplayName("accepting a pending offer does not execute the acceptance loop")
-    void setAcceptReturnsListingPriceWithoutAccepting() {
+    void pendingRequestCanBeAcceptedOnce() {
         Offer offer = new Offer();
-        offer.registerOffer("Honda", "Accord", 2018, 15_000, "yes", 2);
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 2);
         offer.setpOffer("customer-one", 0);
-
-        int result = offer.setAccept(0, 12, true);
-
-        assertEquals(15_000, result);
-        assertFalse(offer.getAccept());
-        assertEquals(2, offer.getAmt());
-        assertEquals(0, offer.getMpay());
-    }
-
-    @Test
-    @Tag("KNOWN-DEFECT")
-    @DisplayName("getAccept uses an inverted loop condition and leaves state unchanged")
-    void getAcceptDoesNotInspectProvidedOffers() {
-        Offer offer = new Offer();
-        offer.setAccept();
-
-        offer.getAccept(new Offer[] { offer });
-
+        assertEquals(15000, offer.setAccept(0, 12, true));
         assertTrue(offer.getAccept());
+        assertEquals(1, offer.getListings().get(0).getStockQuantity());
+        assertEquals(PurchaseRequestStatus.ACCEPTED, offer.getPurchaseRequests().get(0).getStatus());
+        assertEquals(1250, offer.getPurchaseRequests().get(0).getMonthlyPayment());
+        assertThrows(IllegalStateException.class, () -> offer.setAccept(0, 12, true));
+        assertEquals(1, offer.getListings().get(0).getStockQuantity());
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    @DisplayName("rejectAllOffers clears only index zero")
-    void rejectAllOffersLeavesLaterPendingEntriesUntouched() throws Exception {
+    void finalUnitDeactivatesListing() {
         Offer offer = new Offer();
-        int[] pendingOfferNumbers = privateIntArray(offer, "cpOffer");
-        int[] pendingPrices = privateIntArray(offer, "cpPrice");
-        String[] customerNames = privateStringArray(offer, "cName");
+        offer.registerOffer("Toyota", "Corolla", 2017, 12000, "yes", 1);
+        offer.setpOffer("customer", 0);
+        offer.setAccept(0, 12, true);
+        InventoryListing listing = offer.getListings().get(0);
+        assertEquals(0, listing.getStockQuantity());
+        assertFalse(listing.isAvailable());
+        assertThrows(IllegalStateException.class, () -> offer.setpOffer("another", 0));
+    }
 
-        pendingOfferNumbers[0] = 1;
-        pendingOfferNumbers[1] = 2;
-        pendingPrices[0] = 10_000;
-        pendingPrices[1] = 20_000;
-        customerNames[0] = "first";
-        customerNames[1] = "second";
-
+    @Test
+    void rejectAllTransitionsEveryPendingRequest() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 2);
+        offer.registerOffer("Toyota", "Corolla", 2019, 16000, "yes", 2);
+        offer.setpOffer("first", 0);
+        offer.setpOffer("second", 1);
         offer.rejectAllOffers();
-
-        assertEquals(0, pendingOfferNumbers[0]);
-        assertEquals(0, pendingPrices[0]);
-        assertEquals(" ", customerNames[0]);
-        assertEquals(2, pendingOfferNumbers[1]);
-        assertEquals(20_000, pendingPrices[1]);
-        assertEquals("second", customerNames[1]);
+        assertEquals(PurchaseRequestStatus.REJECTED, offer.getPurchaseRequests().get(0).getStatus());
+        assertEquals(PurchaseRequestStatus.REJECTED, offer.getPurchaseRequests().get(1).getStatus());
+        assertEquals(2, offer.getListings().get(0).getStockQuantity());
+        assertEquals(2, offer.getListings().get(1).getStockQuantity());
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    @DisplayName("getpOffers walks one element beyond the fixed array")
-    void getPendingOffersTerminatesWithArrayIndexFailure() {
+    void emptyPendingReportIsSafe() {
         Offer offer = new Offer();
-
-        assertThrows(ArrayIndexOutOfBoundsException.class, offer::getpOffers);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        PrintStream original = System.out;
+        System.setOut(new PrintStream(output));
+        try {
+            offer.getpOffers();
+        } finally {
+            System.setOut(original);
+        }
+        assertTrue(output.toString().contains("no pending purchase requests"));
     }
 
     @Test
-    @DisplayName("removeOffer replaces a listing with an empty string")
-    void removeOfferLeavesEmptySlotText() {
+    void removedListingKeepsStableIndex() {
         Offer offer = new Offer();
-        offer.registerOffer("Toyota", "Corolla", 2017, 12_000, "yes", 1);
-
+        offer.registerOffer("Toyota", "Corolla", 2017, 12000, "yes", 1);
+        offer.registerOffer("Honda", "Civic", 2018, 13000, "yes", 1);
         offer.removeOffer(0);
-
-        assertEquals("", offer.offerDB[0]);
+        assertEquals(2, offer.getListingCount());
+        assertFalse(offer.getListings().get(0).isActive());
+        assertEquals(1, offer.getListings().get(1).getId());
+        assertThrows(IllegalStateException.class, () -> offer.setpOffer("customer", 0));
     }
 
-    private int[] privateIntArray(Offer target, String fieldName) throws Exception {
-        Field field = Offer.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return (int[]) field.get(target);
+    @Test
+    void invalidIndexesAreRejected() {
+        Offer offer = new Offer();
+        assertThrows(IllegalArgumentException.class, () -> offer.setpOffer("customer", 0));
+        assertThrows(IllegalArgumentException.class, () -> offer.removeOffer(-1));
+        assertThrows(IllegalArgumentException.class, () -> offer.setAccept(0, 12, true));
     }
 
-    private String[] privateStringArray(Offer target, String fieldName) throws Exception {
-        Field field = Offer.class.getDeclaredField(fieldName);
-        field.setAccessible(true);
-        return (String[]) field.get(target);
+    @Test
+    void collectionViewsAreImmutable() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offer.setpOffer("customer", 0);
+        assertThrows(UnsupportedOperationException.class, () -> offer.getListings().clear());
+        assertThrows(UnsupportedOperationException.class, () -> offer.getPurchaseRequests().clear());
+    }
+
+    @Test
+    void rejectedRequestCannotBeAcceptedLater() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offer.setpOffer("customer", 0);
+        offer.setAccept(0, 12, false);
+        assertEquals(PurchaseRequestStatus.REJECTED, offer.getPurchaseRequests().get(0).getStatus());
+        assertThrows(IllegalStateException.class, () -> offer.setAccept(0, 12, true));
+        assertEquals(1, offer.getListings().get(0).getStockQuantity());
     }
 }
