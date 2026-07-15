@@ -1,11 +1,13 @@
 package com.revature.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.util.List;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.revature.cardealer.Car;
+import com.revature.cardealer.OwnedVehicle;
 import com.revature.cardealer.User;
 
 class RoleLoginServiceCharacterizationTest {
@@ -34,7 +37,6 @@ class RoleLoginServiceCharacterizationTest {
     @Tag("SECURITY")
     void customerAuthenticationRejectsUnregisteredUser() {
         CustomerLoginService service = new CustomerLoginService();
-
         assertFalse(service.authenticateUser(user("unknown", "wrong")));
     }
 
@@ -43,7 +45,6 @@ class RoleLoginServiceCharacterizationTest {
     @Tag("SECURITY")
     void employeeAuthenticationRejectsUnregisteredUser() {
         EmployeeLoginService service = new EmployeeLoginService();
-
         assertFalse(service.authenticateUser(user("unknown", "wrong")));
     }
 
@@ -52,7 +53,6 @@ class RoleLoginServiceCharacterizationTest {
     @Tag("SECURITY")
     void administratorAuthenticationRejectsUnregisteredUser() {
         AdminLoginService service = new AdminLoginService();
-
         assertFalse(service.authenticateUser(user("unknown", "wrong")));
     }
 
@@ -87,25 +87,64 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void customerOwnedCarStorageFailsAtFixedArrayBoundary() {
+    @Tag("TARGET-BEHAVIOR")
+    void customerOwnershipIsNotLimitedToTwentyVehicles() {
         CustomerLoginService service = new CustomerLoginService();
-        for (int i = 0; i < 20; i++) {
+        for (int i = 0; i < 25; i++) {
             service.setCarsOwned(new Car("Make" + i, "Model" + i, 2000 + i), 10000 + i, 12);
         }
 
-        assertThrows(ArrayIndexOutOfBoundsException.class,
-                () -> service.setCarsOwned(new Car("Overflow", "Vehicle", 2020), 20000, 12));
+        assertEquals(25, service.getOwnedVehicleRecords().size());
+        assertEquals("Make24", service.getOwnedVehicle(24).getVehicle().getCarMake());
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void viewingOwnedCarsFailsOnFirstNullSlot() {
+    @Tag("TARGET-BEHAVIOR")
+    void viewingOwnedCarsPrintsOnlyExistingRecords() {
         CustomerLoginService service = new CustomerLoginService();
-        service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);
-        System.setOut(new PrintStream(new ByteArrayOutputStream()));
+        service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 12000, 12);
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(output));
 
-        assertThrows(NullPointerException.class, service::getCarsOwned);
+        service.getCarsOwned();
+
+        String rendered = output.toString();
+        assertTrue(rendered.contains("Toyota"));
+        assertTrue(rendered.contains("Monthly Cost: 1000"));
+        assertFalse(rendered.contains("null"));
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    void paymentIsAppliedToTheSelectedOwnedVehicle() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 12000, 12);
+        service.setCarsOwned(new Car("Honda", "Civic", 2018), 24000, 24);
+
+        service.recordPayment(0, 1000);
+
+        assertEquals(1000, service.getOwnedVehicle(0).getPaymentPlan().getAmountPaid());
+        assertEquals(11000, service.getOwnedVehicle(0).getPaymentPlan().getRemainingBalance());
+        assertEquals(0, service.getOwnedVehicle(1).getPaymentPlan().getAmountPaid());
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    void paymentCannotExceedRemainingBalance() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 12000, 12);
+
+        assertThrows(IllegalArgumentException.class, () -> service.recordPayment(0, 12001));
+        assertEquals(12000, service.getOwnedVehicle(0).getPaymentPlan().getRemainingBalance());
+    }
+
+    @Test
+    void ownedVehicleRecordViewCannotBeModified() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 12000, 12);
+        List<OwnedVehicle> records = service.getOwnedVehicleRecords();
+
+        assertThrows(UnsupportedOperationException.class, records::clear);
     }
 
     @Test

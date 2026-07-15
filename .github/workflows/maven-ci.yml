@@ -9,6 +9,7 @@ on:
       - refactor/credential-hardening
       - refactor/role-authorization
       - refactor/console-authorization-boundary
+      - refactor/ownership-payment-records
   pull_request:
     branches:
       - master
@@ -17,6 +18,7 @@ on:
       - refactor/account-repository
       - refactor/credential-hardening
       - refactor/role-authorization
+      - refactor/console-authorization-boundary
   workflow_dispatch:
 
 permissions:
