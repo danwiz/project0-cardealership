@@ -27,7 +27,7 @@ class ApplicationCommandTest {
         User registered = register.execute(AccountRole.EMPLOYEE, "employee", "secret");
         User credentials = credentials("employee", "secret");
         AuthenticateAccountCommand.Result result = authenticate.execute(
-                context.getEmployeeLoginService(), credentials, Permission.MANAGE_INVENTORY);
+                AccountRole.EMPLOYEE, credentials, Permission.MANAGE_INVENTORY);
 
         assertEquals(AccountRole.EMPLOYEE, registered.getRole());
         assertTrue(result.isAuthenticated());
@@ -45,7 +45,7 @@ class ApplicationCommandTest {
         register.execute(AccountRole.CUSTOMER, "customer", "secret");
 
         AuthenticateAccountCommand.Result result = authenticate.execute(
-                context.getCustomerLoginService(), credentials("customer", "secret"),
+                AccountRole.CUSTOMER, credentials("customer", "secret"),
                 Permission.MANAGE_INVENTORY);
 
         assertEquals(AuthenticateAccountCommand.Status.ACCESS_DENIED, result.getStatus());
