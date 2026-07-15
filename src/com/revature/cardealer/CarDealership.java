@@ -137,15 +137,15 @@ public class CarDealership {
 
         if ("1".equals(option)) {
             authorization.requireAuthorized(account, Permission.VIEW_INVENTORY);
-            Carlot.registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
-            Carlot.registerOffer("Chevy ", "Malibu ", 2020, 17456, "Yes", 4);
-            Carlot.registerOffer("BMW   ", "4Series", 2016, 10456, "Yes", 6);
-            Carlot.registerOffer("Toyota", "Corolla", 2014, 13456, "Yes", 3);
-            System.out.println("\n\n Enter Offer Number to Request Purchase:");
-            int offerNumber = Integer.parseInt(scan.nextLine());
+            seedInventoryIfEmpty();
+            Carlot.getOfferAll();
+            System.out.println("\n\n Enter Listing Number to Request Purchase:");
+            int listingNumber = Integer.parseInt(scan.nextLine());
             authorization.requireAuthorized(account, Permission.REQUEST_PURCHASE);
-            if (offerNumber >= 0 && offerNumber < Carlot.offerDB.length) {
-                Carlot.setpOffer(account.getUsername(), offerNumber);
+            if (listingNumber >= 0 && listingNumber < Carlot.getListingCount()) {
+                Carlot.setpOffer(account.getUsername(), listingNumber);
+            } else {
+                System.out.println("Invalid listing number");
             }
         } else if ("2".equals(option)) {
             authorization.requireAuthorized(account, Permission.VIEW_OWNED_VEHICLES);
@@ -157,6 +157,16 @@ public class CarDealership {
         } else {
             System.out.println("did not understand input");
         }
+    }
+
+    private static void seedInventoryIfEmpty() {
+        if (Carlot.getListingCount() > 0) {
+            return;
+        }
+        Carlot.registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
+        Carlot.registerOffer("Chevy ", "Malibu ", 2020, 17456, "yes", 4);
+        Carlot.registerOffer("BMW   ", "4Series", 2016, 10456, "yes", 6);
+        Carlot.registerOffer("Toyota", "Corolla", 2014, 13456, "yes", 3);
     }
 
     private static void showEmployeeMenu(User account) {
@@ -197,7 +207,7 @@ public class CarDealership {
                 return;
             }
             Carlot.registerOffer(input[0], input[1], Integer.parseInt(input[2]),
-                    Integer.parseInt(input[3]), "Yes", Integer.parseInt(input[4]));
+                    Integer.parseInt(input[3]), "yes", Integer.parseInt(input[4]));
         } else if ("2".equals(option)) {
             System.out.println("\n Enter CarLot Number  --> [ ] <--: ");
             Carlot.removeOffer(Integer.parseInt(scan.nextLine()));
@@ -207,14 +217,16 @@ public class CarDealership {
     private static void reviewPurchaseRequests() {
         System.out.println("Pending Purchase Requests: \n");
         Carlot.getpOffers();
-        System.out.println("\nSelect an Offer to Approve: ");
-        int offerNumber = Integer.parseInt(scan.nextLine());
+        System.out.println("\nSelect a Request to Approve: ");
+        int requestNumber = Integer.parseInt(scan.nextLine());
         System.out.println("\nEnter Number of Months Customer has to pay: ");
         int months = Integer.parseInt(scan.nextLine());
 
-        if (months > 0 && offerNumber > 0) {
-            int price = Carlot.setAccept(offerNumber, months, true);
-            cls.setCarsOwned(Carlot.getCarDB(offerNumber), price, months);
+        if (months > 0 && requestNumber >= 0
+                && requestNumber < Carlot.getPurchaseRequests().size()) {
+            PurchaseRequest request = Carlot.getPurchaseRequests().get(requestNumber);
+            int price = Carlot.setAccept(requestNumber, months, true);
+            cls.setCarsOwned(Carlot.getCarDB(request.getListingId()), price, months);
         } else {
             System.out.println("\nMessage: Can Not Accept The Payment terms ");
         }
