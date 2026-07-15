@@ -3,6 +3,7 @@ package com.revature.service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.Car;
@@ -14,12 +15,12 @@ public class CustomerLoginService extends UserLoginService {
 
     private final List<OwnedVehicle> ownedVehicles = new ArrayList<>();
 
-    public CustomerLoginService() {
-        super();
-    }
+    public CustomerLoginService() { super(); }
+    public CustomerLoginService(UserAccountRepository userRepository) { super(userRepository); }
 
-    public CustomerLoginService(UserAccountRepository userRepository) {
-        super(userRepository);
+    public void restoreOwnedVehicles(List<OwnedVehicle> restoredVehicles) {
+        ownedVehicles.clear();
+        ownedVehicles.addAll(Objects.requireNonNull(restoredVehicles, "restoredVehicles"));
     }
 
     @Override
@@ -31,24 +32,14 @@ public class CustomerLoginService extends UserLoginService {
         ownedVehicles.add(new OwnedVehicle(owned, new PaymentPlan(purchasePrice, termMonths)));
     }
 
-    /**
-     * Legacy compatibility method: applies a payment to the most recently added vehicle.
-     */
     public void setPayments(int payment) {
-        if (ownedVehicles.isEmpty()) {
-            throw new IllegalStateException("no owned vehicle is available for payment");
-        }
-        OwnedVehicle latest = ownedVehicles.get(ownedVehicles.size() - 1);
-        latest.getPaymentPlan().recordPayment(payment);
+        if (ownedVehicles.isEmpty()) throw new IllegalStateException("no owned vehicle is available for payment");
+        ownedVehicles.get(ownedVehicles.size() - 1).getPaymentPlan().recordPayment(payment);
     }
 
     public void setPayments(String[] payments) {
-        if (payments == null) {
-            throw new IllegalArgumentException("payments must not be null");
-        }
-        for (String payment : payments) {
-            setPayments(Integer.parseInt(payment));
-        }
+        if (payments == null) throw new IllegalArgumentException("payments must not be null");
+        for (String payment : payments) setPayments(Integer.parseInt(payment));
     }
 
     public void recordPayment(int ownedVehicleIndex, int payment) {
@@ -56,9 +47,7 @@ public class CustomerLoginService extends UserLoginService {
     }
 
     public OwnedVehicle getOwnedVehicle(int index) {
-        if (index < 0 || index >= ownedVehicles.size()) {
-            throw new IndexOutOfBoundsException("owned vehicle index out of range: " + index);
-        }
+        if (index < 0 || index >= ownedVehicles.size()) throw new IndexOutOfBoundsException("owned vehicle index out of range: " + index);
         return ownedVehicles.get(index);
     }
 
@@ -71,7 +60,6 @@ public class CustomerLoginService extends UserLoginService {
             System.out.println("No vehicles owned.");
             return;
         }
-
         for (int i = 0; i < ownedVehicles.size(); i++) {
             OwnedVehicle ownedVehicle = ownedVehicles.get(i);
             PaymentPlan plan = ownedVehicle.getPaymentPlan();
