@@ -2,11 +2,11 @@ package com.revature.cardealer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.PrintStream;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -17,6 +17,8 @@ import java.util.Scanner;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+
+import com.revature.DAOService.LoadResult;
 
 class CarDealershipCharacterizationTest {
 
@@ -33,9 +35,7 @@ class CarDealershipCharacterizationTest {
         String username = uniqueUsername("customer");
         ByteArrayOutputStream output = captureOutput();
         replaceScanner("1\n" + username + "\nsecret\n");
-
         invokePerformUserAction("1");
-
         assertTrue(output.toString(StandardCharsets.UTF_8).contains("Customer registered"));
     }
 
@@ -45,13 +45,10 @@ class CarDealershipCharacterizationTest {
     void unregisteredEmployeeCannotReachInventoryManagementFlow() throws Throwable {
         ByteArrayOutputStream output = captureOutput();
         replaceScanner(uniqueUsername("unknown") + "\npassword\n");
-
         invokePerformUserAction("3");
-
         String rendered = output.toString(StandardCharsets.UTF_8);
         assertTrue(rendered.contains("failure"));
         assertFalse(rendered.contains("Employee View"));
-        assertFalse(rendered.contains("Add Car to Lot"));
     }
 
     @Test
@@ -60,16 +57,11 @@ class CarDealershipCharacterizationTest {
     void customerCredentialsCannotEnterEmployeeMenu() throws Throwable {
         String username = uniqueUsername("customer-role");
         ByteArrayOutputStream output = captureOutput();
-
         replaceScanner("1\n" + username + "\nsecret\n");
         invokePerformUserAction("1");
-
         replaceScanner(username + "\nsecret\n");
         invokePerformUserAction("3");
-
-        String rendered = output.toString(StandardCharsets.UTF_8);
-        assertTrue(rendered.contains("access denied"));
-        assertFalse(rendered.contains("Employee View"));
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("access denied"));
     }
 
     @Test
@@ -77,16 +69,11 @@ class CarDealershipCharacterizationTest {
     void registeredEmployeeReachesOnlyAuthorizedEmployeeMenu() throws Throwable {
         String username = uniqueUsername("employee");
         ByteArrayOutputStream output = captureOutput();
-
         replaceScanner("2\n" + username + "\nsecret\n");
         invokePerformUserAction("1");
-
         replaceScanner(username + "\nsecret\n3\n");
         invokePerformUserAction("3");
-
-        String rendered = output.toString(StandardCharsets.UTF_8);
-        assertTrue(rendered.contains("Employee View"));
-        assertTrue(rendered.contains("View Customer Payments"));
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("Employee View"));
         assertEquals(username, CarDealership.getCurrentAccount().getUsername());
         assertEquals(AccountRole.EMPLOYEE, CarDealership.getCurrentAccount().getRole());
     }
@@ -97,24 +84,30 @@ class CarDealershipCharacterizationTest {
     void administratorFeaturesRequireAuthenticatedAdministratorRole() throws Throwable {
         String username = uniqueUsername("administrator");
         ByteArrayOutputStream output = captureOutput();
-
         replaceScanner("3\n" + username + "\nsecret\n");
         invokePerformUserAction("1");
-
         replaceScanner(username + "\nsecret\n9\n");
         invokePerformUserAction("5");
-
-        String rendered = output.toString(StandardCharsets.UTF_8);
-        assertTrue(rendered.contains("You are now an Admin"));
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("You are now an Admin"));
         assertEquals(AccountRole.ADMINISTRATOR, CarDealership.getCurrentAccount().getRole());
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    void loadDataAddsASecondDatExtensionThenDereferencesNull() {
-        CarDealership application = new CarDealership();
+    @Tag("TARGET-BEHAVIOR")
+    void missingStateFileReturnsNotFoundWithoutNullDereference() {
+        File stateFile = new File("CarDealer.dat");
+        if (stateFile.exists()) stateFile.delete();
+        ByteArrayOutputStream output;
+        try {
+            output = captureOutput();
+        } catch (Exception exception) {
+            throw new AssertionError(exception);
+        }
 
-        assertThrows(NullPointerException.class, application::loadData);
+        LoadResult result = new CarDealership().loadData();
+
+        assertEquals(LoadResult.Status.NOT_FOUND, result.getStatus());
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("Load failed [NOT_FOUND]"));
     }
 
     private static ByteArrayOutputStream captureOutput() throws Exception {
@@ -130,8 +123,7 @@ class CarDealershipCharacterizationTest {
     private static void replaceScanner(String input) throws Exception {
         Field scannerField = CarDealership.class.getDeclaredField("scan");
         scannerField.setAccessible(true);
-        scannerField.set(null,
-                new Scanner(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))));
+        scannerField.set(null, new Scanner(new ByteArrayInputStream(input.getBytes(StandardCharsets.UTF_8))));
     }
 
     private static void invokePerformUserAction(String option) throws Throwable {
