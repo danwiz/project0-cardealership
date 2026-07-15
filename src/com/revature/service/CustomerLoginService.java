@@ -1,16 +1,18 @@
 package com.revature.service;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.Car;
+import com.revature.cardealer.OwnedVehicle;
+import com.revature.cardealer.PaymentPlan;
 import com.revature.cardealer.User;
 
 public class CustomerLoginService extends UserLoginService {
 
-    private Car[] cOwnedDB = new Car[20];
-    private int cOwnedIndex = 0;
-    private int[] cPrice = new int[20];
-    private int[] pMths = new int[20];
-    private int cPayments[] = new int[20];
+    private final List<OwnedVehicle> ownedVehicles = new ArrayList<>();
 
     public CustomerLoginService() {
         super();
@@ -25,28 +27,59 @@ public class CustomerLoginService extends UserLoginService {
         return super.registerUser(username, password, AccountRole.CUSTOMER);
     }
 
-    public void setCarsOwned(Car owned, int cprice, int pmths) {
-        if (cOwnedIndex <= cOwnedDB.length)
-            cOwnedDB[cOwnedIndex] = owned;
-            cPrice[cOwnedIndex] = cprice;
-            pMths[cOwnedIndex] = pmths;
-
-        cOwnedIndex++;
+    public void setCarsOwned(Car owned, int purchasePrice, int termMonths) {
+        ownedVehicles.add(new OwnedVehicle(owned, new PaymentPlan(purchasePrice, termMonths)));
     }
 
-    public void setPayments(int payments) {
-        cPayments[cOwnedIndex] = payments;
-        System.out.println(payments);
+    /**
+     * Legacy compatibility method: applies a payment to the most recently added vehicle.
+     */
+    public void setPayments(int payment) {
+        if (ownedVehicles.isEmpty()) {
+            throw new IllegalStateException("no owned vehicle is available for payment");
+        }
+        OwnedVehicle latest = ownedVehicles.get(ownedVehicles.size() - 1);
+        latest.getPaymentPlan().recordPayment(payment);
     }
 
-    public void setPayments(String[] payaments) {
-        /* Legacy overload retained for a later ownership/payment refactor. */
+    public void setPayments(String[] payments) {
+        if (payments == null) {
+            throw new IllegalArgumentException("payments must not be null");
+        }
+        for (String payment : payments) {
+            setPayments(Integer.parseInt(payment));
+        }
+    }
+
+    public void recordPayment(int ownedVehicleIndex, int payment) {
+        getOwnedVehicle(ownedVehicleIndex).getPaymentPlan().recordPayment(payment);
+    }
+
+    public OwnedVehicle getOwnedVehicle(int index) {
+        if (index < 0 || index >= ownedVehicles.size()) {
+            throw new IndexOutOfBoundsException("owned vehicle index out of range: " + index);
+        }
+        return ownedVehicles.get(index);
+    }
+
+    public List<OwnedVehicle> getOwnedVehicleRecords() {
+        return Collections.unmodifiableList(new ArrayList<>(ownedVehicles));
     }
 
     public void getCarsOwned() {
-        for (int i = 0; i <= cOwnedDB.length; i++) {
-            System.out.println(cOwnedDB[i].getCar() + "   Price: " + cPrice[i]
-                    + " Monthly Cost: " + (cPrice[i] / pMths[i]));
+        if (ownedVehicles.isEmpty()) {
+            System.out.println("No vehicles owned.");
+            return;
+        }
+
+        for (int i = 0; i < ownedVehicles.size(); i++) {
+            OwnedVehicle ownedVehicle = ownedVehicles.get(i);
+            PaymentPlan plan = ownedVehicle.getPaymentPlan();
+            System.out.println("[" + i + "] " + ownedVehicle.getVehicle().getCar()
+                    + "   Price: " + plan.getPurchasePrice()
+                    + "   Amount Paid: " + plan.getAmountPaid()
+                    + "   Balance: " + plan.getRemainingBalance()
+                    + "   Monthly Cost: " + plan.getMonthlyPayment());
         }
     }
 }
