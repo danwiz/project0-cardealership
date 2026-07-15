@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  pull-requests: write
 
 concurrency:
   group: maven-ci-${{ github.ref }}
@@ -64,6 +65,29 @@ jobs:
         run: |
           set -o pipefail
           mvn --batch-mode --no-transfer-progress verify 2>&1 | tee target/ci-logs/verify-java-${{ matrix.java }}.log
+
+      - name: Publish failure diagnostics to pull request
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          {
+            echo "### Maven CI diagnostics — Java ${{ matrix.java }}"
+            echo
+            echo '```text'
+            if [[ -f target/ci-logs/compile-java-${{ matrix.java }}.log ]]; then
+              tail -n 80 target/ci-logs/compile-java-${{ matrix.java }}.log
+            elif [[ -f target/ci-logs/test-java-${{ matrix.java }}.log ]]; then
+              tail -n 80 target/ci-logs/test-java-${{ matrix.java }}.log
+            elif [[ -f target/ci-logs/verify-java-${{ matrix.java }}.log ]]; then
+              tail -n 80 target/ci-logs/verify-java-${{ matrix.java }}.log
+            else
+              echo "No Maven diagnostic log was produced."
+            fi
+            echo '```'
+          } > target/ci-logs/pr-diagnostic-java-${{ matrix.java }}.md
+          gh pr comment "${{ github.event.pull_request.number }}" --body-file target/ci-logs/pr-diagnostic-java-${{ matrix.java }}.md
 
       - name: Upload Maven diagnostics
         if: always()
