@@ -2,86 +2,92 @@ package com.revature.cardealer;
 
 import java.io.Serializable;
 
-import com.revature.service.*;
-
+import com.revature.service.CustomerLoginService;
+import com.revature.service.EmployeeLoginService;
 
 /*
  * Serializable is a Marker Interface
  * Marker Interface - Interface with no abstract methods
  * It works as check for the compiler.
  */
-
 public class Data implements Serializable {
-		
-		private EmployeeLoginService dEls;
-		private CustomerLoginService dCls;
-	    private User dCustomer;
-	    private User dEmployee;
-	    private Offer dCarlot;
-	    private Payments dPayments;
-	    String caption;
-	    /*
-	     * private User customer ; private User employee ; private Offer Carlot ;
-	     */
-	    
-	    public void setCustomerLoginService( CustomerLoginService dcls){
-	    	dCls= dcls;	
-	    }
-	    public void setEmployeeLoginService( EmployeeLoginService dels){
-	    	dEls=dels;	
-	    }
 
-	    public EmployeeLoginService getEmployeeLoginService() {	
-			return dEls;
-		}
-	    public CustomerLoginService getCustomerLoginService() {			
-			return dCls;
-		}
+    private EmployeeLoginService dEls;
+    private CustomerLoginService dCls;
+    private User dCustomer;
+    private User dEmployee;
+    private Offer dCarlot;
+    private Payments dPayments;
+    String caption;
 
-		public void setOffer(Offer carlot) {
-			dCarlot = carlot;
-		}
+    public void setCustomerLoginService(CustomerLoginService customerLoginService) {
+        dCls = customerLoginService;
+    }
 
-		public User getCustomer() {
-			return dCustomer;
-		}
+    public void setEmployeeLoginService(EmployeeLoginService employeeLoginService) {
+        dEls = employeeLoginService;
+    }
 
-		public void setCustomer(User customer) {
-			this.dCustomer = customer;
-		}
+    public EmployeeLoginService getEmployeeLoginService() {
+        return dEls;
+    }
 
-		public User getEmployee() {
-			return dEmployee;
-		}
+    public CustomerLoginService getCustomerLoginService() {
+        return dCls;
+    }
 
-		public void setEmployee(User employee) {
-			dEmployee = employee ;
-		}
+    public void setOffer(Offer carlot) {
+        dCarlot = carlot;
+    }
 
-		public String getCaption() {
-			return caption;
-		}
+    public User getCustomer() {
+        return dCustomer;
+    }
 
-		public void setCaption(String caption) {
-			this.caption = caption;
-		}
+    public void setCustomer(User customer) {
+        dCustomer = customer;
+    }
 
-		@Override
-		public String toString() {
-			return "[ Data Objects ]:    Logins:- =" + "   Customer:  "+dCls.getUserNames().toString() + " Employee: -   "+dEls.getUserNames().toString()+ 
-				   "\nCars:-   "+ dCarlot.offerDB.toString()+ "\nCustomer Payments:   "+dPayments.getpPayment();
-		}
+    public User getEmployee() {
+        return dEmployee;
+    }
 
-		public Data() {
-			super();
-		}
+    public void setEmployee(User employee) {
+        dEmployee = employee;
+    }
 
-		public Data(CustomerLoginService dcls, EmployeeLoginService dels, User duser, User cuser, Offer dcarlot, Payments dpayments) {
-			super();
-			this.dCls = dcls;
-			this.dEls = dels;
-			this.dCustomer = cuser;
-			this.dEmployee = duser;
-		}
+    public String getCaption() {
+        return caption;
+    }
 
+    public void setCaption(String caption) {
+        this.caption = caption;
+    }
+
+    @Override
+    public String toString() {
+        return "[ Data Objects ]: Logins: Customer=" + dCls.getUserNames()
+                + " Employee=" + dEls.getUserNames()
+                + "\nCars: " + (dCarlot == null ? "[]" : dCarlot.getListings())
+                + "\nCustomer Payments: "
+                + (dPayments == null ? "" : dPayments.getpPayment());
+    }
+
+    public Data() {
+        super();
+    }
+
+    public Data(CustomerLoginService customerLoginService,
+            EmployeeLoginService employeeLoginService,
+            User employee,
+            User customer,
+            Offer carlot,
+            Payments payments) {
+        super();
+        dCls = customerLoginService;
+        dEls = employeeLoginService;
+        dCustomer = customer;
+        dEmployee = employee;
+        // Offer and Payments assignments remain deferred to the persistence increment.
+    }
 }
