@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 public class UserLoginService {
@@ -25,8 +26,13 @@ public class UserLoginService {
     }
 
     public User registerUser(String username, String password) {
+        return registerUser(username, password, AccountRole.CUSTOMER);
+    }
+
+    public User registerUser(String username, String password, AccountRole role) {
         validateCredential("username", username);
         validateCredential("password", password);
+        Objects.requireNonNull(role, "role");
 
         if (userRepository.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("username is already registered");
@@ -35,6 +41,7 @@ public class UserLoginService {
         User newUser = new User();
         newUser.setUsername(username);
         newUser.setPassword(passwordHasher.hash(password));
+        newUser.setRole(role);
         return userRepository.save(newUser);
     }
 
@@ -44,15 +51,17 @@ public class UserLoginService {
         }
     }
 
-    public boolean authenticateUser(User user) {
-        if (user == null || isBlank(user.getUsername()) || user.getPassword() == null) {
-            return false;
+    public Optional<User> authenticate(User credentials) {
+        if (credentials == null || isBlank(credentials.getUsername()) || credentials.getPassword() == null) {
+            return Optional.empty();
         }
 
-        Optional<User> registeredUser = userRepository.findByUsername(user.getUsername());
-        return registeredUser
-                .map(account -> passwordHasher.matches(user.getPassword(), account.getPassword()))
-                .orElse(false);
+        return userRepository.findByUsername(credentials.getUsername())
+                .filter(account -> passwordHasher.matches(credentials.getPassword(), account.getPassword()));
+    }
+
+    public boolean authenticateUser(User credentials) {
+        return authenticate(credentials).isPresent();
     }
 
     public String[] getUserNames() {
