@@ -1,8 +1,11 @@
 package com.revature.cardealer;
 
+import java.io.Serializable;
 import java.util.Objects;
 
-public class PurchaseRequest {
+public class PurchaseRequest implements Serializable {
+
+    private static final long serialVersionUID = 1L;
 
     private final int id;
     private final int listingId;
@@ -23,39 +26,17 @@ public class PurchaseRequest {
         this.listingId = listingId;
     }
 
-    public int getId() {
-        return id;
-    }
-
-    public int getListingId() {
-        return listingId;
-    }
-
-    public String getCustomerName() {
-        return customerName;
-    }
-
-    public PurchaseRequestStatus getStatus() {
-        return status;
-    }
-
-    public int getPaymentMonths() {
-        return paymentMonths;
-    }
-
-    public int getMonthlyPayment() {
-        return monthlyPayment;
-    }
-
-    public boolean isPending() {
-        return status == PurchaseRequestStatus.PENDING;
-    }
+    public int getId() { return id; }
+    public int getListingId() { return listingId; }
+    public String getCustomerName() { return customerName; }
+    public PurchaseRequestStatus getStatus() { return status; }
+    public int getPaymentMonths() { return paymentMonths; }
+    public int getMonthlyPayment() { return monthlyPayment; }
+    public boolean isPending() { return status == PurchaseRequestStatus.PENDING; }
 
     public void accept(int price, int months) {
         requirePending();
-        if (months <= 0) {
-            throw new IllegalArgumentException("payment months must be positive");
-        }
+        if (months <= 0) throw new IllegalArgumentException("payment months must be positive");
         status = PurchaseRequestStatus.ACCEPTED;
         paymentMonths = months;
         monthlyPayment = price / months;
@@ -67,8 +48,6 @@ public class PurchaseRequest {
     }
 
     private void requirePending() {
-        if (!isPending()) {
-            throw new IllegalStateException("purchase request has already been decided");
-        }
+        if (!isPending()) throw new IllegalStateException("purchase request has already been decided");
     }
 }
