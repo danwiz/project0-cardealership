@@ -19,7 +19,6 @@ import com.revature.service.Permission;
 
 /** Read-only application service returning presentation-neutral response models. */
 public final class DealershipQueryService {
-
     private final DealershipApplicationContext context;
 
     public DealershipQueryService(DealershipApplicationContext context) {
@@ -33,7 +32,9 @@ public final class DealershipQueryService {
     }
 
     public List<InventoryView> inventory(User actor) {
-        context.getAuthorizationService().requireAuthorized(actor, Permission.VIEW_INVENTORY);
+        boolean allowed = context.getAuthorizationService().isAuthorized(actor, Permission.VIEW_INVENTORY)
+                || context.getAuthorizationService().isAuthorized(actor, Permission.MANAGE_INVENTORY);
+        if (!allowed) throw new SecurityException("account is not authorized to view inventory");
         List<InventoryView> result = new ArrayList<>();
         for (InventoryListing listing : context.getInventory().getListings()) {
             if (listing.isActive()) result.add(toInventoryView(listing));
@@ -75,8 +76,7 @@ public final class DealershipQueryService {
                     transaction.getRemainingBalance(), transaction.getRecordedAt()));
         }
         return new PaymentReportView(context.getPayments().getAmtOwed(),
-                context.getPayments().getTotalPaid(), context.getPayments().getBalance(),
-                immutable(transactions));
+                context.getPayments().getTotalPaid(), context.getPayments().getBalance(), immutable(transactions));
     }
 
     private InventoryView toInventoryView(InventoryListing listing) {
@@ -95,69 +95,47 @@ public final class DealershipQueryService {
     }
 
     public static final class AccountView {
-        private final String username;
-        private final AccountRole role;
-        AccountView(String username, AccountRole role) { this.username = username; this.role = role; }
-        public String getUsername() { return username; }
-        public AccountRole getRole() { return role; }
+        private final String username; private final AccountRole role;
+        AccountView(String username, AccountRole role) { this.username=username; this.role=role; }
+        public String getUsername(){return username;} public AccountRole getRole(){return role;}
     }
-
     public static final class InventoryView {
         private final int id; private final String make; private final String model; private final int year;
         private final int price; private final int stockQuantity; private final boolean active; private final boolean available;
-        InventoryView(int id, String make, String model, int year, int price, int stockQuantity, boolean active, boolean available) {
-            this.id=id; this.make=make; this.model=model; this.year=year; this.price=price;
-            this.stockQuantity=stockQuantity; this.active=active; this.available=available;
-        }
-        public int getId(){return id;} public String getMake(){return make;} public String getModel(){return model;}
-        public int getYear(){return year;} public int getPrice(){return price;} public int getStockQuantity(){return stockQuantity;}
-        public boolean isActive(){return active;} public boolean isAvailable(){return available;}
+        InventoryView(int id,String make,String model,int year,int price,int stockQuantity,boolean active,boolean available){
+            this.id=id;this.make=make;this.model=model;this.year=year;this.price=price;this.stockQuantity=stockQuantity;this.active=active;this.available=available;}
+        public int getId(){return id;} public String getMake(){return make;} public String getModel(){return model;} public int getYear(){return year;}
+        public int getPrice(){return price;} public int getStockQuantity(){return stockQuantity;} public boolean isActive(){return active;} public boolean isAvailable(){return available;}
     }
-
     public static final class PurchaseRequestView {
-        private final int id; private final int listingId; private final String customerName;
-        private final PurchaseRequestStatus status; private final int paymentMonths; private final int monthlyPayment;
+        private final int id; private final int listingId; private final String customerName; private final PurchaseRequestStatus status;
+        private final int paymentMonths; private final int monthlyPayment;
         PurchaseRequestView(int id,int listingId,String customerName,PurchaseRequestStatus status,int paymentMonths,int monthlyPayment){
-            this.id=id;this.listingId=listingId;this.customerName=customerName;this.status=status;
-            this.paymentMonths=paymentMonths;this.monthlyPayment=monthlyPayment;
-        }
+            this.id=id;this.listingId=listingId;this.customerName=customerName;this.status=status;this.paymentMonths=paymentMonths;this.monthlyPayment=monthlyPayment;}
         public int getId(){return id;} public int getListingId(){return listingId;} public String getCustomerName(){return customerName;}
-        public PurchaseRequestStatus getStatus(){return status;} public int getPaymentMonths(){return paymentMonths;}
-        public int getMonthlyPayment(){return monthlyPayment;}
+        public PurchaseRequestStatus getStatus(){return status;} public int getPaymentMonths(){return paymentMonths;} public int getMonthlyPayment(){return monthlyPayment;}
     }
-
     public static final class OwnershipView {
-        private final int index; private final String make; private final String model; private final int year;
-        private final int purchasePrice; private final int amountPaid; private final int remainingBalance;
-        private final int monthlyPayment; private final int termMonths;
+        private final int index; private final String make; private final String model; private final int year; private final int purchasePrice;
+        private final int amountPaid; private final int remainingBalance; private final int monthlyPayment; private final int termMonths;
         OwnershipView(int index,String make,String model,int year,int purchasePrice,int amountPaid,int remainingBalance,int monthlyPayment,int termMonths){
-            this.index=index;this.make=make;this.model=model;this.year=year;this.purchasePrice=purchasePrice;
-            this.amountPaid=amountPaid;this.remainingBalance=remainingBalance;this.monthlyPayment=monthlyPayment;this.termMonths=termMonths;
-        }
-        public int getIndex(){return index;} public String getMake(){return make;} public String getModel(){return model;}
-        public int getYear(){return year;} public int getPurchasePrice(){return purchasePrice;} public int getAmountPaid(){return amountPaid;}
-        public int getRemainingBalance(){return remainingBalance;} public int getMonthlyPayment(){return monthlyPayment;} public int getTermMonths(){return termMonths;}
+            this.index=index;this.make=make;this.model=model;this.year=year;this.purchasePrice=purchasePrice;this.amountPaid=amountPaid;this.remainingBalance=remainingBalance;this.monthlyPayment=monthlyPayment;this.termMonths=termMonths;}
+        public int getIndex(){return index;} public String getMake(){return make;} public String getModel(){return model;} public int getYear(){return year;}
+        public int getPurchasePrice(){return purchasePrice;} public int getAmountPaid(){return amountPaid;} public int getRemainingBalance(){return remainingBalance;}
+        public int getMonthlyPayment(){return monthlyPayment;} public int getTermMonths(){return termMonths;}
     }
-
     public static final class PaymentTransactionView {
-        private final String transactionId; private final String customerName; private final int amount;
-        private final int totalPaid; private final int remainingBalance; private final Instant recordedAt;
+        private final String transactionId; private final String customerName; private final int amount; private final int totalPaid;
+        private final int remainingBalance; private final Instant recordedAt;
         PaymentTransactionView(String transactionId,String customerName,int amount,int totalPaid,int remainingBalance,Instant recordedAt){
-            this.transactionId=transactionId;this.customerName=customerName;this.amount=amount;
-            this.totalPaid=totalPaid;this.remainingBalance=remainingBalance;this.recordedAt=recordedAt;
-        }
-        public String getTransactionId(){return transactionId;} public String getCustomerName(){return customerName;}
-        public int getAmount(){return amount;} public int getTotalPaid(){return totalPaid;}
-        public int getRemainingBalance(){return remainingBalance;} public Instant getRecordedAt(){return recordedAt;}
+            this.transactionId=transactionId;this.customerName=customerName;this.amount=amount;this.totalPaid=totalPaid;this.remainingBalance=remainingBalance;this.recordedAt=recordedAt;}
+        public String getTransactionId(){return transactionId;} public String getCustomerName(){return customerName;} public int getAmount(){return amount;}
+        public int getTotalPaid(){return totalPaid;} public int getRemainingBalance(){return remainingBalance;} public Instant getRecordedAt(){return recordedAt;}
     }
-
     public static final class PaymentReportView {
-        private final int amountOwed; private final int totalPaid; private final int balance;
-        private final List<PaymentTransactionView> transactions;
-        PaymentReportView(int amountOwed,int totalPaid,int balance,List<PaymentTransactionView> transactions){
-            this.amountOwed=amountOwed;this.totalPaid=totalPaid;this.balance=balance;this.transactions=transactions;
-        }
-        public int getAmountOwed(){return amountOwed;} public int getTotalPaid(){return totalPaid;}
-        public int getBalance(){return balance;} public List<PaymentTransactionView> getTransactions(){return transactions;}
+        private final int amountOwed; private final int totalPaid; private final int balance; private final List<PaymentTransactionView> transactions;
+        PaymentReportView(int amountOwed,int totalPaid,int balance,List<PaymentTransactionView> transactions){this.amountOwed=amountOwed;this.totalPaid=totalPaid;this.balance=balance;this.transactions=transactions;}
+        public int getAmountOwed(){return amountOwed;} public int getTotalPaid(){return totalPaid;} public int getBalance(){return balance;}
+        public List<PaymentTransactionView> getTransactions(){return transactions;}
     }
 }
