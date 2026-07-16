@@ -30,7 +30,7 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
 
     @Override
     public List<PaymentTransaction> findAll() {
-        String sql = "SELECT transaction_id, customer_name, amount, cumulative_paid, resulting_balance, recorded_at "
+        String sql = "SELECT transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at "
                 + "FROM payment_transactions WHERE customer_name = ? ORDER BY recorded_at, transaction_id";
         List<PaymentTransaction> transactions = new ArrayList<>();
         try (Connection connection = database.openConnection();
@@ -38,8 +38,10 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
             statement.setString(1, customerName);
             try (ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
+                    long ownershipId = result.getLong("ownership_id");
+                    Long ownership = result.wasNull() ? null : ownershipId;
                     transactions.add(new PaymentTransaction(result.getString("transaction_id"),
-                            result.getString("customer_name"), result.getInt("amount"),
+                            result.getString("customer_name"), ownership, result.getInt("amount"),
                             result.getInt("cumulative_paid"), result.getInt("resulting_balance"),
                             result.getTimestamp("recorded_at").toInstant()));
                 }
@@ -50,11 +52,9 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
         }
     }
 
-    @Override
-    public Payments ledger() {
-        return Payments.restore(findAll());
-    }
+    @Override public Payments ledger() { return Payments.restore(findAll()); }
 
+    /** Compatibility write path for customer-level ledger imports without a known ownership target. */
     public PaymentTransaction recordPayment(int amount, int amountOwed) {
         if (amount <= 0) throw new IllegalArgumentException("payment amount must be positive");
         if (amountOwed < 0) throw new IllegalArgumentException("amount owed must not be negative");
@@ -72,8 +72,7 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
             String transactionId = String.format("PAY-%06d", state.nextSequence);
             Instant recordedAt = Instant.now();
             try (PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO payment_transactions(transaction_id, customer_name, amount, cumulative_paid, resulting_balance, recorded_at) "
-                            + "VALUES (?, ?, ?, ?, ?, ?)")) {
+                    "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")) {
                 statement.setString(1, transactionId);
                 statement.setString(2, customerName);
                 statement.setInt(3, amount);
@@ -95,15 +94,16 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
                 delete.executeUpdate();
             }
             try (PreparedStatement insert = connection.prepareStatement(
-                    "INSERT INTO payment_transactions(transaction_id, customer_name, amount, cumulative_paid, resulting_balance, recorded_at) "
-                            + "VALUES (?, ?, ?, ?, ?, ?)")) {
+                    "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
                 for (PaymentTransaction transaction : validated) {
                     insert.setString(1, transaction.getTransactionId());
                     insert.setString(2, customerName);
-                    insert.setInt(3, transaction.getAmount());
-                    insert.setInt(4, transaction.getTotalPaid());
-                    insert.setInt(5, transaction.getRemainingBalance());
-                    insert.setTimestamp(6, Timestamp.from(transaction.getRecordedAt()));
+                    if (transaction.getOwnershipId().isPresent()) insert.setLong(3, transaction.getOwnershipId().getAsLong());
+                    else insert.setNull(3, java.sql.Types.INTEGER);
+                    insert.setInt(4, transaction.getAmount());
+                    insert.setInt(5, transaction.getTotalPaid());
+                    insert.setInt(6, transaction.getRemainingBalance());
+                    insert.setTimestamp(7, Timestamp.from(transaction.getRecordedAt()));
                     insert.addBatch();
                 }
                 insert.executeBatch();
@@ -127,9 +127,7 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
             if (sequence <= previousSequence) throw new IllegalArgumentException("transaction identifiers must be strictly increasing");
             previousSequence = sequence;
             expectedTotal += transaction.getAmount();
-            if (transaction.getTotalPaid() != expectedTotal) {
-                throw new IllegalArgumentException("cumulative paid amount is inconsistent");
-            }
+            if (transaction.getTotalPaid() != expectedTotal) throw new IllegalArgumentException("cumulative paid amount is inconsistent");
             int owed = transaction.getTotalPaid() + transaction.getRemainingBalance();
             if (expectedOwed == null) expectedOwed = owed;
             if (expectedOwed != owed) throw new IllegalArgumentException("transaction balances are inconsistent");
@@ -142,8 +140,7 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
         boolean hasTransactions = false;
         int totalPaid = 0;
         int remainingBalance = 0;
-        String customerSql = "SELECT cumulative_paid, resulting_balance FROM payment_transactions "
-                + "WHERE customer_name = ? ORDER BY recorded_at DESC, transaction_id DESC LIMIT 1 FOR UPDATE";
+        String customerSql = "SELECT cumulative_paid, resulting_balance FROM payment_transactions WHERE customer_name = ? ORDER BY recorded_at DESC, transaction_id DESC LIMIT 1 FOR UPDATE";
         try (PreparedStatement statement = connection.prepareStatement(customerSql)) {
             statement.setString(1, customerName);
             try (ResultSet result = statement.executeQuery()) {
@@ -159,16 +156,14 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
 
     private long nextGlobalSequence(Connection connection) throws SQLException {
         String sql = "SELECT transaction_id FROM payment_transactions ORDER BY transaction_id DESC LIMIT 1 FOR UPDATE";
-        try (PreparedStatement statement = connection.prepareStatement(sql);
-                ResultSet result = statement.executeQuery()) {
+        try (PreparedStatement statement = connection.prepareStatement(sql); ResultSet result = statement.executeQuery()) {
             return result.next() ? parseSequence(result.getString("transaction_id")) + 1 : 1;
         }
     }
 
     private void validateCustomer() {
-        try (Connection connection = database.openConnection();
-                PreparedStatement statement = connection.prepareStatement(
-                        "SELECT role FROM accounts WHERE username = ?")) {
+        try (Connection connection = database.openConnection(); PreparedStatement statement = connection.prepareStatement(
+                "SELECT role FROM accounts WHERE username = ?")) {
             statement.setString(1, customerName);
             try (ResultSet result = statement.executeQuery()) {
                 if (!result.next()) throw new IllegalArgumentException("unknown customer: " + customerName);
