@@ -4,6 +4,8 @@ import java.util.Scanner;
 
 import com.revature.DAOService.LoadResult;
 import com.revature.DAOService.SaveResult;
+import com.revature.application.ConfiguredDealershipApplication;
+import com.revature.application.DealershipCompositionRoot;
 import com.revature.service.CustomerLoginService;
 
 /**
@@ -13,7 +15,8 @@ import com.revature.service.CustomerLoginService;
  */
 public class CarDealership {
 
-    private static DealershipApplicationContext context = new DealershipApplicationContext();
+    private static ConfiguredDealershipApplication application = DealershipCompositionRoot.createDefault();
+    private static DealershipApplicationContext context = application.getContext();
     private static Scanner scan = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -21,7 +24,7 @@ public class CarDealership {
     }
 
     private static ConsoleCommandHandler handler() {
-        return new ConsoleCommandHandler(context, new ScannerConsoleIO(scan, System.out));
+        return new ConsoleCommandHandler(application, new ScannerConsoleIO(scan, System.out));
     }
 
     /** Compatibility seam retained for the existing characterization suite. */
@@ -59,6 +62,13 @@ public class CarDealership {
 
     static void replaceApplicationContext(DealershipApplicationContext replacement) {
         context = replacement;
+        application = DealershipCompositionRoot.create(
+                com.revature.application.InfrastructureConfiguration.inMemory());
+    }
+
+    static void replaceConfiguredApplication(ConfiguredDealershipApplication replacement) {
+        application = replacement;
+        context = replacement.getContext();
     }
 
     public LoadResult loadData() {
