@@ -21,6 +21,7 @@ on:
       - refactor/repository-domain-ports
       - refactor/jdbc-repositories
       - refactor/jdbc-inventory-repository
+      - refactor/jdbc-ownership-repository
   pull_request:
     branches:
       - master
@@ -41,6 +42,7 @@ on:
       - refactor/application-ports-adapters
       - refactor/repository-domain-ports
       - refactor/jdbc-repositories
+      - refactor/jdbc-inventory-repository
   workflow_dispatch:
 
 permissions:
