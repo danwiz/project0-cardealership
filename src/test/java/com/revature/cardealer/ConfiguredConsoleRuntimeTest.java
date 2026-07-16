@@ -39,7 +39,8 @@ class ConfiguredConsoleRuntimeTest {
         assertEquals(2, restarted.getAccounts().findAll().size());
         assertEquals(1, restarted.getInventory().listings().size());
         assertEquals(1, restarted.ownershipFor("alice").findAll().size());
-        assertTrue(restarted.getInventory().purchaseRequests().get(0).isAccepted());
+        assertEquals(PurchaseRequestStatus.ACCEPTED,
+                restarted.getInventory().purchaseRequests().get(0).getStatus());
     }
 
     @Test
