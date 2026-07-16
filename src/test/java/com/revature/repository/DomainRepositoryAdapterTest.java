@@ -23,7 +23,6 @@ class DomainRepositoryAdapterTest {
     @Test
     void inventoryRepositoryPreservesStableListingAndRequestIdentifiers() {
         InventoryRepository repository = new OfferInventoryRepository(new Offer());
-
         repository.addListing("Honda", "Civic", 2021, 18000, 1);
         repository.requestPurchase("buyer", 0);
         int price = repository.decideRequest(0, 18, true);
@@ -50,7 +49,7 @@ class DomainRepositoryAdapterTest {
         repository.replaceAll(Collections.singletonList(replacement));
 
         assertEquals(1, repository.findAll().size());
-        assertEquals("Mazda", repository.findAll().get(0).getVehicle().getMake());
+        assertEquals("Mazda", repository.findAll().get(0).getVehicle().getCarMake());
     }
 
     @Test
