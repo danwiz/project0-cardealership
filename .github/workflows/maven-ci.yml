@@ -22,6 +22,7 @@ on:
       - refactor/jdbc-repositories
       - refactor/jdbc-inventory-repository
       - refactor/jdbc-ownership-repository
+      - refactor/jdbc-payment-transaction-repository
   pull_request:
     branches:
       - master
@@ -43,6 +44,7 @@ on:
       - refactor/repository-domain-ports
       - refactor/jdbc-repositories
       - refactor/jdbc-inventory-repository
+      - refactor/jdbc-ownership-repository
   workflow_dispatch:
 
 permissions:
