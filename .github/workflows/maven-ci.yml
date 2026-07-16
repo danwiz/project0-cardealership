@@ -19,6 +19,7 @@ on:
       - refactor/query-response-models
       - refactor/application-ports-adapters
       - refactor/repository-domain-ports
+      - refactor/jdbc-repositories
   pull_request:
     branches:
       - master
@@ -37,6 +38,7 @@ on:
       - refactor/application-command-services
       - refactor/query-response-models
       - refactor/application-ports-adapters
+      - refactor/repository-domain-ports
   workflow_dispatch:
 
 permissions:
