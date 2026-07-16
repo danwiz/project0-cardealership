@@ -29,6 +29,10 @@ public final class LoadResult {
         return new LoadResult(Status.SUCCESS, snapshot, "state loaded");
     }
 
+    public static LoadResult invalidContent(String message) {
+        return failure(Status.INVALID_CONTENT, message);
+    }
+
     public static LoadResult failure(Status status, String message) {
         if (status == Status.SUCCESS) {
             throw new IllegalArgumentException("failure status must not be SUCCESS");

@@ -12,18 +12,37 @@ import com.revature.cardealer.InventoryListing;
 import com.revature.cardealer.OwnedVehicle;
 import com.revature.cardealer.PaymentPlan;
 import com.revature.cardealer.PaymentTransaction;
+import com.revature.cardealer.Payments;
 import com.revature.cardealer.PurchaseRequest;
 import com.revature.cardealer.PurchaseRequestStatus;
 import com.revature.cardealer.User;
+import com.revature.repository.CustomerOwnershipRepository;
+import com.revature.repository.InventoryRepository;
+import com.revature.repository.LedgerPaymentTransactionRepository;
+import com.revature.repository.OfferInventoryRepository;
+import com.revature.repository.OwnershipRepository;
+import com.revature.repository.PaymentTransactionRepository;
 import com.revature.service.Permission;
+import com.revature.service.RoleAuthorizationService;
 
 /** Read-only application service returning presentation-neutral response models. */
 public final class DealershipQueryService {
     private final DealershipApplicationContext context;
+    private final ConfiguredDealershipApplication application;
+    private final RoleAuthorizationService authorization;
 
     public DealershipQueryService(DealershipApplicationContext context) {
         if (context == null) throw new IllegalArgumentException("context must not be null");
         this.context = context;
+        this.application = null;
+        this.authorization = context.getAuthorizationService();
+    }
+
+    public DealershipQueryService(ConfiguredDealershipApplication application) {
+        if (application == null) throw new IllegalArgumentException("application must not be null");
+        this.application = application;
+        this.context = application.getContext();
+        this.authorization = context.getAuthorizationService();
     }
 
     public AccountView account(User actor) {
@@ -32,30 +51,30 @@ public final class DealershipQueryService {
     }
 
     public List<InventoryView> inventory(User actor) {
-        boolean allowed = context.getAuthorizationService().isAuthorized(actor, Permission.VIEW_INVENTORY)
-                || context.getAuthorizationService().isAuthorized(actor, Permission.MANAGE_INVENTORY);
+        boolean allowed = authorization.isAuthorized(actor, Permission.VIEW_INVENTORY)
+                || authorization.isAuthorized(actor, Permission.MANAGE_INVENTORY);
         if (!allowed) throw new SecurityException("account is not authorized to view inventory");
         List<InventoryView> result = new ArrayList<>();
-        for (InventoryListing listing : context.getInventory().getListings()) {
+        for (InventoryListing listing : inventoryRepository().listings()) {
             if (listing.isActive()) result.add(toInventoryView(listing));
         }
         return immutable(result);
     }
 
     public List<PurchaseRequestView> pendingRequests(User actor) {
-        context.getAuthorizationService().requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
+        authorization.requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
         List<PurchaseRequestView> result = new ArrayList<>();
-        for (PurchaseRequest request : context.getInventory().getPurchaseRequests()) {
+        for (PurchaseRequest request : inventoryRepository().purchaseRequests()) {
             if (request.isPending()) result.add(toRequestView(request));
         }
         return immutable(result);
     }
 
     public List<OwnershipView> ownership(User actor) {
-        context.getAuthorizationService().requireAuthorized(actor, Permission.VIEW_OWNED_VEHICLES);
+        authorization.requireAuthorized(actor, Permission.VIEW_OWNED_VEHICLES);
         List<OwnershipView> result = new ArrayList<>();
         int index = 0;
-        for (OwnedVehicle owned : context.getCustomerLoginService().getOwnedVehicleRecords()) {
+        for (OwnedVehicle owned : ownershipRepository(actor.getUsername()).findAll()) {
             PaymentPlan plan = owned.getPaymentPlan();
             Car car = owned.getVehicle();
             result.add(new OwnershipView(index++, car.getCarMake(), car.getCarModel(), car.getCarYear(),
@@ -66,26 +85,55 @@ public final class DealershipQueryService {
     }
 
     public PaymentReportView payments(User actor) {
-        Permission required = actor != null && actor.getRole() == AccountRole.CUSTOMER
-                ? Permission.VIEW_OWN_PAYMENTS : Permission.VIEW_CUSTOMER_PAYMENTS;
-        context.getAuthorizationService().requireAuthorized(actor, required);
-        List<PaymentTransactionView> transactions = new ArrayList<>();
-        for (PaymentTransaction transaction : context.getPayments().getTransactions()) {
-            transactions.add(new PaymentTransactionView(transaction.getTransactionId(),
-                    transaction.getCustomerName(), transaction.getAmount(), transaction.getTotalPaid(),
-                    transaction.getRemainingBalance(), transaction.getRecordedAt()));
+        if (actor == null) throw new IllegalArgumentException("account must not be null");
+        boolean sharedInMemoryLedger = application == null
+                || application.getConfiguration().getMode() == InfrastructureConfiguration.Mode.IN_MEMORY;
+        if (actor.getRole() != AccountRole.CUSTOMER && !sharedInMemoryLedger) {
+            throw new IllegalArgumentException("customer username is required for staff payment reports");
         }
-        return new PaymentReportView(context.getPayments().getAmtOwed(),
-                context.getPayments().getTotalPaid(), context.getPayments().getBalance(), immutable(transactions));
+        return payments(actor, actor.getUsername());
     }
 
-    private InventoryView toInventoryView(InventoryListing listing) {
+    public PaymentReportView payments(User actor, String customerName) {
+        Permission required = actor != null && actor.getRole() == AccountRole.CUSTOMER
+                ? Permission.VIEW_OWN_PAYMENTS : Permission.VIEW_CUSTOMER_PAYMENTS;
+        authorization.requireAuthorized(actor, required);
+        if (actor != null && actor.getRole() == AccountRole.CUSTOMER
+                && !actor.getUsername().equals(customerName)) {
+            throw new SecurityException("customers may only view their own payments");
+        }
+        PaymentTransactionRepository repository = paymentRepository(customerName);
+        List<PaymentTransactionView> transactions = new ArrayList<>();
+        for (PaymentTransaction transaction : repository.findAll()) {
+            transactions.add(new PaymentTransactionView(transaction.getTransactionId(), transaction.getCustomerName(),
+                    transaction.getAmount(), transaction.getTotalPaid(), transaction.getRemainingBalance(),
+                    transaction.getRecordedAt()));
+        }
+        Payments ledger = repository.ledger();
+        return new PaymentReportView(ledger.getAmtOwed(), ledger.getTotalPaid(), ledger.getBalance(), immutable(transactions));
+    }
+
+    private InventoryRepository inventoryRepository() {
+        return application == null ? new OfferInventoryRepository(context.getInventory()) : application.getInventory();
+    }
+
+    private OwnershipRepository ownershipRepository(String customerName) {
+        return application == null ? new CustomerOwnershipRepository(context.getCustomerLoginService())
+                : application.ownershipFor(customerName);
+    }
+
+    private PaymentTransactionRepository paymentRepository(String customerName) {
+        return application == null ? new LedgerPaymentTransactionRepository(context.getPayments())
+                : application.paymentsFor(customerName);
+    }
+
+    private static InventoryView toInventoryView(InventoryListing listing) {
         Car car = listing.getCar();
         return new InventoryView(listing.getId(), car.getCarMake(), car.getCarModel(), car.getCarYear(),
                 listing.getPrice(), listing.getStockQuantity(), listing.isActive(), listing.isAvailable());
     }
 
-    private PurchaseRequestView toRequestView(PurchaseRequest request) {
+    private static PurchaseRequestView toRequestView(PurchaseRequest request) {
         return new PurchaseRequestView(request.getId(), request.getListingId(), request.getCustomerName(),
                 request.getStatus(), request.getPaymentMonths(), request.getMonthlyPayment());
     }

@@ -24,6 +24,7 @@ on:
       - refactor/jdbc-ownership-repository
       - refactor/jdbc-payment-transaction-repository
       - refactor/jdbc-application-composition
+      - refactor/configured-console-runtime
   pull_request:
     branches:
       - master
@@ -47,6 +48,7 @@ on:
       - refactor/jdbc-inventory-repository
       - refactor/jdbc-ownership-repository
       - refactor/jdbc-payment-transaction-repository
+      - refactor/jdbc-application-composition
   workflow_dispatch:
 
 permissions:

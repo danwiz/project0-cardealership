@@ -3,7 +3,11 @@ package com.revature.cardealer;
 import com.revature.DAOService.LoadResult;
 import com.revature.DAOService.SaveResult;
 import com.revature.application.AuthenticateAccountCommand;
+import com.revature.application.ConfiguredDealershipApplication;
+import com.revature.application.ConfiguredDomainAdapter;
+import com.revature.application.ContextIdentityAdapter;
 import com.revature.application.DealershipQueryService;
+import com.revature.application.InfrastructureConfiguration;
 import com.revature.application.LoadStateCommand;
 import com.revature.application.ManageInventoryCommand;
 import com.revature.application.RegisterAccountCommand;
@@ -29,6 +33,7 @@ public final class ConsoleCommandHandler {
     private final SeedDefaultInventoryCommand seedDefaultInventory;
     private final DealershipQueryService queries;
     private final ConsoleViewRenderer renderer;
+    private final boolean jdbcMode;
 
     public ConsoleCommandHandler(DealershipApplicationContext context, ConsoleIO io) {
         this.context = context;
@@ -43,6 +48,25 @@ public final class ConsoleCommandHandler {
         this.seedDefaultInventory = new SeedDefaultInventoryCommand(context);
         this.queries = new DealershipQueryService(context);
         this.renderer = new ConsoleViewRenderer(io);
+        this.jdbcMode = false;
+    }
+
+    public ConsoleCommandHandler(ConfiguredDealershipApplication application, ConsoleIO io) {
+        this.context = application.getContext();
+        this.io = io;
+        ContextIdentityAdapter identity = new ContextIdentityAdapter(context);
+        ConfiguredDomainAdapter domain = new ConfiguredDomainAdapter(application);
+        this.registerAccount = new RegisterAccountCommand(identity);
+        this.authenticateAccount = new AuthenticateAccountCommand(identity, domain);
+        this.manageInventory = new ManageInventoryCommand(domain, domain);
+        this.requestPurchase = new RequestPurchaseCommand(domain, domain);
+        this.reviewPurchaseRequest = new ReviewPurchaseRequestCommand(domain, domain, domain);
+        this.saveState = new SaveStateCommand(context);
+        this.loadState = new LoadStateCommand(context);
+        this.seedDefaultInventory = new SeedDefaultInventoryCommand(domain);
+        this.queries = new DealershipQueryService(application);
+        this.renderer = new ConsoleViewRenderer(io);
+        this.jdbcMode = application.getConfiguration().getMode() == InfrastructureConfiguration.Mode.JDBC;
     }
 
     public void run() {
@@ -116,8 +140,15 @@ public final class ConsoleCommandHandler {
         String option = io.readLine();
         if ("1".equals(option)) handleInventoryCommand(account);
         else if ("2".equals(option)) handlePurchaseReview(account);
-        else if ("3".equals(option)) renderer.payments(queries.payments(account));
-        else io.writeLine("did not understand input");
+        else if ("3".equals(option)) {
+            if (jdbcMode) {
+                io.writeLine("Enter customer username:");
+                try { renderer.payments(queries.payments(account, io.readLine())); }
+                catch (IllegalArgumentException exception) { io.writeLine("Unknown customer"); }
+            } else {
+                renderer.payments(queries.payments(account));
+            }
+        } else io.writeLine("did not understand input");
     }
 
     private void handleInventoryCommand(User account) {
@@ -148,6 +179,10 @@ public final class ConsoleCommandHandler {
 
     private void showAdminMenu(User account) {
         context.getAuthorizationService().requireAuthorized(account, Permission.MANAGE_PERSISTENCE);
+        if (jdbcMode) {
+            io.writeLine("JDBC persistence is active; state is committed transactionally by each command.");
+            return;
+        }
         io.writeLine("You are now an Admin\n [1] Serialize and Save Data\n [2] Deserialize and Load Data");
         String input = io.readLine();
         if ("1".equals(input)) saveData();
@@ -155,6 +190,7 @@ public final class ConsoleCommandHandler {
     }
 
     public LoadResult loadData() {
+        if (jdbcMode) return LoadResult.invalidContent("file loading is disabled while JDBC persistence is active");
         LoadResult result = loadState.execute(STATE_FILE);
         if (result.isSuccess()) io.writeLine("Application state loaded and activated.");
         else if (result.getStatus() == LoadResult.Status.INVALID_CONTENT) io.writeLine("Load rejected [INVALID_CONTENT]: " + result.getMessage());
@@ -163,6 +199,7 @@ public final class ConsoleCommandHandler {
     }
 
     public SaveResult saveData() {
+        if (jdbcMode) return SaveResult.invalidInput("file saving is disabled while JDBC persistence is active");
         SaveResult result = saveState.execute(STATE_FILE);
         io.writeLine(result.isSuccess() ? "Application state saved."
                 : "Save failed [" + result.getStatus() + "]: " + result.getMessage());

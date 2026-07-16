@@ -22,6 +22,10 @@ public final class SaveResult {
         return new SaveResult(Status.SUCCESS, filename, "state saved");
     }
 
+    public static SaveResult invalidInput(String message) {
+        return failure(Status.INVALID_INPUT, null, message);
+    }
+
     public static SaveResult failure(Status status, String filename, String message) {
         if (status == Status.SUCCESS) {
             throw new IllegalArgumentException("failure status must not be SUCCESS");

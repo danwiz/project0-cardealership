@@ -4,6 +4,8 @@ import java.util.Scanner;
 
 import com.revature.DAOService.LoadResult;
 import com.revature.DAOService.SaveResult;
+import com.revature.application.ConfiguredDealershipApplication;
+import com.revature.application.DealershipCompositionRoot;
 import com.revature.service.CustomerLoginService;
 
 /**
@@ -13,7 +15,9 @@ import com.revature.service.CustomerLoginService;
  */
 public class CarDealership {
 
-    private static DealershipApplicationContext context = new DealershipApplicationContext();
+    private static ConfiguredDealershipApplication application = DealershipCompositionRoot.createDefault();
+    private static DealershipApplicationContext context = application.getContext();
+    private static boolean legacyContextOverride;
     private static Scanner scan = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -21,7 +25,9 @@ public class CarDealership {
     }
 
     private static ConsoleCommandHandler handler() {
-        return new ConsoleCommandHandler(context, new ScannerConsoleIO(scan, System.out));
+        ScannerConsoleIO io = new ScannerConsoleIO(scan, System.out);
+        return legacyContextOverride ? new ConsoleCommandHandler(context, io)
+                : new ConsoleCommandHandler(application, io);
     }
 
     /** Compatibility seam retained for the existing characterization suite. */
@@ -33,25 +39,11 @@ public class CarDealership {
         return handler().readCredentials();
     }
 
-    static User getCurrentAccount() {
-        return context.getCurrentAccount();
-    }
-
-    static CustomerLoginService getCustomerService() {
-        return context.getCustomerLoginService();
-    }
-
-    static Offer getInventory() {
-        return context.getInventory();
-    }
-
-    static Payments getPaymentLedger() {
-        return context.getPayments();
-    }
-
-    static DealershipApplicationContext getApplicationContext() {
-        return context;
-    }
+    static User getCurrentAccount() { return context.getCurrentAccount(); }
+    static CustomerLoginService getCustomerService() { return context.getCustomerLoginService(); }
+    static Offer getInventory() { return context.getInventory(); }
+    static Payments getPaymentLedger() { return context.getPayments(); }
+    static DealershipApplicationContext getApplicationContext() { return context; }
 
     static void apply(RehydratedApplicationState replacement) {
         context.replaceRuntime(replacement);
@@ -59,13 +51,15 @@ public class CarDealership {
 
     static void replaceApplicationContext(DealershipApplicationContext replacement) {
         context = replacement;
+        legacyContextOverride = true;
     }
 
-    public LoadResult loadData() {
-        return handler().loadData();
+    static void replaceConfiguredApplication(ConfiguredDealershipApplication replacement) {
+        application = replacement;
+        context = replacement.getContext();
+        legacyContextOverride = false;
     }
 
-    public SaveResult saveData() {
-        return handler().saveData();
-    }
+    public LoadResult loadData() { return handler().loadData(); }
+    public SaveResult saveData() { return handler().saveData(); }
 }

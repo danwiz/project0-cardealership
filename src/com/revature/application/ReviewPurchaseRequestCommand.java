@@ -33,7 +33,8 @@ public final class ReviewPurchaseRequestCommand {
         }
         PurchaseRequest request = inventory.purchaseRequests().get(requestId);
         int price = inventory.decideRequest(requestId, paymentMonths, true);
-        ownership.addOwnedVehicle(inventory.carForListing(request.getListingId()), price, paymentMonths);
+        ownership.addOwnedVehicle(request.getCustomerName(),
+                inventory.carForListing(request.getListingId()), price, paymentMonths);
         if (rejectOtherPending) inventory.rejectAllPendingRequests();
         return price;
     }
