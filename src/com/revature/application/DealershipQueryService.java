@@ -12,10 +12,14 @@ import com.revature.cardealer.InventoryListing;
 import com.revature.cardealer.OwnedVehicle;
 import com.revature.cardealer.PaymentPlan;
 import com.revature.cardealer.PaymentTransaction;
+import com.revature.cardealer.Payments;
 import com.revature.cardealer.PurchaseRequest;
 import com.revature.cardealer.PurchaseRequestStatus;
 import com.revature.cardealer.User;
+import com.revature.repository.CustomerOwnershipRepository;
 import com.revature.repository.InventoryRepository;
+import com.revature.repository.LedgerPaymentTransactionRepository;
+import com.revature.repository.OfferInventoryRepository;
 import com.revature.repository.OwnershipRepository;
 import com.revature.repository.PaymentTransactionRepository;
 import com.revature.service.Permission;
@@ -51,7 +55,7 @@ public final class DealershipQueryService {
                 || authorization.isAuthorized(actor, Permission.MANAGE_INVENTORY);
         if (!allowed) throw new SecurityException("account is not authorized to view inventory");
         List<InventoryView> result = new ArrayList<>();
-        for (InventoryListing listing : inventoryRepository().findAll()) {
+        for (InventoryListing listing : inventoryRepository().listings()) {
             if (listing.isActive()) result.add(toInventoryView(listing));
         }
         return immutable(result);
@@ -98,39 +102,35 @@ public final class DealershipQueryService {
         PaymentTransactionRepository repository = paymentRepository(customerName);
         List<PaymentTransactionView> transactions = new ArrayList<>();
         for (PaymentTransaction transaction : repository.findAll()) {
-            transactions.add(new PaymentTransactionView(transaction.getTransactionId(),
-                    transaction.getCustomerName(), transaction.getAmount(), transaction.getTotalPaid(),
-                    transaction.getRemainingBalance(), transaction.getRecordedAt()));
+            transactions.add(new PaymentTransactionView(transaction.getTransactionId(), transaction.getCustomerName(),
+                    transaction.getAmount(), transaction.getTotalPaid(), transaction.getRemainingBalance(),
+                    transaction.getRecordedAt()));
         }
-        com.revature.cardealer.Payments ledger = repository.ledger();
+        Payments ledger = repository.ledger();
         return new PaymentReportView(ledger.getAmtOwed(), ledger.getTotalPaid(), ledger.getBalance(), immutable(transactions));
     }
 
     private InventoryRepository inventoryRepository() {
-        return application == null
-                ? new com.revature.repository.OfferInventoryRepository(context.getInventory())
-                : application.getInventory();
+        return application == null ? new OfferInventoryRepository(context.getInventory()) : application.getInventory();
     }
 
     private OwnershipRepository ownershipRepository(String customerName) {
-        return application == null
-                ? new com.revature.repository.CustomerOwnershipRepository(context.getCustomerLoginService())
+        return application == null ? new CustomerOwnershipRepository(context.getCustomerLoginService())
                 : application.ownershipFor(customerName);
     }
 
     private PaymentTransactionRepository paymentRepository(String customerName) {
-        return application == null
-                ? new com.revature.repository.LedgerPaymentTransactionRepository(context.getPayments())
+        return application == null ? new LedgerPaymentTransactionRepository(context.getPayments())
                 : application.paymentsFor(customerName);
     }
 
-    private InventoryView toInventoryView(InventoryListing listing) {
+    private static InventoryView toInventoryView(InventoryListing listing) {
         Car car = listing.getCar();
         return new InventoryView(listing.getId(), car.getCarMake(), car.getCarModel(), car.getCarYear(),
                 listing.getPrice(), listing.getStockQuantity(), listing.isActive(), listing.isAvailable());
     }
 
-    private PurchaseRequestView toRequestView(PurchaseRequest request) {
+    private static PurchaseRequestView toRequestView(PurchaseRequest request) {
         return new PurchaseRequestView(request.getId(), request.getListingId(), request.getCustomerName(),
                 request.getStatus(), request.getPaymentMonths(), request.getMonthlyPayment());
     }
