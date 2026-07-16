@@ -85,7 +85,10 @@ public final class DealershipQueryService {
     }
 
     public PaymentReportView payments(User actor) {
-        if (actor == null || actor.getRole() != AccountRole.CUSTOMER) {
+        if (actor == null) throw new IllegalArgumentException("account must not be null");
+        boolean sharedInMemoryLedger = application == null
+                || application.getConfiguration().getMode() == InfrastructureConfiguration.Mode.IN_MEMORY;
+        if (actor.getRole() != AccountRole.CUSTOMER && !sharedInMemoryLedger) {
             throw new IllegalArgumentException("customer username is required for staff payment reports");
         }
         return payments(actor, actor.getUsername());
