@@ -139,15 +139,29 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
     }
 
     private LedgerState lockLedgerState(Connection connection) throws SQLException {
-        String sql = "SELECT transaction_id, cumulative_paid, resulting_balance FROM payment_transactions "
+        boolean hasTransactions = false;
+        int totalPaid = 0;
+        int remainingBalance = 0;
+        String customerSql = "SELECT cumulative_paid, resulting_balance FROM payment_transactions "
                 + "WHERE customer_name = ? ORDER BY recorded_at DESC, transaction_id DESC LIMIT 1 FOR UPDATE";
-        try (PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (PreparedStatement statement = connection.prepareStatement(customerSql)) {
             statement.setString(1, customerName);
             try (ResultSet result = statement.executeQuery()) {
-                if (!result.next()) return new LedgerState(false, 0, 0, 1);
-                return new LedgerState(true, result.getInt("cumulative_paid"), result.getInt("resulting_balance"),
-                        parseSequence(result.getString("transaction_id")) + 1);
+                if (result.next()) {
+                    hasTransactions = true;
+                    totalPaid = result.getInt("cumulative_paid");
+                    remainingBalance = result.getInt("resulting_balance");
+                }
             }
+        }
+        return new LedgerState(hasTransactions, totalPaid, remainingBalance, nextGlobalSequence(connection));
+    }
+
+    private long nextGlobalSequence(Connection connection) throws SQLException {
+        String sql = "SELECT transaction_id FROM payment_transactions ORDER BY transaction_id DESC LIMIT 1 FOR UPDATE";
+        try (PreparedStatement statement = connection.prepareStatement(sql);
+                ResultSet result = statement.executeQuery()) {
+            return result.next() ? parseSequence(result.getString("transaction_id")) + 1 : 1;
         }
     }
 
