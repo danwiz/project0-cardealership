@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.OptionalLong;
 
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.Car;
@@ -105,7 +106,9 @@ public final class DealershipQueryService {
         PaymentTransactionRepository repository = paymentRepository(customerName);
         List<PaymentTransactionView> transactions = new ArrayList<>();
         for (PaymentTransaction transaction : repository.findAll()) {
+            OptionalLong ownershipId = transaction.getOwnershipId();
             transactions.add(new PaymentTransactionView(transaction.getTransactionId(), transaction.getCustomerName(),
+                    ownershipId.isPresent() ? Long.valueOf(ownershipId.getAsLong()) : null,
                     transaction.getAmount(), transaction.getTotalPaid(), transaction.getRemainingBalance(),
                     transaction.getRecordedAt()));
         }
@@ -173,12 +176,13 @@ public final class DealershipQueryService {
         public int getMonthlyPayment(){return monthlyPayment;} public int getTermMonths(){return termMonths;}
     }
     public static final class PaymentTransactionView {
-        private final String transactionId; private final String customerName; private final int amount; private final int totalPaid;
-        private final int remainingBalance; private final Instant recordedAt;
-        PaymentTransactionView(String transactionId,String customerName,int amount,int totalPaid,int remainingBalance,Instant recordedAt){
-            this.transactionId=transactionId;this.customerName=customerName;this.amount=amount;this.totalPaid=totalPaid;this.remainingBalance=remainingBalance;this.recordedAt=recordedAt;}
-        public String getTransactionId(){return transactionId;} public String getCustomerName(){return customerName;} public int getAmount(){return amount;}
-        public int getTotalPaid(){return totalPaid;} public int getRemainingBalance(){return remainingBalance;} public Instant getRecordedAt(){return recordedAt;}
+        private final String transactionId; private final String customerName; private final Long ownershipId;
+        private final int amount; private final int totalPaid; private final int remainingBalance; private final Instant recordedAt;
+        PaymentTransactionView(String transactionId,String customerName,Long ownershipId,int amount,int totalPaid,int remainingBalance,Instant recordedAt){
+            this.transactionId=transactionId;this.customerName=customerName;this.ownershipId=ownershipId;this.amount=amount;this.totalPaid=totalPaid;this.remainingBalance=remainingBalance;this.recordedAt=recordedAt;}
+        public String getTransactionId(){return transactionId;} public String getCustomerName(){return customerName;}
+        public OptionalLong getOwnershipId(){return ownershipId == null ? OptionalLong.empty() : OptionalLong.of(ownershipId);}
+        public int getAmount(){return amount;} public int getTotalPaid(){return totalPaid;} public int getRemainingBalance(){return remainingBalance;} public Instant getRecordedAt(){return recordedAt;}
     }
     public static final class PaymentReportView {
         private final int amountOwed; private final int totalPaid; private final int balance; private final List<PaymentTransactionView> transactions;
