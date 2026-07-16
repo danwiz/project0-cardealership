@@ -141,9 +141,13 @@ public final class ConsoleCommandHandler {
         if ("1".equals(option)) handleInventoryCommand(account);
         else if ("2".equals(option)) handlePurchaseReview(account);
         else if ("3".equals(option)) {
-            io.writeLine("Enter customer username:");
-            try { renderer.payments(queries.payments(account, io.readLine())); }
-            catch (IllegalArgumentException exception) { io.writeLine("Unknown customer"); }
+            if (jdbcMode) {
+                io.writeLine("Enter customer username:");
+                try { renderer.payments(queries.payments(account, io.readLine())); }
+                catch (IllegalArgumentException exception) { io.writeLine("Unknown customer"); }
+            } else {
+                renderer.payments(queries.payments(account));
+            }
         } else io.writeLine("did not understand input");
     }
 
