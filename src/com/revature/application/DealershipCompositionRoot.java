@@ -12,6 +12,7 @@ import com.revature.repository.OfferInventoryRepository;
 import com.revature.repository.jdbc.JdbcDatabase;
 import com.revature.repository.jdbc.JdbcInventoryRepository;
 import com.revature.repository.jdbc.JdbcOwnershipRepository;
+import com.revature.repository.jdbc.JdbcPaymentProcessor;
 import com.revature.repository.jdbc.JdbcPaymentTransactionRepository;
 import com.revature.repository.jdbc.JdbcUserAccountRepository;
 import com.revature.service.InMemoryUserAccountRepository;
@@ -41,7 +42,8 @@ public final class DealershipCompositionRoot {
         CustomerOwnershipRepository ownership = new CustomerOwnershipRepository(context.getCustomerLoginService());
         LedgerPaymentTransactionRepository payments = new LedgerPaymentTransactionRepository(context.getPayments());
         return new ConfiguredDealershipApplication(configuration, context, accounts, inventory,
-                customer -> ownership, customer -> payments);
+                customer -> ownership, customer -> payments,
+                customer -> new InMemoryPaymentProcessor(ownership, payments));
     }
 
     private static ConfiguredDealershipApplication createJdbc(InfrastructureConfiguration configuration) {
@@ -51,9 +53,11 @@ public final class DealershipCompositionRoot {
         UserAccountRepository accounts = new JdbcUserAccountRepository(database);
         DealershipApplicationContext context = newContext(accounts);
         InventoryRepository inventory = new JdbcInventoryRepository(database);
+        JdbcPaymentProcessor paymentProcessor = new JdbcPaymentProcessor(database);
         return new ConfiguredDealershipApplication(configuration, context, accounts, inventory,
                 customer -> new JdbcOwnershipRepository(database, customer),
-                customer -> new JdbcPaymentTransactionRepository(database, customer));
+                customer -> new JdbcPaymentTransactionRepository(database, customer),
+                customer -> paymentProcessor);
     }
 
     private static DealershipApplicationContext newContext(UserAccountRepository accounts) {

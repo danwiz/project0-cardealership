@@ -17,18 +17,21 @@ public final class ConfiguredDealershipApplication {
     private final InventoryRepository inventory;
     private final Function<String, OwnershipRepository> ownershipRepositories;
     private final Function<String, PaymentTransactionRepository> paymentRepositories;
+    private final Function<String, PaymentProcessor> paymentProcessors;
 
     ConfiguredDealershipApplication(InfrastructureConfiguration configuration,
             DealershipApplicationContext context, UserAccountRepository accounts,
             InventoryRepository inventory,
             Function<String, OwnershipRepository> ownershipRepositories,
-            Function<String, PaymentTransactionRepository> paymentRepositories) {
+            Function<String, PaymentTransactionRepository> paymentRepositories,
+            Function<String, PaymentProcessor> paymentProcessors) {
         this.configuration = Objects.requireNonNull(configuration, "configuration");
         this.context = Objects.requireNonNull(context, "context");
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         this.inventory = Objects.requireNonNull(inventory, "inventory");
         this.ownershipRepositories = Objects.requireNonNull(ownershipRepositories, "ownershipRepositories");
         this.paymentRepositories = Objects.requireNonNull(paymentRepositories, "paymentRepositories");
+        this.paymentProcessors = Objects.requireNonNull(paymentProcessors, "paymentProcessors");
     }
 
     public InfrastructureConfiguration getConfiguration() { return configuration; }
@@ -40,5 +43,8 @@ public final class ConfiguredDealershipApplication {
     }
     public PaymentTransactionRepository paymentsFor(String customerName) {
         return paymentRepositories.apply(customerName);
+    }
+    public PaymentProcessor paymentProcessorFor(String customerName) {
+        return paymentProcessors.apply(customerName);
     }
 }

@@ -10,6 +10,7 @@ import com.revature.application.DealershipQueryService;
 import com.revature.application.InfrastructureConfiguration;
 import com.revature.application.LoadStateCommand;
 import com.revature.application.ManageInventoryCommand;
+import com.revature.application.RecordPaymentCommand;
 import com.revature.application.RegisterAccountCommand;
 import com.revature.application.RequestPurchaseCommand;
 import com.revature.application.ReviewPurchaseRequestCommand;
@@ -28,6 +29,7 @@ public final class ConsoleCommandHandler {
     private final ManageInventoryCommand manageInventory;
     private final RequestPurchaseCommand requestPurchase;
     private final ReviewPurchaseRequestCommand reviewPurchaseRequest;
+    private final RecordPaymentCommand recordPayment;
     private final SaveStateCommand saveState;
     private final LoadStateCommand loadState;
     private final SeedDefaultInventoryCommand seedDefaultInventory;
@@ -43,6 +45,7 @@ public final class ConsoleCommandHandler {
         this.manageInventory = new ManageInventoryCommand(context);
         this.requestPurchase = new RequestPurchaseCommand(context);
         this.reviewPurchaseRequest = new ReviewPurchaseRequestCommand(context);
+        this.recordPayment = null;
         this.saveState = new SaveStateCommand(context);
         this.loadState = new LoadStateCommand(context);
         this.seedDefaultInventory = new SeedDefaultInventoryCommand(context);
@@ -61,6 +64,7 @@ public final class ConsoleCommandHandler {
         this.manageInventory = new ManageInventoryCommand(domain, domain);
         this.requestPurchase = new RequestPurchaseCommand(domain, domain);
         this.reviewPurchaseRequest = new ReviewPurchaseRequestCommand(domain, domain, domain);
+        this.recordPayment = new RecordPaymentCommand(application);
         this.saveState = new SaveStateCommand(context);
         this.loadState = new LoadStateCommand(context);
         this.seedDefaultInventory = new SeedDefaultInventoryCommand(domain);
@@ -123,7 +127,7 @@ public final class ConsoleCommandHandler {
     }
 
     private void showCustomerMenu(User account) {
-        io.writeLine("Welcome To The Dealership: \n[1] View Car Lot\n[2] View Cars Owned\n[3] View Payments");
+        io.writeLine("Welcome To The Dealership: \n[1] View Car Lot\n[2] View Cars Owned\n[3] View Payments\n[4] Make Payment");
         String option = io.readLine();
         if ("1".equals(option)) {
             seedDefaultInventory.execute();
@@ -132,11 +136,12 @@ public final class ConsoleCommandHandler {
             catch (IllegalArgumentException exception) { io.writeLine("Invalid listing number"); }
         } else if ("2".equals(option)) renderer.ownership(queries.ownership(account));
         else if ("3".equals(option)) renderer.payments(queries.payments(account));
+        else if ("4".equals(option) && recordPayment != null) handlePayment(account, account.getUsername());
         else io.writeLine("did not understand input");
     }
 
     private void showEmployeeMenu(User account) {
-        io.writeLine("Employee View: \n[1] View Car Lot\n[2] View Pending Requests\n[3] View Customer Payments");
+        io.writeLine("Employee View: \n[1] View Car Lot\n[2] View Pending Requests\n[3] View Customer Payments\n[4] Record Customer Payment");
         String option = io.readLine();
         if ("1".equals(option)) handleInventoryCommand(account);
         else if ("2".equals(option)) handlePurchaseReview(account);
@@ -145,10 +150,25 @@ public final class ConsoleCommandHandler {
                 io.writeLine("Enter customer username:");
                 try { renderer.payments(queries.payments(account, io.readLine())); }
                 catch (IllegalArgumentException exception) { io.writeLine("Unknown customer"); }
-            } else {
-                renderer.payments(queries.payments(account));
-            }
+            } else renderer.payments(queries.payments(account));
+        } else if ("4".equals(option) && recordPayment != null) {
+            io.writeLine("Enter customer username:");
+            handlePayment(account, io.readLine());
         } else io.writeLine("did not understand input");
+    }
+
+    private void handlePayment(User actor, String customerName) {
+        try {
+            io.writeLine("Enter ownership number:");
+            int ownershipIndex = Integer.parseInt(io.readLine());
+            io.writeLine("Enter payment amount:");
+            int amount = Integer.parseInt(io.readLine());
+            PaymentTransaction transaction = recordPayment.execute(actor, customerName, ownershipIndex, amount);
+            io.writeLine("Payment recorded: " + transaction.getTransactionId()
+                    + " Balance: " + transaction.getRemainingBalance());
+        } catch (IllegalArgumentException | SecurityException exception) {
+            io.writeLine("Payment failed: " + exception.getMessage());
+        }
     }
 
     private void handleInventoryCommand(User account) {
