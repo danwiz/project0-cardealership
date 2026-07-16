@@ -41,6 +41,10 @@ public final class ApplicationPorts {
 
     public interface Ownership {
         void addOwnedVehicle(Car car, int purchasePrice, int paymentMonths);
+
+        default void addOwnedVehicle(String customerName, Car car, int purchasePrice, int paymentMonths) {
+            addOwnedVehicle(car, purchasePrice, paymentMonths);
+        }
     }
 
     public interface Persistence {
