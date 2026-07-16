@@ -51,8 +51,9 @@ public final class JdbcInventoryRepository implements InventoryRepository {
 
     @Override
     public List<PurchaseRequest> purchaseRequests() {
-        String sql = "SELECT request_id, listing_id, customer_name, status, payment_months, price "
-                + "FROM purchase_requests JOIN inventory_listings USING (listing_id) ORDER BY request_id";
+        String sql = "SELECT pr.request_id, pr.listing_id, pr.customer_name, pr.status, "
+                + "pr.payment_months, il.price FROM purchase_requests pr "
+                + "JOIN inventory_listings il ON il.listing_id = pr.listing_id ORDER BY pr.request_id";
         List<PurchaseRequest> requests = new ArrayList<>();
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql);
