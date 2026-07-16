@@ -38,7 +38,7 @@ public final class InMemoryPaymentProcessor implements PaymentProcessor {
 
         Payments ledger = transactions.ledger();
         ledger.setAmtOwed(aggregateOriginal);
-        ledger.makePayment(customer, amount);
+        ledger.makePayment(customer, Long.valueOf(ownershipIndex + 1L), amount);
         plan.recordPayment(amount);
         List<PaymentTransaction> recorded = ledger.getTransactions();
         return recorded.get(recorded.size() - 1);

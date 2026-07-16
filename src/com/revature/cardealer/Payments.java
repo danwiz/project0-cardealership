@@ -74,15 +74,18 @@ public class Payments {
         }
     }
 
-    public void makePayment(String cname, int pamt) {
+    public void makePayment(String cname, int pamt) { makePayment(cname, null, pamt); }
+
+    public void makePayment(String cname, Long ownershipId, int pamt) {
         if (cname == null || cname.trim().isEmpty()) throw new IllegalArgumentException("customer name must not be blank");
+        if (ownershipId != null && ownershipId <= 0) throw new IllegalArgumentException("ownershipId must be positive when present");
         if (pamt <= 0) throw new IllegalArgumentException("payment amount must be positive");
         if (pamt > pBalance) throw new IllegalArgumentException("payment amount exceeds remaining balance");
         aPaid = pamt;
         tPaid += pamt;
         pBalance = aOwed - tPaid;
         transactions.add(new PaymentTransaction(String.format("PAY-%06d", nextTransactionSequence++), cname,
-                pamt, tPaid, pBalance, Instant.now()));
+                ownershipId, pamt, tPaid, pBalance, Instant.now()));
         updateSummary();
     }
 
