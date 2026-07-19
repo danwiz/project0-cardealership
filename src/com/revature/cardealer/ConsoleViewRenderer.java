@@ -18,9 +18,7 @@ public final class ConsoleViewRenderer {
         this.io = io;
     }
 
-    public void account(AccountView account) {
-        io.writeLine("Account: " + account.getUsername() + " Role: " + account.getRole());
-    }
+    public void account(AccountView account) { io.writeLine("Account: " + account.getUsername() + " Role: " + account.getRole()); }
 
     public void inventory(List<InventoryView> listings) {
         if (listings.isEmpty()) { io.writeLine("\nWe have no cars at this time!"); return; }
@@ -44,7 +42,8 @@ public final class ConsoleViewRenderer {
         if (ownership.isEmpty()) { io.writeLine("No vehicles owned."); return; }
         for (OwnershipView item : ownership) {
             io.writeLine("[" + item.getOwnershipId() + "] " + item.getMake() + " " + item.getModel()
-                    + " " + item.getYear() + "   Price: " + item.getPurchasePrice()
+                    + " " + item.getYear() + "   Contract: " + item.getContractId().orElse("historical")
+                    + "   Price: " + item.getPurchasePrice()
                     + "   Amount Paid: " + item.getAmountPaid()
                     + "   Balance: " + item.getRemainingBalance()
                     + "   Monthly Cost: " + item.getMonthlyPayment());
@@ -61,6 +60,7 @@ public final class ConsoleViewRenderer {
                     + " Total Paid: " + transaction.getTotalPaid()
                     + " Balance: " + transaction.getRemainingBalance()
                     + " Customer: " + transaction.getCustomerName() + ownership
+                    + " Contract: " + transaction.getContractId().orElse("historical")
                     + " Recorded At: " + transaction.getRecordedAt());
         }
     }
