@@ -13,7 +13,6 @@ import java.util.Objects;
 import com.revature.application.PaymentProcessor;
 import com.revature.cardealer.PaymentTransaction;
 
-/** Updates one payment plan and its customer ledger in the same JDBC transaction. */
 public final class JdbcPaymentProcessor implements PaymentProcessor {
     private final JdbcDatabase database;
 
@@ -30,8 +29,7 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
         return inTransaction(connection -> record(connection, customer, ownershipId, amount));
     }
 
-    private PaymentTransaction record(Connection connection, String customer, long ownershipId,
-            int amount) throws SQLException {
+    private PaymentTransaction record(Connection connection, String customer, long ownershipId, int amount) throws SQLException {
         List<PlanRow> plans = lockPlans(connection, customer);
         PlanRow selected = null;
         for (PlanRow plan : plans) if (plan.ownershipId == ownershipId) selected = plan;
@@ -56,27 +54,24 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
         String transactionId = String.format("PAY-%06d", nextGlobalSequence(connection));
         Instant recordedAt = Instant.now();
         try (PreparedStatement insert = connection.prepareStatement(
-                "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
-            insert.setString(1, transactionId);
-            insert.setString(2, customer);
-            insert.setLong(3, selected.ownershipId);
-            insert.setInt(4, amount);
-            insert.setInt(5, cumulativePaid);
-            insert.setInt(6, resultingBalance);
-            insert.setTimestamp(7, Timestamp.from(recordedAt));
-            insert.executeUpdate();
+                "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, contract_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
+            insert.setString(1, transactionId); insert.setString(2, customer); insert.setLong(3, selected.ownershipId);
+            insert.setString(4, selected.contractId); insert.setInt(5, amount); insert.setInt(6, cumulativePaid);
+            insert.setInt(7, resultingBalance); insert.setTimestamp(8, Timestamp.from(recordedAt)); insert.executeUpdate();
         }
-        return new PaymentTransaction(transactionId, customer, selected.ownershipId, amount,
-                cumulativePaid, resultingBalance, recordedAt);
+        return new PaymentTransaction(transactionId, customer, selected.ownershipId, selected.contractId,
+                amount, cumulativePaid, resultingBalance, recordedAt);
     }
 
     private List<PlanRow> lockPlans(Connection connection, String customer) throws SQLException {
-        String sql = "SELECT ov.ownership_id, pp.purchase_price, pp.amount_paid, pp.balance FROM owned_vehicles ov JOIN payment_plans pp ON pp.ownership_id = ov.ownership_id WHERE ov.owner_username = ? ORDER BY ov.ownership_id FOR UPDATE";
+        String sql = "SELECT ov.ownership_id, ov.contract_id, pp.purchase_price, pp.amount_paid, pp.balance "
+                + "FROM owned_vehicles ov JOIN payment_plans pp ON pp.ownership_id = ov.ownership_id "
+                + "WHERE ov.owner_username = ? ORDER BY ov.ownership_id FOR UPDATE";
         List<PlanRow> plans = new ArrayList<>();
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, customer);
             try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) plans.add(new PlanRow(result.getLong("ownership_id"),
+                while (result.next()) plans.add(new PlanRow(result.getLong("ownership_id"), result.getString("contract_id"),
                         result.getInt("purchase_price"), result.getInt("amount_paid"), result.getInt("balance")));
             }
         }
@@ -108,19 +103,10 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
 
     private <T> T inTransaction(SqlWork<T> work) {
         try (Connection connection = database.openConnection()) {
-            connection.setAutoCommit(false);
-            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-            try {
-                T result = work.execute(connection);
-                connection.commit();
-                return result;
-            } catch (SQLException | RuntimeException exception) {
-                connection.rollback();
-                throw exception;
-            }
-        } catch (SQLException exception) {
-            throw new IllegalStateException("payment workflow failed", exception);
-        }
+            connection.setAutoCommit(false); connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            try { T result = work.execute(connection); connection.commit(); return result; }
+            catch (SQLException | RuntimeException exception) { connection.rollback(); throw exception; }
+        } catch (SQLException exception) { throw new IllegalStateException("payment workflow failed", exception); }
     }
 
     private static long parseSequence(String transactionId) {
@@ -135,26 +121,14 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
     }
 
     private interface SqlWork<T> { T execute(Connection connection) throws SQLException; }
-
     private static final class PlanRow {
-        private final long ownershipId;
-        private final int purchasePrice;
-        private final int amountPaid;
-        private final int balance;
-        private PlanRow(long ownershipId, int purchasePrice, int amountPaid, int balance) {
-            this.ownershipId = ownershipId;
-            this.purchasePrice = purchasePrice;
-            this.amountPaid = amountPaid;
-            this.balance = balance;
+        private final long ownershipId; private final String contractId; private final int purchasePrice; private final int amountPaid; private final int balance;
+        private PlanRow(long ownershipId, String contractId, int purchasePrice, int amountPaid, int balance) {
+            this.ownershipId = ownershipId; this.contractId = contractId; this.purchasePrice = purchasePrice; this.amountPaid = amountPaid; this.balance = balance;
         }
     }
-
     private static final class LedgerState {
-        private final int totalPaid;
-        private final int remainingBalance;
-        private LedgerState(int totalPaid, int remainingBalance) {
-            this.totalPaid = totalPaid;
-            this.remainingBalance = remainingBalance;
-        }
+        private final int totalPaid; private final int remainingBalance;
+        private LedgerState(int totalPaid, int remainingBalance) { this.totalPaid = totalPaid; this.remainingBalance = remainingBalance; }
     }
 }
