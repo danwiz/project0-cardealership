@@ -14,13 +14,21 @@ import com.revature.cardealer.User;
 public class CustomerLoginService extends UserLoginService {
 
     private final List<OwnedVehicle> ownedVehicles = new ArrayList<>();
+    private long nextOwnershipId = 1;
 
     public CustomerLoginService() { super(); }
     public CustomerLoginService(UserAccountRepository userRepository) { super(userRepository); }
 
     public void restoreOwnedVehicles(List<OwnedVehicle> restoredVehicles) {
         ownedVehicles.clear();
-        ownedVehicles.addAll(Objects.requireNonNull(restoredVehicles, "restoredVehicles"));
+        long next = 1;
+        for (OwnedVehicle vehicle : Objects.requireNonNull(restoredVehicles, "restoredVehicles")) {
+            OwnedVehicle restored = vehicle.hasOwnershipId() ? vehicle
+                    : new OwnedVehicle(next, vehicle.getVehicle(), vehicle.getPaymentPlan());
+            ownedVehicles.add(restored);
+            next = Math.max(next, restored.getOwnershipId() + 1);
+        }
+        nextOwnershipId = next;
     }
 
     @Override
@@ -28,8 +36,11 @@ public class CustomerLoginService extends UserLoginService {
         return super.registerUser(username, password, AccountRole.CUSTOMER);
     }
 
-    public void setCarsOwned(Car owned, int purchasePrice, int termMonths) {
-        ownedVehicles.add(new OwnedVehicle(owned, new PaymentPlan(purchasePrice, termMonths)));
+    public OwnedVehicle setCarsOwned(Car owned, int purchasePrice, int termMonths) {
+        OwnedVehicle vehicle = new OwnedVehicle(nextOwnershipId++, owned,
+                new PaymentPlan(purchasePrice, termMonths));
+        ownedVehicles.add(vehicle);
+        return vehicle;
     }
 
     public void setPayments(int payment) {
@@ -46,9 +57,20 @@ public class CustomerLoginService extends UserLoginService {
         getOwnedVehicle(ownedVehicleIndex).getPaymentPlan().recordPayment(payment);
     }
 
+    public void recordPaymentById(long ownershipId, int payment) {
+        getOwnedVehicleById(ownershipId).getPaymentPlan().recordPayment(payment);
+    }
+
     public OwnedVehicle getOwnedVehicle(int index) {
         if (index < 0 || index >= ownedVehicles.size()) throw new IndexOutOfBoundsException("owned vehicle index out of range: " + index);
         return ownedVehicles.get(index);
+    }
+
+    public OwnedVehicle getOwnedVehicleById(long ownershipId) {
+        for (OwnedVehicle vehicle : ownedVehicles) {
+            if (vehicle.getOwnershipId() == ownershipId) return vehicle;
+        }
+        throw new IllegalArgumentException("unknown ownership id: " + ownershipId);
     }
 
     public List<OwnedVehicle> getOwnedVehicleRecords() {
@@ -63,7 +85,7 @@ public class CustomerLoginService extends UserLoginService {
         for (int i = 0; i < ownedVehicles.size(); i++) {
             OwnedVehicle ownedVehicle = ownedVehicles.get(i);
             PaymentPlan plan = ownedVehicle.getPaymentPlan();
-            System.out.println("[" + i + "] " + ownedVehicle.getVehicle().getCar()
+            System.out.println("[" + ownedVehicle.getOwnershipId() + "] " + ownedVehicle.getVehicle().getCar()
                     + "   Price: " + plan.getPurchasePrice()
                     + "   Amount Paid: " + plan.getAmountPaid()
                     + "   Balance: " + plan.getRemainingBalance()
