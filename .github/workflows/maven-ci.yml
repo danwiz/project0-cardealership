@@ -27,6 +27,7 @@ on:
       - refactor/configured-console-runtime
       - refactor/application-payment-workflow
       - refactor/ownership-linked-payment-transactions
+      - refactor/stable-ownership-identifiers
   pull_request:
     branches:
       - master
@@ -53,6 +54,7 @@ on:
       - refactor/jdbc-application-composition
       - refactor/configured-console-runtime
       - refactor/application-payment-workflow
+      - refactor/ownership-linked-payment-transactions
   workflow_dispatch:
 
 permissions:
