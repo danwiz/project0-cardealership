@@ -67,11 +67,13 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
     }
 
     @Override
-    public long add(Car car, int purchasePrice, int paymentMonths) {
+    public void add(Car car, int purchasePrice, int paymentMonths) {
         Objects.requireNonNull(car, "car");
         validatePlan(purchasePrice, paymentMonths, 0);
-        return inTransaction(connection -> insertOwnedVehicle(connection, 0, car,
-                new PaymentPlan(purchasePrice, paymentMonths)));
+        inTransaction(connection -> {
+            insertOwnedVehicle(connection, 0, car, new PaymentPlan(purchasePrice, paymentMonths));
+            return null;
+        });
     }
 
     @Override
@@ -89,13 +91,11 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
     }
 
     private OwnedVehicle toOwnedVehicle(ResultSet result) throws SQLException {
-        PaymentPlan plan = new PaymentPlan(result.getInt("purchase_price"),
-                result.getInt("payment_months"));
+        PaymentPlan plan = new PaymentPlan(result.getInt("purchase_price"), result.getInt("payment_months"));
         int amountPaid = result.getInt("amount_paid");
         if (amountPaid > 0) plan.recordPayment(amountPaid);
         return new OwnedVehicle(result.getLong("ownership_id"),
-                new Car(result.getString("make"), result.getString("model"),
-                        result.getInt("vehicle_year")), plan);
+                new Car(result.getString("make"), result.getString("model"), result.getInt("vehicle_year")), plan);
     }
 
     private long insertOwnedVehicle(Connection connection, long requestedId,
@@ -123,8 +123,7 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
             }
         }
         try (PreparedStatement statement = connection.prepareStatement(
-                "INSERT INTO payment_plans(ownership_id, purchase_price, payment_months, monthly_payment, amount_paid, balance) "
-                        + "VALUES (?, ?, ?, ?, ?, ?)")) {
+                "INSERT INTO payment_plans(ownership_id, purchase_price, payment_months, monthly_payment, amount_paid, balance) VALUES (?, ?, ?, ?, ?, ?)")) {
             statement.setLong(1, ownershipId);
             statement.setInt(2, plan.getPurchasePrice());
             statement.setInt(3, plan.getTermMonths());
@@ -138,8 +137,7 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
 
     private void deleteCurrentOwnership(Connection connection) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement(
-                "DELETE FROM payment_plans WHERE ownership_id IN "
-                        + "(SELECT ownership_id FROM owned_vehicles WHERE owner_username = ?)")) {
+                "DELETE FROM payment_plans WHERE ownership_id IN (SELECT ownership_id FROM owned_vehicles WHERE owner_username = ?)")) {
             statement.setString(1, ownerUsername);
             statement.executeUpdate();
         }
@@ -152,14 +150,11 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
 
     private void requireOwnerExists() {
         try (Connection connection = database.openConnection();
-                PreparedStatement statement = connection.prepareStatement(
-                        "SELECT role FROM accounts WHERE username = ?")) {
+                PreparedStatement statement = connection.prepareStatement("SELECT role FROM accounts WHERE username = ?")) {
             statement.setString(1, ownerUsername);
             try (ResultSet result = statement.executeQuery()) {
                 if (!result.next()) throw new IllegalArgumentException("unknown owner account: " + ownerUsername);
-                if (!"CUSTOMER".equals(result.getString("role"))) {
-                    throw new IllegalArgumentException("owner account must have CUSTOMER role");
-                }
+                if (!"CUSTOMER".equals(result.getString("role"))) throw new IllegalArgumentException("owner account must have CUSTOMER role");
             }
         } catch (SQLException exception) {
             throw databaseFailure("could not validate owner account", exception);
@@ -179,9 +174,7 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
     private static void validatePlan(int purchasePrice, int paymentMonths, int amountPaid) {
         if (purchasePrice < 0) throw new IllegalArgumentException("purchase price must not be negative");
         if (paymentMonths <= 0) throw new IllegalArgumentException("payment months must be positive");
-        if (amountPaid < 0 || amountPaid > purchasePrice) {
-            throw new IllegalArgumentException("amount paid must be between zero and purchase price");
-        }
+        if (amountPaid < 0 || amountPaid > purchasePrice) throw new IllegalArgumentException("amount paid must be between zero and purchase price");
     }
 
     private <T> T inTransaction(SqlWork<T> work) {
