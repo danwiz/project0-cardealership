@@ -8,7 +8,9 @@ import com.revature.cardealer.OwnedVehicle;
 
 public interface OwnershipRepository {
     List<OwnedVehicle> findAll();
-    Optional<OwnedVehicle> findById(long ownershipId);
-    long add(Car car, int purchasePrice, int paymentMonths);
+    default Optional<OwnedVehicle> findById(long ownershipId) {
+        return findAll().stream().filter(vehicle -> vehicle.getOwnershipId() == ownershipId).findFirst();
+    }
+    void add(Car car, int purchasePrice, int paymentMonths);
     void replaceAll(List<OwnedVehicle> vehicles);
 }
