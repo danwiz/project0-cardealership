@@ -74,11 +74,10 @@ public final class DealershipQueryService {
     public List<OwnershipView> ownership(User actor) {
         authorization.requireAuthorized(actor, Permission.VIEW_OWNED_VEHICLES);
         List<OwnershipView> result = new ArrayList<>();
-        int index = 0;
         for (OwnedVehicle owned : ownershipRepository(actor.getUsername()).findAll()) {
             PaymentPlan plan = owned.getPaymentPlan();
             Car car = owned.getVehicle();
-            result.add(new OwnershipView(index++, car.getCarMake(), car.getCarModel(), car.getCarYear(),
+            result.add(new OwnershipView(owned.getOwnershipId(), car.getCarMake(), car.getCarModel(), car.getCarYear(),
                     plan.getPurchasePrice(), plan.getAmountPaid(), plan.getRemainingBalance(),
                     plan.getMonthlyPayment(), plan.getTermMonths()));
         }
@@ -167,11 +166,11 @@ public final class DealershipQueryService {
         public PurchaseRequestStatus getStatus(){return status;} public int getPaymentMonths(){return paymentMonths;} public int getMonthlyPayment(){return monthlyPayment;}
     }
     public static final class OwnershipView {
-        private final int index; private final String make; private final String model; private final int year; private final int purchasePrice;
+        private final long ownershipId; private final String make; private final String model; private final int year; private final int purchasePrice;
         private final int amountPaid; private final int remainingBalance; private final int monthlyPayment; private final int termMonths;
-        OwnershipView(int index,String make,String model,int year,int purchasePrice,int amountPaid,int remainingBalance,int monthlyPayment,int termMonths){
-            this.index=index;this.make=make;this.model=model;this.year=year;this.purchasePrice=purchasePrice;this.amountPaid=amountPaid;this.remainingBalance=remainingBalance;this.monthlyPayment=monthlyPayment;this.termMonths=termMonths;}
-        public int getIndex(){return index;} public String getMake(){return make;} public String getModel(){return model;} public int getYear(){return year;}
+        OwnershipView(long ownershipId,String make,String model,int year,int purchasePrice,int amountPaid,int remainingBalance,int monthlyPayment,int termMonths){
+            this.ownershipId=ownershipId;this.make=make;this.model=model;this.year=year;this.purchasePrice=purchasePrice;this.amountPaid=amountPaid;this.remainingBalance=remainingBalance;this.monthlyPayment=monthlyPayment;this.termMonths=termMonths;}
+        public long getOwnershipId(){return ownershipId;} public String getMake(){return make;} public String getModel(){return model;} public int getYear(){return year;}
         public int getPurchasePrice(){return purchasePrice;} public int getAmountPaid(){return amountPaid;} public int getRemainingBalance(){return remainingBalance;}
         public int getMonthlyPayment(){return monthlyPayment;} public int getTermMonths(){return termMonths;}
     }

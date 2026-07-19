@@ -45,7 +45,7 @@ class OwnershipLinkedPaymentTransactionTest {
             }
         }
 
-        PaymentTransaction transaction = new JdbcPaymentProcessor(database).record("alice", 0, 750);
+        PaymentTransaction transaction = new JdbcPaymentProcessor(database).record("alice", ownershipId, 750);
         assertTrue(transaction.getOwnershipId().isPresent());
         assertEquals(ownershipId, transaction.getOwnershipId().getAsLong());
 

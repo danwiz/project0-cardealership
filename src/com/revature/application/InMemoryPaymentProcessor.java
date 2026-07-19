@@ -22,13 +22,13 @@ public final class InMemoryPaymentProcessor implements PaymentProcessor {
     }
 
     @Override
-    public PaymentTransaction record(String customerName, int ownershipIndex, int amount) {
+    public PaymentTransaction record(String customerName, long ownershipId, int amount) {
         String customer = requireText(customerName, "customerName");
+        if (ownershipId <= 0) throw new IllegalArgumentException("ownership id must be positive");
         List<OwnedVehicle> vehicles = ownership.findAll();
-        if (ownershipIndex < 0 || ownershipIndex >= vehicles.size()) {
-            throw new IllegalArgumentException("unknown ownership number: " + ownershipIndex);
-        }
-        PaymentPlan plan = vehicles.get(ownershipIndex).getPaymentPlan();
+        OwnedVehicle selected = ownership.findById(ownershipId)
+                .orElseThrow(() -> new IllegalArgumentException("unknown ownership id: " + ownershipId));
+        PaymentPlan plan = selected.getPaymentPlan();
         if (amount <= 0) throw new IllegalArgumentException("payment amount must be positive");
         if (amount > plan.getRemainingBalance()) {
             throw new IllegalArgumentException("payment amount exceeds remaining balance");
@@ -38,7 +38,7 @@ public final class InMemoryPaymentProcessor implements PaymentProcessor {
 
         Payments ledger = transactions.ledger();
         ledger.setAmtOwed(aggregateOriginal);
-        ledger.makePayment(customer, Long.valueOf(ownershipIndex + 1L), amount);
+        ledger.makePayment(customer, Long.valueOf(ownershipId), amount);
         plan.recordPayment(amount);
         List<PaymentTransaction> recorded = ledger.getTransactions();
         return recorded.get(recorded.size() - 1);

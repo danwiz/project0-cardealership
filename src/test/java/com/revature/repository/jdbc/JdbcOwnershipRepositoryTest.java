@@ -2,6 +2,7 @@ package com.revature.repository.jdbc;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -19,15 +20,18 @@ import com.revature.cardealer.User;
 class JdbcOwnershipRepositoryTest {
 
     @Test
-    void persistsVehicleAndPaymentPlanAcrossRepositoryInstances() {
+    void persistsStableIdentifierVehicleAndPaymentPlanAcrossRepositoryInstances() {
         JdbcDatabase database = JdbcDatabase.inMemory("ownership-reopen");
         saveCustomer(database, "buyer");
         JdbcOwnershipRepository repository = new JdbcOwnershipRepository(database, "buyer");
 
         repository.add(new Car("Honda", "Civic", 2021), 18000, 18);
+        long ownershipId = repository.findAll().get(0).getOwnershipId();
 
         JdbcOwnershipRepository reopened = new JdbcOwnershipRepository(database, "buyer");
-        OwnedVehicle owned = reopened.findAll().get(0);
+        OwnedVehicle owned = reopened.findById(ownershipId).orElseThrow(AssertionError::new);
+        assertTrue(ownershipId > 0);
+        assertEquals(ownershipId, owned.getOwnershipId());
         assertEquals("Honda", owned.getVehicle().getCarMake());
         assertEquals(18000, owned.getPaymentPlan().getPurchasePrice());
         assertEquals(18, owned.getPaymentPlan().getTermMonths());
@@ -37,7 +41,7 @@ class JdbcOwnershipRepositoryTest {
     }
 
     @Test
-    void replacementRestoresPaidBalancesAndRemovesPreviousRecords() {
+    void replacementPreservesExplicitIdentifiersAndPaidBalances() {
         JdbcDatabase database = JdbcDatabase.inMemory("ownership-replace");
         saveCustomer(database, "buyer");
         JdbcOwnershipRepository repository = new JdbcOwnershipRepository(database, "buyer");
@@ -48,14 +52,14 @@ class JdbcOwnershipRepositoryTest {
         PaymentPlan secondPlan = new PaymentPlan(12000, 12);
         secondPlan.recordPayment(12000);
         repository.replaceAll(Arrays.asList(
-                new OwnedVehicle(new Car("Mazda", "3", 2022), firstPlan),
-                new OwnedVehicle(new Car("Toyota", "Corolla", 2020), secondPlan)));
+                new OwnedVehicle(41, new Car("Mazda", "3", 2022), firstPlan),
+                new OwnedVehicle(77, new Car("Toyota", "Corolla", 2020), secondPlan)));
 
         assertEquals(2, repository.findAll().size());
-        assertEquals("Mazda", repository.findAll().get(0).getVehicle().getCarMake());
-        assertEquals(3500, repository.findAll().get(0).getPaymentPlan().getAmountPaid());
-        assertEquals(16500, repository.findAll().get(0).getPaymentPlan().getRemainingBalance());
-        assertEquals(0, repository.findAll().get(1).getPaymentPlan().getRemainingBalance());
+        assertEquals("Mazda", repository.findById(41).orElseThrow(AssertionError::new).getVehicle().getCarMake());
+        assertEquals(3500, repository.findById(41).orElseThrow(AssertionError::new).getPaymentPlan().getAmountPaid());
+        assertEquals(16500, repository.findById(41).orElseThrow(AssertionError::new).getPaymentPlan().getRemainingBalance());
+        assertEquals(0, repository.findById(77).orElseThrow(AssertionError::new).getPaymentPlan().getRemainingBalance());
     }
 
     @Test
@@ -97,13 +101,15 @@ class JdbcOwnershipRepositoryTest {
         saveCustomer(database, "buyer");
         JdbcOwnershipRepository repository = new JdbcOwnershipRepository(database, "buyer");
         repository.add(new Car("Honda", "Accord", 2020), 16000, 16);
+        long ownershipId = repository.findAll().get(0).getOwnershipId();
 
         assertThrows(NullPointerException.class,
                 () -> repository.replaceAll(Arrays.asList(
-                        new OwnedVehicle(new Car("Mazda", "6", 2021), new PaymentPlan(19000, 19)),
+                        new OwnedVehicle(91, new Car("Mazda", "6", 2021), new PaymentPlan(19000, 19)),
                         null)));
 
         assertEquals(1, repository.findAll().size());
+        assertEquals(ownershipId, repository.findAll().get(0).getOwnershipId());
         assertEquals("Honda", repository.findAll().get(0).getVehicle().getCarMake());
     }
 

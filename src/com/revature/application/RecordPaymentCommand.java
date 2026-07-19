@@ -19,7 +19,7 @@ public final class RecordPaymentCommand {
     }
 
     public PaymentTransaction execute(User actor, String customerName,
-            int ownershipIndex, int amount) {
+            long ownershipId, int amount) {
         authorization.requireAuthorized(actor, Permission.RECORD_PAYMENTS);
         String customer = requireText(customerName, "customerName");
         if (actor.getRole() == AccountRole.CUSTOMER
@@ -27,7 +27,7 @@ public final class RecordPaymentCommand {
             throw new SecurityException("customers may only record their own payments");
         }
         return application.paymentProcessorFor(customer)
-                .record(customer, ownershipIndex, amount);
+                .record(customer, ownershipId, amount);
     }
 
     private static String requireText(String value, String field) {

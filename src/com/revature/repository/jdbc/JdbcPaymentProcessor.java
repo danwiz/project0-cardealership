@@ -23,18 +23,19 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
     }
 
     @Override
-    public PaymentTransaction record(String customerName, int ownershipIndex, int amount) {
+    public PaymentTransaction record(String customerName, long ownershipId, int amount) {
         String customer = requireText(customerName, "customerName");
-        if (ownershipIndex < 0) throw new IllegalArgumentException("ownership index must not be negative");
+        if (ownershipId <= 0) throw new IllegalArgumentException("ownership id must be positive");
         if (amount <= 0) throw new IllegalArgumentException("payment amount must be positive");
-        return inTransaction(connection -> record(connection, customer, ownershipIndex, amount));
+        return inTransaction(connection -> record(connection, customer, ownershipId, amount));
     }
 
-    private PaymentTransaction record(Connection connection, String customer, int ownershipIndex,
+    private PaymentTransaction record(Connection connection, String customer, long ownershipId,
             int amount) throws SQLException {
         List<PlanRow> plans = lockPlans(connection, customer);
-        if (ownershipIndex >= plans.size()) throw new IllegalArgumentException("unknown ownership number: " + ownershipIndex);
-        PlanRow selected = plans.get(ownershipIndex);
+        PlanRow selected = null;
+        for (PlanRow plan : plans) if (plan.ownershipId == ownershipId) selected = plan;
+        if (selected == null) throw new IllegalArgumentException("unknown ownership id: " + ownershipId);
         if (amount > selected.balance) throw new IllegalArgumentException("payment amount exceeds remaining balance");
 
         int originalObligation = 0;
@@ -75,10 +76,8 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
         try (PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, customer);
             try (ResultSet result = statement.executeQuery()) {
-                while (result.next()) {
-                    plans.add(new PlanRow(result.getLong("ownership_id"), result.getInt("purchase_price"),
-                            result.getInt("amount_paid"), result.getInt("balance")));
-                }
+                while (result.next()) plans.add(new PlanRow(result.getLong("ownership_id"),
+                        result.getInt("purchase_price"), result.getInt("amount_paid"), result.getInt("balance")));
             }
         }
         if (plans.isEmpty()) throw new IllegalArgumentException("customer has no owned vehicles");
@@ -93,9 +92,7 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
                 if (!result.next()) return new LedgerState(0, originalObligation);
                 int totalPaid = result.getInt("cumulative_paid");
                 int remaining = result.getInt("resulting_balance");
-                if (totalPaid + remaining != originalObligation) {
-                    throw new IllegalStateException("payment ledger does not match current ownership obligation");
-                }
+                if (totalPaid + remaining != originalObligation) throw new IllegalStateException("payment ledger does not match current ownership obligation");
                 return new LedgerState(totalPaid, remaining);
             }
         }
@@ -127,9 +124,7 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
     }
 
     private static long parseSequence(String transactionId) {
-        if (transactionId == null || !transactionId.matches("PAY-\\d{6}")) {
-            throw new IllegalArgumentException("invalid payment transaction identifier: " + transactionId);
-        }
+        if (transactionId == null || !transactionId.matches("PAY-\\d{6}")) throw new IllegalArgumentException("invalid payment transaction identifier: " + transactionId);
         return Long.parseLong(transactionId.substring(4));
     }
 
