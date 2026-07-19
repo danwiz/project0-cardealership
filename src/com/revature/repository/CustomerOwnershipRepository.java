@@ -19,8 +19,8 @@ public final class CustomerOwnershipRepository implements OwnershipRepository {
     @Override public Optional<OwnedVehicle> findById(long ownershipId) {
         return findAll().stream().filter(vehicle -> vehicle.getOwnershipId() == ownershipId).findFirst();
     }
-    @Override public long add(Car car, int purchasePrice, int paymentMonths) {
-        return customers.setCarsOwned(car, purchasePrice, paymentMonths).getOwnershipId();
+    @Override public void add(Car car, int purchasePrice, int paymentMonths) {
+        customers.setCarsOwned(car, purchasePrice, paymentMonths);
     }
     @Override public void replaceAll(List<OwnedVehicle> vehicles) { customers.restoreOwnedVehicles(vehicles); }
 }
