@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /** Owns JDBC connection creation and applies ordered schema migrations. */
 public final class JdbcDatabase {
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 3;
 
     private final String url;
     private final String username;
@@ -44,10 +44,13 @@ public final class JdbcDatabase {
                 if (version < 2) {
                     applyVersionTwo(connection);
                     recordVersion(connection, 2, "payment ownership attribution");
+                    version = 2;
                 }
-                if (currentVersion(connection) != CURRENT_SCHEMA_VERSION) {
-                    throw new IllegalStateException("unsupported schema version");
+                if (version < 3) {
+                    applyVersionThree(connection);
+                    recordVersion(connection, 3, "acquisition contract lifecycle");
                 }
+                if (currentVersion(connection) != CURRENT_SCHEMA_VERSION) throw new IllegalStateException("unsupported schema version");
                 connection.commit();
             } catch (SQLException | RuntimeException exception) {
                 connection.rollback();
@@ -98,6 +101,15 @@ public final class JdbcDatabase {
         execute(connection, "ALTER TABLE payment_transactions ADD COLUMN ownership_id INTEGER");
         execute(connection, "ALTER TABLE payment_transactions ADD CONSTRAINT fk_payment_ownership FOREIGN KEY (ownership_id) REFERENCES owned_vehicles(ownership_id)");
         execute(connection, "CREATE INDEX idx_payment_transactions_ownership ON payment_transactions(ownership_id)");
+    }
+
+    private static void applyVersionThree(Connection connection) throws SQLException {
+        execute(connection, "ALTER TABLE purchase_requests ADD COLUMN contract_id VARCHAR(20)");
+        execute(connection, "ALTER TABLE owned_vehicles ADD COLUMN contract_id VARCHAR(20)");
+        execute(connection, "ALTER TABLE payment_transactions ADD COLUMN contract_id VARCHAR(20)");
+        execute(connection, "ALTER TABLE purchase_requests ADD CONSTRAINT uq_purchase_contract UNIQUE (contract_id)");
+        execute(connection, "ALTER TABLE owned_vehicles ADD CONSTRAINT uq_ownership_contract UNIQUE (contract_id)");
+        execute(connection, "CREATE INDEX idx_payment_transactions_contract ON payment_transactions(contract_id)");
     }
 
     private static void execute(Connection connection, String sql) throws SQLException {
