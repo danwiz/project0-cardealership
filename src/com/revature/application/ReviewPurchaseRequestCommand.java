@@ -32,8 +32,9 @@ public final class ReviewPurchaseRequestCommand {
             throw new IllegalArgumentException("unknown purchase request number: " + requestId);
         }
         PurchaseRequest request = inventory.purchaseRequests().get(requestId);
+        String contractId = PurchaseRequest.contractIdFor(request.getId());
         int price = inventory.decideRequest(requestId, paymentMonths, true);
-        ownership.addOwnedVehicle(request.getCustomerName(),
+        ownership.addOwnedVehicle(request.getCustomerName(), contractId,
                 inventory.carForListing(request.getListingId()), price, paymentMonths);
         if (rejectOtherPending) inventory.rejectAllPendingRequests();
         return price;

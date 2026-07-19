@@ -22,5 +22,8 @@ public final class CustomerOwnershipRepository implements OwnershipRepository {
     @Override public void add(Car car, int purchasePrice, int paymentMonths) {
         customers.setCarsOwned(car, purchasePrice, paymentMonths);
     }
+    @Override public void add(String contractId, Car car, int purchasePrice, int paymentMonths) {
+        customers.setCarsOwned(contractId, car, purchasePrice, paymentMonths);
+    }
     @Override public void replaceAll(List<OwnedVehicle> vehicles) { customers.restoreOwnedVehicles(vehicles); }
 }

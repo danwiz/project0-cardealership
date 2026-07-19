@@ -29,9 +29,8 @@ class JdbcRepositoryTest {
         database.migrate();
 
         assertEquals(JdbcDatabase.CURRENT_SCHEMA_VERSION, database.schemaVersion());
-        try (Connection connection = database.openConnection();
-                Statement statement = connection.createStatement()) {
-            assertEquals(2, count(statement, "schema_history"));
+        try (Connection connection = database.openConnection(); Statement statement = connection.createStatement()) {
+            assertEquals(3, count(statement, "schema_history"));
             assertEquals(0, count(statement, "accounts"));
             assertEquals(0, count(statement, "inventory_listings"));
             assertEquals(0, count(statement, "purchase_requests"));
@@ -76,8 +75,7 @@ class JdbcRepositoryTest {
 
     @Test
     void accountRepositorySupportsUpsertRemovalAndValidation() {
-        JdbcUserAccountRepository repository = new JdbcUserAccountRepository(
-                JdbcDatabase.inMemory("mutations_" + System.nanoTime()));
+        JdbcUserAccountRepository repository = new JdbcUserAccountRepository(JdbcDatabase.inMemory("mutations_" + System.nanoTime()));
         repository.save(account("root", "encoded-one", AccountRole.ADMINISTRATOR));
         repository.save(account("root", "encoded-two", AccountRole.ADMINISTRATOR));
 
@@ -87,22 +85,16 @@ class JdbcRepositoryTest {
         assertTrue(repository.removeByUsername("root"));
         assertFalse(repository.removeByUsername("root"));
         assertFalse(repository.findByUsername("root").isPresent());
-        assertThrows(IllegalArgumentException.class,
-                () -> repository.save(account("", "credential", AccountRole.CUSTOMER)));
+        assertThrows(IllegalArgumentException.class, () -> repository.save(account("", "credential", AccountRole.CUSTOMER)));
     }
 
     private static int count(Statement statement, String table) throws Exception {
         try (ResultSet result = statement.executeQuery("SELECT COUNT(*) FROM " + table)) {
-            result.next();
-            return result.getInt(1);
+            result.next(); return result.getInt(1);
         }
     }
 
     private static User account(String username, String credential, AccountRole role) {
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword(credential);
-        user.setRole(role);
-        return user;
+        User user = new User(); user.setUsername(username); user.setPassword(credential); user.setRole(role); return user;
     }
 }

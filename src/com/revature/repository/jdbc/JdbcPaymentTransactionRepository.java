@@ -30,31 +30,27 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
 
     @Override
     public List<PaymentTransaction> findAll() {
-        String sql = "SELECT transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at "
+        String sql = "SELECT transaction_id, customer_name, ownership_id, contract_id, amount, cumulative_paid, resulting_balance, recorded_at "
                 + "FROM payment_transactions WHERE customer_name = ? ORDER BY recorded_at, transaction_id";
         List<PaymentTransaction> transactions = new ArrayList<>();
-        try (Connection connection = database.openConnection();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
+        try (Connection connection = database.openConnection(); PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, customerName);
             try (ResultSet result = statement.executeQuery()) {
                 while (result.next()) {
                     long ownershipId = result.getLong("ownership_id");
                     Long ownership = result.wasNull() ? null : ownershipId;
                     transactions.add(new PaymentTransaction(result.getString("transaction_id"),
-                            result.getString("customer_name"), ownership, result.getInt("amount"),
-                            result.getInt("cumulative_paid"), result.getInt("resulting_balance"),
-                            result.getTimestamp("recorded_at").toInstant()));
+                            result.getString("customer_name"), ownership, result.getString("contract_id"),
+                            result.getInt("amount"), result.getInt("cumulative_paid"),
+                            result.getInt("resulting_balance"), result.getTimestamp("recorded_at").toInstant()));
                 }
             }
             return Collections.unmodifiableList(transactions);
-        } catch (SQLException exception) {
-            throw failure("could not read payment transactions", exception);
-        }
+        } catch (SQLException exception) { throw failure("could not read payment transactions", exception); }
     }
 
     @Override public Payments ledger() { return Payments.restore(findAll()); }
 
-    /** Compatibility write path for customer-level ledger imports without a known ownership target. */
     public PaymentTransaction recordPayment(int amount, int amountOwed) {
         if (amount <= 0) throw new IllegalArgumentException("payment amount must be positive");
         if (amountOwed < 0) throw new IllegalArgumentException("amount owed must not be negative");
@@ -63,22 +59,16 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
             int priorPaid = state.totalPaid;
             int priorBalance = state.hasTransactions ? state.remainingBalance : amountOwed;
             int effectiveOwed = priorPaid + priorBalance;
-            if (state.hasTransactions && amountOwed != effectiveOwed) {
-                throw new IllegalArgumentException("amount owed does not match the existing ledger");
-            }
+            if (state.hasTransactions && amountOwed != effectiveOwed) throw new IllegalArgumentException("amount owed does not match the existing ledger");
             if (amount > priorBalance) throw new IllegalArgumentException("payment amount exceeds remaining balance");
             int totalPaid = priorPaid + amount;
             int remainingBalance = priorBalance - amount;
             String transactionId = String.format("PAY-%06d", state.nextSequence);
             Instant recordedAt = Instant.now();
             try (PreparedStatement statement = connection.prepareStatement(
-                    "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, NULL, ?, ?, ?, ?)")) {
-                statement.setString(1, transactionId);
-                statement.setString(2, customerName);
-                statement.setInt(3, amount);
-                statement.setInt(4, totalPaid);
-                statement.setInt(5, remainingBalance);
-                statement.setTimestamp(6, Timestamp.from(recordedAt));
+                    "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, contract_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, NULL, NULL, ?, ?, ?, ?)")) {
+                statement.setString(1, transactionId); statement.setString(2, customerName); statement.setInt(3, amount);
+                statement.setInt(4, totalPaid); statement.setInt(5, remainingBalance); statement.setTimestamp(6, Timestamp.from(recordedAt));
                 statement.executeUpdate();
             }
             return new PaymentTransaction(transactionId, customerName, amount, totalPaid, remainingBalance, recordedAt);
@@ -88,22 +78,18 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
     public void replaceAll(List<PaymentTransaction> replacement) {
         List<PaymentTransaction> validated = validateReplacement(replacement);
         inTransaction(connection -> {
-            try (PreparedStatement delete = connection.prepareStatement(
-                    "DELETE FROM payment_transactions WHERE customer_name = ?")) {
-                delete.setString(1, customerName);
-                delete.executeUpdate();
+            try (PreparedStatement delete = connection.prepareStatement("DELETE FROM payment_transactions WHERE customer_name = ?")) {
+                delete.setString(1, customerName); delete.executeUpdate();
             }
             try (PreparedStatement insert = connection.prepareStatement(
-                    "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?)")) {
+                    "INSERT INTO payment_transactions(transaction_id, customer_name, ownership_id, contract_id, amount, cumulative_paid, resulting_balance, recorded_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")) {
                 for (PaymentTransaction transaction : validated) {
-                    insert.setString(1, transaction.getTransactionId());
-                    insert.setString(2, customerName);
+                    insert.setString(1, transaction.getTransactionId()); insert.setString(2, customerName);
                     if (transaction.getOwnershipId().isPresent()) insert.setLong(3, transaction.getOwnershipId().getAsLong());
                     else insert.setNull(3, java.sql.Types.INTEGER);
-                    insert.setInt(4, transaction.getAmount());
-                    insert.setInt(5, transaction.getTotalPaid());
-                    insert.setInt(6, transaction.getRemainingBalance());
-                    insert.setTimestamp(7, Timestamp.from(transaction.getRecordedAt()));
+                    insert.setString(4, transaction.getContractId().orElse(null));
+                    insert.setInt(5, transaction.getAmount()); insert.setInt(6, transaction.getTotalPaid());
+                    insert.setInt(7, transaction.getRemainingBalance()); insert.setTimestamp(8, Timestamp.from(transaction.getRecordedAt()));
                     insert.addBatch();
                 }
                 insert.executeBatch();
@@ -120,9 +106,7 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
         long previousSequence = 0;
         for (PaymentTransaction transaction : replacement) {
             Objects.requireNonNull(transaction, "transaction");
-            if (!customerName.equals(transaction.getCustomerName())) {
-                throw new IllegalArgumentException("transaction customer does not match repository customer");
-            }
+            if (!customerName.equals(transaction.getCustomerName())) throw new IllegalArgumentException("transaction customer does not match repository customer");
             long sequence = parseSequence(transaction.getTransactionId());
             if (sequence <= previousSequence) throw new IllegalArgumentException("transaction identifiers must be strictly increasing");
             previousSequence = sequence;
@@ -167,36 +151,21 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
             statement.setString(1, customerName);
             try (ResultSet result = statement.executeQuery()) {
                 if (!result.next()) throw new IllegalArgumentException("unknown customer: " + customerName);
-                if (AccountRole.valueOf(result.getString("role")) != AccountRole.CUSTOMER) {
-                    throw new IllegalArgumentException("payment ledger owner must have CUSTOMER role");
-                }
+                if (AccountRole.valueOf(result.getString("role")) != AccountRole.CUSTOMER) throw new IllegalArgumentException("payment ledger owner must have CUSTOMER role");
             }
-        } catch (SQLException exception) {
-            throw failure("could not validate payment customer", exception);
-        }
+        } catch (SQLException exception) { throw failure("could not validate payment customer", exception); }
     }
 
     private <T> T inTransaction(SqlWork<T> work) {
         try (Connection connection = database.openConnection()) {
-            connection.setAutoCommit(false);
-            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-            try {
-                T value = work.execute(connection);
-                connection.commit();
-                return value;
-            } catch (SQLException | RuntimeException exception) {
-                connection.rollback();
-                throw exception;
-            }
-        } catch (SQLException exception) {
-            throw failure("payment transaction failed", exception);
-        }
+            connection.setAutoCommit(false); connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            try { T value = work.execute(connection); connection.commit(); return value; }
+            catch (SQLException | RuntimeException exception) { connection.rollback(); throw exception; }
+        } catch (SQLException exception) { throw failure("payment transaction failed", exception); }
     }
 
     private static long parseSequence(String transactionId) {
-        if (transactionId == null || !transactionId.matches("PAY-\\d{6}")) {
-            throw new IllegalArgumentException("invalid payment transaction identifier: " + transactionId);
-        }
+        if (transactionId == null || !transactionId.matches("PAY-\\d{6}")) throw new IllegalArgumentException("invalid payment transaction identifier: " + transactionId);
         return Long.parseLong(transactionId.substring(4));
     }
 
@@ -205,23 +174,13 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
         if (normalized.isEmpty()) throw new IllegalArgumentException(field + " must not be blank");
         return normalized;
     }
-
-    private static IllegalStateException failure(String message, SQLException exception) {
-        return new IllegalStateException(message, exception);
-    }
-
+    private static IllegalStateException failure(String message, SQLException exception) { return new IllegalStateException(message, exception); }
     private interface SqlWork<T> { T execute(Connection connection) throws SQLException; }
 
     private static final class LedgerState {
-        private final boolean hasTransactions;
-        private final int totalPaid;
-        private final int remainingBalance;
-        private final long nextSequence;
+        private final boolean hasTransactions; private final int totalPaid; private final int remainingBalance; private final long nextSequence;
         private LedgerState(boolean hasTransactions, int totalPaid, int remainingBalance, long nextSequence) {
-            this.hasTransactions = hasTransactions;
-            this.totalPaid = totalPaid;
-            this.remainingBalance = remainingBalance;
-            this.nextSequence = nextSequence;
+            this.hasTransactions = hasTransactions; this.totalPaid = totalPaid; this.remainingBalance = remainingBalance; this.nextSequence = nextSequence;
         }
     }
 }
