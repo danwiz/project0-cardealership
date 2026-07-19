@@ -43,7 +43,7 @@ public final class ConsoleViewRenderer {
     public void ownership(List<OwnershipView> ownership) {
         if (ownership.isEmpty()) { io.writeLine("No vehicles owned."); return; }
         for (OwnershipView item : ownership) {
-            io.writeLine("[" + item.getIndex() + "] " + item.getMake() + " " + item.getModel()
+            io.writeLine("[" + item.getOwnershipId() + "] " + item.getMake() + " " + item.getModel()
                     + " " + item.getYear() + "   Price: " + item.getPurchasePrice()
                     + "   Amount Paid: " + item.getAmountPaid()
                     + "   Balance: " + item.getRemainingBalance()
@@ -54,11 +54,13 @@ public final class ConsoleViewRenderer {
     public void payments(PaymentReportView report) {
         if (report.getTransactions().isEmpty()) { io.writeLine("No payments have been recorded."); return; }
         for (PaymentTransactionView transaction : report.getTransactions()) {
+            String ownership = transaction.getOwnershipId().isPresent()
+                    ? " Ownership: " + transaction.getOwnershipId().getAsLong() : "";
             io.writeLine("[" + transaction.getTransactionId() + "] Cost: " + report.getAmountOwed()
                     + " Amount Paid: " + transaction.getAmount()
                     + " Total Paid: " + transaction.getTotalPaid()
                     + " Balance: " + transaction.getRemainingBalance()
-                    + " Customer: " + transaction.getCustomerName()
+                    + " Customer: " + transaction.getCustomerName() + ownership
                     + " Recorded At: " + transaction.getRecordedAt());
         }
     }
