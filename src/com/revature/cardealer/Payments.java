@@ -70,13 +70,15 @@ public class Payments {
                     + " Balance: " + transaction.getRemainingBalance()
                     + " Monthly Due: " + aDue
                     + " Customer: " + transaction.getCustomerName()
+                    + " Contract: " + transaction.getContractId().orElse("historical")
                     + " Recorded At: " + transaction.getRecordedAt());
         }
     }
 
-    public void makePayment(String cname, int pamt) { makePayment(cname, null, pamt); }
+    public void makePayment(String cname, int pamt) { makePayment(cname, null, null, pamt); }
+    public void makePayment(String cname, Long ownershipId, int pamt) { makePayment(cname, ownershipId, null, pamt); }
 
-    public void makePayment(String cname, Long ownershipId, int pamt) {
+    public void makePayment(String cname, Long ownershipId, String contractId, int pamt) {
         if (cname == null || cname.trim().isEmpty()) throw new IllegalArgumentException("customer name must not be blank");
         if (ownershipId != null && ownershipId <= 0) throw new IllegalArgumentException("ownershipId must be positive when present");
         if (pamt <= 0) throw new IllegalArgumentException("payment amount must be positive");
@@ -85,7 +87,7 @@ public class Payments {
         tPaid += pamt;
         pBalance = aOwed - tPaid;
         transactions.add(new PaymentTransaction(String.format("PAY-%06d", nextTransactionSequence++), cname,
-                ownershipId, pamt, tPaid, pBalance, Instant.now()));
+                ownershipId, contractId, pamt, tPaid, pBalance, Instant.now()));
         updateSummary();
     }
 
