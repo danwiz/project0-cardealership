@@ -28,6 +28,7 @@ on:
       - refactor/application-payment-workflow
       - refactor/ownership-linked-payment-transactions
       - refactor/stable-ownership-identifiers
+      - refactor/acquisition-contract-lifecycle
   pull_request:
     branches:
       - master
@@ -55,6 +56,7 @@ on:
       - refactor/configured-console-runtime
       - refactor/application-payment-workflow
       - refactor/ownership-linked-payment-transactions
+      - refactor/stable-ownership-identifiers
   workflow_dispatch:
 
 permissions:
