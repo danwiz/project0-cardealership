@@ -1,0 +1,81 @@
+name: LIVE-01 Maven Verification v1.0.14
+
+on:
+  push:
+    branches:
+      - modernization/v1.0.14-live-verification
+    paths:
+      - '.ci/v1.0.14/**'
+      - '.github/workflows/live-verification-v1.0.14.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  maven-verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Record toolchain
+        run: |
+          set -euo pipefail
+          java -version 2>&1 | tee live01-java-version.txt
+          mvn --version 2>&1 | tee live01-maven-version.txt
+
+      - name: Reconstruct and verify source payload
+        run: |
+          set -euo pipefail
+          cat .ci/v1.0.14/source.b64.part* > /tmp/project0-source.b64
+          base64 --decode /tmp/project0-source.b64 > /tmp/project0-source.tar.gz
+          echo 'b20e349c879c01183da881f3ed675ced50093b298dcdc0f3b4781ffe5289eb46  /tmp/project0-source.tar.gz' | sha256sum --check - | tee live01-payload-sha256.txt
+          mkdir -p modern
+          tar -xzf /tmp/project0-source.tar.gz -C modern
+          test -f modern/pom.xml
+          grep -q '<version>1.0.14</version>' modern/pom.xml
+
+      - name: Maven verify
+        id: verify
+        run: |
+          set -o pipefail
+          mvn -B -ntp -f modern/pom.xml verify 2>&1 | tee live01-maven-verify.log
+
+      - name: Summarize verification evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p live01-evidence
+          cp live01-java-version.txt live01-evidence/ 2>/dev/null || true
+          cp live01-maven-version.txt live01-evidence/ 2>/dev/null || true
+          cp live01-payload-sha256.txt live01-evidence/ 2>/dev/null || true
+          cp live01-maven-verify.log live01-evidence/ 2>/dev/null || true
+          if [ -d modern/target/surefire-reports ]; then cp -R modern/target/surefire-reports live01-evidence/; fi
+          if [ -d modern/target/site/jacoco ]; then cp -R modern/target/site/jacoco live01-evidence/jacoco; fi
+          find modern/target -maxdepth 1 -type f \( -name '*.jar' -o -name 'bom.*' \) -exec cp {} live01-evidence/ \; 2>/dev/null || true
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "ref=${GITHUB_REF}"
+            echo "payload_sha256=b20e349c879c01183da881f3ed675ced50093b298dcdc0f3b4781ffe5289eb46"
+            echo "verify_outcome=${{ steps.verify.outcome }}"
+          } > live01-evidence/live01-metadata.txt
+          find live01-evidence -maxdepth 3 -type f -print | sort > live01-evidence/live01-file-index.txt
+
+      - name: Upload LIVE-01 evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: live01-maven-verification-v1.0.14
+          path: live01-evidence
+          if-no-files-found: error
+          retention-days: 30
