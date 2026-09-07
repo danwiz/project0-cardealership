@@ -35,7 +35,16 @@ jobs:
       - name: Reconstruct and verify source payload
         run: |
           set -euo pipefail
-          cat .ci/v1.0.14/source.b64.part* > /tmp/project0-source.b64
+          cat \
+            .ci/v1.0.14/source.b64.part01 \
+            .ci/v1.0.14/source.b64.part02 \
+            .ci/v1.0.14/source3.b64.part051 \
+            .ci/v1.0.14/source3.b64.part052 \
+            .ci/v1.0.14/source2.b64.part06 \
+            .ci/v1.0.14/source2.b64.part07 \
+            .ci/v1.0.14/source2.b64.part08 \
+            > /tmp/project0-source.b64
+          test "$(wc -c < /tmp/project0-source.b64)" -eq 61696
           base64 --decode /tmp/project0-source.b64 > /tmp/project0-source.tar.gz
           echo 'b20e349c879c01183da881f3ed675ced50093b298dcdc0f3b4781ffe5289eb46  /tmp/project0-source.tar.gz' | sha256sum --check - | tee live01-payload-sha256.txt
           mkdir -p modern
