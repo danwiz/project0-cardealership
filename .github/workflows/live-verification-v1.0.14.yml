@@ -25,7 +25,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: maven
 
       - name: Record toolchain
         run: |
