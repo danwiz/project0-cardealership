@@ -1,0 +1,129 @@
+name: LIVE-02B Spring PostgreSQL Concurrency v1.0.26
+
+on:
+  push:
+    branches:
+      - modernization/v1.0.26-live-spring-concurrency
+    paths:
+      - '.ci/v1.0.26/**'
+      - '.github/workflows/live-spring-concurrency-v1.0.26.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  spring-postgresql-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_DB: project0_test
+          POSTGRES_USER: project0
+          POSTGRES_PASSWORD: project0_test_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd="pg_isready -U project0 -d project0_test"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=12
+    env:
+      PROJECT0_TEST_JDBC_URL: jdbc:postgresql://localhost:5432/project0_test
+      PROJECT0_TEST_JDBC_USER: project0
+      PROJECT0_TEST_JDBC_PASSWORD: project0_test_password
+      PROJECT0_DB_URL: jdbc:postgresql://localhost:5432/project0_test
+      PROJECT0_DB_USERNAME: project0
+      PROJECT0_DB_PASSWORD: project0_test_password
+
+    steps:
+      - name: Checkout verification branch
+        uses: actions/checkout@v7.0.1
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v5.6.0
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Reconstruct v1.0.14 baseline
+        run: |
+          set -euo pipefail
+          cat \
+            .ci/v1.0.14/source.b64.part01 \
+            .ci/v1.0.14/source.b64.part02 \
+            .ci/v1.0.14/source3.b64.part051 \
+            .ci/v1.0.14/source3.b64.part052 \
+            .ci/v1.0.14/source2.b64.part06 \
+            .ci/v1.0.14/source2.b64.part07 \
+            .ci/v1.0.14/source2.b64.part08 \
+            > /tmp/project0-source.b64
+          test "$(wc -c < /tmp/project0-source.b64)" -eq 61696
+          base64 --decode /tmp/project0-source.b64 > /tmp/project0-source.tar.gz
+          echo 'b20e349c879c01183da881f3ed675ced50093b298dcdc0f3b4781ffe5289eb46  /tmp/project0-source.tar.gz' | sha256sum --check -
+          mkdir -p modern
+          tar -xzf /tmp/project0-source.tar.gz -C modern
+
+      - name: Apply remediation lineage through v1.0.26
+        run: |
+          set -euo pipefail
+          python .ci/v1.0.15/apply-v1.0.15.py
+          python .ci/v1.0.16/apply-v1.0.16.py
+          python .ci/v1.0.17/apply-v1.0.17.py
+          python .ci/v1.0.18/apply-v1.0.18.py
+          python .ci/v1.0.19/apply-v1.0.19.py
+          python .ci/v1.0.21/apply-v1.0.21.py
+          python .ci/v1.0.22/apply-v1.0.22.py
+          python .ci/v1.0.23/apply-v1.0.23.py
+          python .ci/v1.0.24/apply-v1.0.24.py
+          python .ci/v1.0.25/apply-v1.0.25.py
+          python .ci/v1.0.26/apply-v1.0.26.py | tee live02b-remediation-v1.0.26.txt
+          grep -q '<version>1.0.26</version>' modern/pom.xml
+          grep -q '<artifactId>spring-boot-starter-flyway</artifactId>' modern/pom.xml
+          ! grep -q '<groupId>org.flywaydb</groupId><artifactId>flyway-core</artifactId>' modern/pom.xml
+
+      - name: Maven verify with Spring workflow concurrency
+        id: verify
+        run: |
+          set -o pipefail
+          mvn -B -ntp -f modern/pom.xml verify 2>&1 | tee live02b-maven-verify.log
+
+      - name: Capture transactional evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          PGPASSWORD="$PROJECT0_DB_PASSWORD" psql -h localhost -U "$PROJECT0_DB_USERNAME" -d project0_test -Atc \
+            "SELECT version || ':' || success FROM flyway_schema_history WHERE type='SQL' ORDER BY installed_rank" \
+            | tee live02b-flyway-history.txt || true
+          PGPASSWORD="$PROJECT0_DB_PASSWORD" psql -h localhost -U "$PROJECT0_DB_USERNAME" -d project0_test -Atc \
+            "SELECT 'purchase='||count(*) FROM purchase UNION ALL SELECT 'accepted='||count(*) FROM offer WHERE status='ACCEPTED' UNION ALL SELECT 'rejected='||count(*) FROM offer WHERE status='REJECTED' UNION ALL SELECT 'outbox='||count(*) FROM outbox_event UNION ALL SELECT 'audit='||count(*) FROM audit_event UNION ALL SELECT 'idempotency_completed='||count(*) FROM idempotency_record WHERE state='COMPLETED'" \
+            | tee live02b-final-db-counts.txt || true
+
+      - name: Summarize evidence
+        if: always()
+        run: |
+          set -euo pipefail
+          mkdir -p live02b-evidence
+          cp live02b-*.txt live02b-evidence/ 2>/dev/null || true
+          if [ -d modern/target/surefire-reports ]; then cp -R modern/target/surefire-reports live02b-evidence/; fi
+          if [ -d modern/target/site/jacoco ]; then cp -R modern/target/site/jacoco live02b-evidence/jacoco; fi
+          find modern/target -maxdepth 1 -type f \( -name '*.jar' -o -name 'bom.*' \) -exec cp {} live02b-evidence/ \; 2>/dev/null || true
+          {
+            echo "commit=${GITHUB_SHA}"
+            echo "repository=${GITHUB_REPOSITORY}"
+            echo "ref=${GITHUB_REF}"
+            echo "postgres_image=postgres:18"
+            echo "verify_outcome=${{ steps.verify.outcome }}"
+          } > live02b-evidence/live02b-metadata.txt
+          find live02b-evidence -maxdepth 4 -type f -print | sort > live02b-evidence/live02b-file-index.txt
+
+      - name: Upload LIVE-02B evidence
+        if: always()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: live02b-spring-concurrency-v1.0.26
+          path: live02b-evidence
+          if-no-files-found: error
+          retention-days: 30
