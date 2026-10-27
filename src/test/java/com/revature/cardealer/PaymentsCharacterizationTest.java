@@ -8,11 +8,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-@Tag("LEGACY-BEHAVIOR")
+@Tag("legacy-behavior")
 class PaymentsCharacterizationTest {
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("setAmtDue writes the paid amount instead of the due amount")
     void setAmtDueChangesPaidButLeavesDueAtDefault() {
         Payments payments = new Payments();
@@ -24,7 +24,7 @@ class PaymentsCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("MPay returns the quotient before constructing payment summary text")
     void monthlyPaymentCalculationLeavesSummaryNull() {
         Payments payments = new Payments();
@@ -52,7 +52,7 @@ class PaymentsCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("overpayment is accepted and produces a negative balance")
     void makePaymentAllowsNegativeBalance() {
         Payments payments = new Payments();
@@ -64,7 +64,7 @@ class PaymentsCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("the twenty-first payment exceeds fixed array capacity")
     void paymentHistoryFailsAtFixedCapacityBoundary() {
         Payments payments = new Payments();
