@@ -17,7 +17,9 @@ public class Pbkdf2PasswordHasher implements PasswordHasher {
 
     private static final String ALGORITHM = "PBKDF2WithHmacSHA256";
     private static final String PREFIX = "pbkdf2";
-    private static final int DEFAULT_ITERATIONS = 120_000;
+    private static final int DEFAULT_ITERATIONS = 600_000;
+    private static final int MAX_VERIFY_ITERATIONS = 2_000_000;
+    private static final int MAX_ENCODED_LENGTH = 512;
     private static final int DEFAULT_KEY_LENGTH_BITS = 256;
     private static final int SALT_LENGTH_BYTES = 16;
 
@@ -31,11 +33,11 @@ public class Pbkdf2PasswordHasher implements PasswordHasher {
 
     Pbkdf2PasswordHasher(SecureRandom secureRandom, int iterations, int keyLengthBits) {
         this.secureRandom = Objects.requireNonNull(secureRandom, "secureRandom");
-        if (iterations <= 0) {
-            throw new IllegalArgumentException("iterations must be positive");
+        if (iterations < DEFAULT_ITERATIONS || iterations > MAX_VERIFY_ITERATIONS) {
+            throw new IllegalArgumentException("iterations outside supported secure bounds");
         }
-        if (keyLengthBits <= 0) {
-            throw new IllegalArgumentException("keyLengthBits must be positive");
+        if (keyLengthBits != DEFAULT_KEY_LENGTH_BITS) {
+            throw new IllegalArgumentException("keyLengthBits must be 256");
         }
         this.iterations = iterations;
         this.keyLengthBits = keyLengthBits;
@@ -56,7 +58,8 @@ public class Pbkdf2PasswordHasher implements PasswordHasher {
 
     @Override
     public boolean matches(String plaintextPassword, String encodedPassword) {
-        if (plaintextPassword == null || encodedPassword == null) {
+        if (plaintextPassword == null || encodedPassword == null
+                || encodedPassword.length() > MAX_ENCODED_LENGTH) {
             return false;
         }
 
@@ -69,7 +72,14 @@ public class Pbkdf2PasswordHasher implements PasswordHasher {
             int encodedIterations = Integer.parseInt(parts[1]);
             byte[] salt = Base64.getDecoder().decode(parts[2]);
             byte[] expected = Base64.getDecoder().decode(parts[3]);
-            byte[] actual = derive(plaintextPassword, salt, encodedIterations, expected.length * 8);
+            // The stored work factor and encoded sizes are untrusted input until validated.
+            // Reject implausible costs before attempting an expensive PBKDF2 operation.
+            if (encodedIterations < DEFAULT_ITERATIONS || encodedIterations > MAX_VERIFY_ITERATIONS
+                    || salt.length != SALT_LENGTH_BYTES
+                    || expected.length != DEFAULT_KEY_LENGTH_BITS / 8) {
+                return false;
+            }
+            byte[] actual = derive(plaintextPassword, salt, encodedIterations, DEFAULT_KEY_LENGTH_BITS);
             return MessageDigest.isEqual(expected, actual);
         } catch (IllegalArgumentException exception) {
             return false;
