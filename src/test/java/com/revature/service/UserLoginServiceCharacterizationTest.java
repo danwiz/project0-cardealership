@@ -48,8 +48,8 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("SECURITY")
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("security")
+    @Tag("target-behavior")
     void authenticationDoesNotPrintStoredPasswordToStandardOutput() {
         UserLoginService service = new UserLoginService();
         User registered = service.registerUser("dane", "secret");
@@ -62,7 +62,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void constructingAnotherServiceDoesNotResetExistingServiceState() {
         UserLoginService first = new UserLoginService();
         User registered = first.registerUser("dane", "secret");
@@ -73,7 +73,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void registrationIsNotLimitedToTenAccounts() {
         UserLoginService service = new UserLoginService();
         for (int i = 0; i < 25; i++) {
@@ -84,7 +84,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void getUserNamesReturnsOnlyRegisteredUsersInRegistrationOrder() {
         UserLoginService service = new UserLoginService();
         service.registerUser("dane", "secret");
@@ -104,7 +104,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void servicesCanShareAnExplicitRepository() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         UserLoginService registrationService = new UserLoginService(repository);
