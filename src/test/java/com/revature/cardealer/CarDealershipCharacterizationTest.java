@@ -26,7 +26,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void customerRegistrationDowncastsBaseLoginServiceAndFails() throws Exception {
         replaceScanner("1\nalice\nsecret\n");
 
@@ -38,7 +38,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void adminMenuUsesReferenceEqualityForChoiceStrings() throws Throwable {
         replaceScanner(new String("1") + "\n");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -52,7 +52,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void employeeInventoryInputIsSplitIntoCharactersInsteadOfFields() throws Exception {
         replaceScanner("employee\npassword\n1\n1\nHonda Accord 2020 15000 2\n");
 
@@ -60,7 +60,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void loadDataAddsASecondDatExtensionThenDereferencesNull() {
         CarDealership application = new CarDealership();
 
