@@ -14,13 +14,10 @@ public class CustomerLoginService extends UserLoginService {
 	private int[] pMths = new int[20];
 	private int cPayments[]= new int[20];
 
-	  @Override //annotation, guarentees you are actually overriding a method
-	  public boolean authenticateUser(User user) {
-	   
-		  System.out.println(user.getUsername());
-	  
-	  return true; }
-	 
+	@Override
+	public boolean authenticateUser(User user) {
+		return super.authenticateUser(user);
+	}
 
 	public void setCarsOwned(Car owned, int cprice, int pmths) {
 

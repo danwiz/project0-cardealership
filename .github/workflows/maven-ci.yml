@@ -5,9 +5,11 @@ on:
     branches:
       - master
       - refactor/baseline-and-characterization
+      - refactor/authentication-remediation
   pull_request:
     branches:
       - master
+      - refactor/baseline-and-characterization
   workflow_dispatch:
 
 permissions:

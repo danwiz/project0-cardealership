@@ -1,5 +1,6 @@
 package com.revature.service;
 
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -14,7 +15,6 @@ import org.junit.jupiter.api.Test;
 import com.revature.cardealer.Car;
 import com.revature.cardealer.User;
 
-@Tag("legacy-behavior")
 class RoleLoginServiceCharacterizationTest {
 
     private PrintStream originalOut;
@@ -30,43 +30,60 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("known-defect")
+    @Tag("target-behavior")
     @Tag("security")
-    void customerAuthenticationAlwaysReturnsTrueForUnregisteredUser() {
+    void customerAuthenticationRejectsUnregisteredUser() {
         CustomerLoginService service = new CustomerLoginService();
-        User unregistered = user("unknown", "wrong");
-        System.setOut(new PrintStream(new ByteArrayOutputStream()));
 
-        assertTrue(service.authenticateUser(unregistered));
+        assertFalse(service.authenticateUser(user("unknown", "wrong")));
     }
 
     @Test
-    @Tag("known-defect")
+    @Tag("target-behavior")
     @Tag("security")
-    void employeeAuthenticationAlwaysReturnsTrueForUnregisteredUser() {
+    void employeeAuthenticationRejectsUnregisteredUser() {
         EmployeeLoginService service = new EmployeeLoginService();
 
-        assertTrue(service.authenticateUser(user("unknown", "wrong")));
+        assertFalse(service.authenticateUser(user("unknown", "wrong")));
     }
 
     @Test
-    @Tag("known-defect")
+    @Tag("target-behavior")
     @Tag("security")
-    void administratorAuthenticationAlwaysReturnsTrueForUnregisteredUser() {
+    void administratorAuthenticationRejectsUnregisteredUser() {
         AdminLoginService service = new AdminLoginService();
 
-        assertTrue(service.authenticateUser(user("unknown", "wrong")));
+        assertFalse(service.authenticateUser(user("unknown", "wrong")));
     }
 
     @Test
-    void customerAuthenticationPrintsSubmittedUsername() {
+    @Tag("target-behavior")
+    void roleServicesAuthenticateRegisteredCredentials() {
+        CustomerLoginService customerService = new CustomerLoginService();
+        User customer = customerService.registerUser("customer", "secret");
+        assertTrue(customerService.authenticateUser(customer));
+
+        EmployeeLoginService employeeService = new EmployeeLoginService();
+        User employee = employeeService.registerUser("employee", "secret");
+        assertTrue(employeeService.authenticateUser(employee));
+
+        AdminLoginService adminService = new AdminLoginService();
+        User admin = adminService.registerUser("admin", "secret");
+        assertTrue(adminService.authenticateUser(admin));
+    }
+
+    @Test
+    @Tag("target-behavior")
+    @Tag("security")
+    void customerAuthenticationDoesNotPrintSubmittedUsername() {
         CustomerLoginService service = new CustomerLoginService();
+        service.registerUser("dane", "secret");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         System.setOut(new PrintStream(output));
 
         service.authenticateUser(user("dane", "secret"));
 
-        assertTrue(output.toString().contains("dane"));
+        assertFalse(output.toString().contains("dane"));
     }
 
     @Test

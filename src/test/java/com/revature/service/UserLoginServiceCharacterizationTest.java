@@ -52,8 +52,8 @@ class UserLoginServiceCharacterizationTest {
 
     @Test
     @Tag("security")
-    @Tag("known-defect")
-    void authenticationPrintsStoredPasswordToStandardOutput() {
+    @Tag("target-behavior")
+    void authenticationDoesNotPrintStoredPasswordToStandardOutput() {
         UserLoginService service = new UserLoginService();
         User registered = service.registerUser("dane", "secret");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -61,7 +61,7 @@ class UserLoginServiceCharacterizationTest {
 
         service.authenticateUser(registered);
 
-        assertTrue(output.toString().contains("secret"));
+        assertFalse(output.toString().contains("secret"));
     }
 
     @Test
