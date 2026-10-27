@@ -27,7 +27,7 @@ class DAOServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("LEGACY-BEHAVIOR")
+    @Tag("legacy-behavior")
     void createDataUsesDefaultFilenameWhenCaptionIsNull() {
         DAOService service = new DAOService();
         Data data = new Data();
@@ -39,7 +39,7 @@ class DAOServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("LEGACY-BEHAVIOR")
+    @Tag("legacy-behavior")
     void createAndReadDataRoundTripUsesCaptionPlusDatExtension() {
         DAOService service = new DAOService();
         String caption = "characterization-" + UUID.randomUUID();
@@ -55,7 +55,7 @@ class DAOServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void captionThatAlreadyContainsDatProducesDoubleExtension() {
         DAOService service = new DAOService();
         String caption = "characterization-" + UUID.randomUUID() + ".dat";
@@ -70,7 +70,7 @@ class DAOServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void readingMissingDataReturnsNullInsteadOfAResultOrDomainError() {
         DAOService service = new DAOService();
 
