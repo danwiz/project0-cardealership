@@ -14,7 +14,7 @@ import org.junit.jupiter.api.Test;
 import com.revature.cardealer.Car;
 import com.revature.cardealer.User;
 
-@Tag("LEGACY-BEHAVIOR")
+@Tag("legacy-behavior")
 class RoleLoginServiceCharacterizationTest {
 
     private PrintStream originalOut;
@@ -30,8 +30,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    @Tag("SECURITY")
+    @Tag("known-defect")
+    @Tag("security")
     void customerAuthenticationAlwaysReturnsTrueForUnregisteredUser() {
         CustomerLoginService service = new CustomerLoginService();
         User unregistered = user("unknown", "wrong");
@@ -41,8 +41,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    @Tag("SECURITY")
+    @Tag("known-defect")
+    @Tag("security")
     void employeeAuthenticationAlwaysReturnsTrueForUnregisteredUser() {
         EmployeeLoginService service = new EmployeeLoginService();
 
@@ -50,8 +50,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
-    @Tag("SECURITY")
+    @Tag("known-defect")
+    @Tag("security")
     void administratorAuthenticationAlwaysReturnsTrueForUnregisteredUser() {
         AdminLoginService service = new AdminLoginService();
 
@@ -70,7 +70,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void customerOwnedCarStorageFailsAtFixedArrayBoundary() {
         CustomerLoginService service = new CustomerLoginService();
         for (int i = 0; i < 20; i++) {
@@ -82,7 +82,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void viewingOwnedCarsFailsOnFirstNullSlot() {
         CustomerLoginService service = new CustomerLoginService();
         service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);
