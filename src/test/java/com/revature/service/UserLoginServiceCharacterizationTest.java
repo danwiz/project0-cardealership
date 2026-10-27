@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import com.revature.cardealer.User;
 
-@Tag("LEGACY-BEHAVIOR")
+@Tag("legacy-behavior")
 class UserLoginServiceCharacterizationTest {
 
     private PrintStream originalOut;
@@ -51,8 +51,8 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("SECURITY")
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("security")
+    @Tag("target-behavior")
     void authenticationDoesNotPrintStoredPasswordToStandardOutput() {
         UserLoginService service = new UserLoginService();
         User registered = service.registerUser("dane", "secret");
@@ -65,7 +65,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void constructingAnotherServiceResetsSharedStaticUserDatabase() {
         UserLoginService first = new UserLoginService();
         User registered = first.registerUser("dane", "secret");
@@ -76,7 +76,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void registeringBeyondFixedCapacityThrowsArrayIndexException() {
         UserLoginService service = new UserLoginService();
         for (int i = 0; i < 10; i++) {
@@ -88,7 +88,7 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void getUserNamesFailsWhenDatabaseIsNotCompletelyPopulated() {
         UserLoginService service = new UserLoginService();
         service.registerUser("dane", "secret");

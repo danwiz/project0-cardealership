@@ -26,7 +26,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void customerRegistrationDowncastsBaseLoginServiceAndFails() throws Exception {
         replaceScanner("1\nalice\nsecret\n");
 
@@ -38,7 +38,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void adminMenuUsesReferenceEqualityForChoiceStrings() throws Throwable {
         replaceScanner(new String("1") + "\n");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -52,8 +52,8 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void unregisteredEmployeeCannotReachInventoryManagementFlow() throws Throwable {
         replaceScanner("employee\npassword\n");
         ByteArrayOutputStream output = new ByteArrayOutputStream();
@@ -67,7 +67,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void loadDataAddsASecondDatExtensionThenDereferencesNull() {
         CarDealership application = new CarDealership();
 

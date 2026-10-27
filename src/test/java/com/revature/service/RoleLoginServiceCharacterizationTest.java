@@ -30,8 +30,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void customerAuthenticationRejectsUnregisteredUser() {
         CustomerLoginService service = new CustomerLoginService();
 
@@ -39,8 +39,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void employeeAuthenticationRejectsUnregisteredUser() {
         EmployeeLoginService service = new EmployeeLoginService();
 
@@ -48,8 +48,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void administratorAuthenticationRejectsUnregisteredUser() {
         AdminLoginService service = new AdminLoginService();
 
@@ -57,7 +57,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void roleServicesAuthenticateRegisteredCredentials() {
         CustomerLoginService customerService = new CustomerLoginService();
         User customer = customerService.registerUser("customer", "secret");
@@ -73,8 +73,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void customerAuthenticationDoesNotPrintSubmittedUsername() {
         CustomerLoginService service = new CustomerLoginService();
         service.registerUser("dane", "secret");
@@ -87,7 +87,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void customerOwnedCarStorageFailsAtFixedArrayBoundary() {
         CustomerLoginService service = new CustomerLoginService();
         for (int i = 0; i < 20; i++) {
@@ -99,7 +99,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void viewingOwnedCarsFailsOnFirstNullSlot() {
         CustomerLoginService service = new CustomerLoginService();
         service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);

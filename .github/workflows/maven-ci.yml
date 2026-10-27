@@ -3,6 +3,7 @@ name: Maven CI
 on:
   push:
     branches:
+      - master
       - refactor/baseline-and-characterization
       - refactor/authentication-remediation
   pull_request:
