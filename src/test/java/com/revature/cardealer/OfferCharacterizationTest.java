@@ -11,7 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
-@Tag("LEGACY-BEHAVIOR")
+@Tag("legacy-behavior")
 class OfferCharacterizationTest {
 
     @Test
@@ -27,7 +27,7 @@ class OfferCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("accepting a pending offer does not execute the acceptance loop")
     void setAcceptReturnsListingPriceWithoutAccepting() {
         Offer offer = new Offer();
@@ -43,7 +43,7 @@ class OfferCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("getAccept uses an inverted loop condition and leaves state unchanged")
     void getAcceptDoesNotInspectProvidedOffers() {
         Offer offer = new Offer();
@@ -55,7 +55,7 @@ class OfferCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("rejectAllOffers clears only index zero")
     void rejectAllOffersLeavesLaterPendingEntriesUntouched() throws Exception {
         Offer offer = new Offer();
@@ -81,7 +81,7 @@ class OfferCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     @DisplayName("getpOffers walks one element beyond the fixed array")
     void getPendingOffersTerminatesWithArrayIndexFailure() {
         Offer offer = new Offer();
