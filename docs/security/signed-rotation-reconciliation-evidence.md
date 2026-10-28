@@ -48,6 +48,11 @@ tokens appear in these fields. Providers must independently implement and
 cross-test this canonical encoding; no improvised JSON/string concatenation
 is equivalent.
 
+The [bounded transport-envelope adapter](signed-evidence-artifact-transport.md)
+now exercises independently retrieved synthetic source/archive artifacts in
+disposable CI. It does not implement a real provider SDK or attest the truth
+of source/archive assertions.
+
 ## Trust requirements still unmet
 
 A valid signature says **which key signed this statement**, not whether a
