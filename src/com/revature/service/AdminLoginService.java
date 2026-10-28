@@ -2,6 +2,7 @@ package com.revature.service;
 
 import com.revature.DAOService.DAOService;
 import com.revature.DAOService.DataDAO;
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 public class AdminLoginService extends UserLoginService {
@@ -17,8 +18,8 @@ public class AdminLoginService extends UserLoginService {
     }
 
     @Override
-    public boolean authenticateUser(User user) {
-        return super.authenticateUser(user);
+    public User registerUser(String username, String password) {
+        throw new SecurityException("administrator provisioning requires authenticated administrator");
     }
 
     public void deleteAllUsers() {

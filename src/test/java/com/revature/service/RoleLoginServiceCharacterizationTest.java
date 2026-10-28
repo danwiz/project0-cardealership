@@ -59,17 +59,22 @@ class RoleLoginServiceCharacterizationTest {
     @Test
     @Tag("target-behavior")
     void roleServicesAuthenticateRegisteredCredentials() {
-        CustomerLoginService customerService = new CustomerLoginService();
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        CustomerLoginService customerService = new CustomerLoginService(repository);
         customerService.registerUser("customer", "secret");
         assertTrue(customerService.authenticateUser(user("customer", "secret")));
 
-        EmployeeLoginService employeeService = new EmployeeLoginService();
-        employeeService.registerUser("employee", "secret");
-        assertTrue(employeeService.authenticateUser(user("employee", "secret")));
+        User bootstrapAdmin = user("bootstrap-admin", new Pbkdf2PasswordHasher().hash("bootstrap-secret"));
+        bootstrapAdmin.setRole(com.revature.cardealer.AccountRole.ADMINISTRATOR);
+        repository.save(bootstrapAdmin);
+        UserLoginService provisioner = new UserLoginService(repository);
+        provisioner.provisionUser(user("bootstrap-admin", "bootstrap-secret"),
+                "employee", "secret", com.revature.cardealer.AccountRole.EMPLOYEE);
+        provisioner.provisionUser(user("bootstrap-admin", "bootstrap-secret"),
+                "admin", "secret", com.revature.cardealer.AccountRole.ADMINISTRATOR);
 
-        AdminLoginService adminService = new AdminLoginService();
-        adminService.registerUser("admin", "secret");
-        assertTrue(adminService.authenticateUser(user("admin", "secret")));
+        assertTrue(new EmployeeLoginService(repository).authenticateUser(user("employee", "secret")));
+        assertTrue(new AdminLoginService(repository).authenticateUser(user("admin", "secret")));
     }
 
     @Test

@@ -94,12 +94,24 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    void removeUserMakesPreviouslyRegisteredUserUnavailable() {
-        UserLoginService service = serviceWithFastHasher();
+    @Tag("security")
+    void accountDeletionRequiresVerifiedAdministratorCredentials() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        PasswordHasher hasher = new DeterministicPasswordHasher();
+        UserLoginService service = new UserLoginService(repository, hasher);
         User registered = service.registerUser("dane", "secret");
+        User administrator = user("trusted-admin", hasher.hash("admin-secret"));
+        administrator.setRole(com.revature.cardealer.AccountRole.ADMINISTRATOR);
+        repository.save(administrator); // Test-only trusted bootstrap, not a public signup flow.
 
-        service.removeUser(registered);
+        assertThrows(SecurityException.class, () -> service.removeUser(registered));
+        assertThrows(SecurityException.class,
+                () -> service.removeUser(user("dane", "secret"), "trusted-admin"));
+        assertThrows(SecurityException.class,
+                () -> service.removeUser(user("trusted-admin", "incorrect"), "dane"));
+        assertTrue(service.authenticateUser(user("dane", "secret")));
 
+        assertTrue(service.removeUser(user("trusted-admin", "admin-secret"), "dane"));
         assertFalse(service.authenticateUser(user("dane", "secret")));
     }
 

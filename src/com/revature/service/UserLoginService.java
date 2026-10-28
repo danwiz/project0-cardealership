@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 public class UserLoginService {
@@ -24,9 +25,30 @@ public class UserLoginService {
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
     }
 
+    /**
+     * Unauthenticated self-service registration always creates a customer.
+     */
     public User registerUser(String username, String password) {
+        return registerWithRole(username, password, AccountRole.CUSTOMER);
+    }
+
+    /**
+     * Privileged provisioning requires a verified account with MANAGE_USERS.
+     * The initial administrator must be installed through a separate trusted
+     * bootstrap process; this API does not create one without authentication.
+     */
+    public User provisionUser(User administratorCredentials, String username,
+            String password, AccountRole role) {
+        User verifiedOperator = authenticate(administratorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(verifiedOperator, Permission.MANAGE_USERS);
+        return registerWithRole(username, password, role);
+    }
+
+    private User registerWithRole(String username, String password, AccountRole role) {
         validateCredential("username", username);
         validateCredential("password", password);
+        Objects.requireNonNull(role, "role");
 
         if (userRepository.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("username is already registered");
@@ -35,24 +57,42 @@ public class UserLoginService {
         User newUser = new User();
         newUser.setUsername(username);
         newUser.setPassword(passwordHasher.hash(password));
+        newUser.setRole(role);
         return userRepository.save(newUser);
     }
 
-    public void removeUser(User user) {
-        if (user != null && user.getUsername() != null) {
-            userRepository.removeByUsername(user.getUsername());
-        }
+    /**
+     * Deletes an account only after authenticating a principal with MANAGE_USERS.
+     * The target's username is an identifier, never an authorization credential.
+     */
+    public boolean removeUser(User administratorCredentials, String targetUsername) {
+        validateCredential("targetUsername", targetUsername);
+        User verifiedOperator = authenticate(administratorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(verifiedOperator, Permission.MANAGE_USERS);
+        return userRepository.removeByUsername(targetUsername);
     }
 
-    public boolean authenticateUser(User user) {
-        if (user == null || isBlank(user.getUsername()) || user.getPassword() == null) {
-            return false;
+    /**
+     * Legacy unauthenticated deletion is deliberately disabled.
+     * Use the authenticated removeUser overload instead.
+     */
+    @Deprecated
+    public void removeUser(User user) {
+        throw new SecurityException("administrator authentication required for account deletion");
+    }
+
+    public Optional<User> authenticate(User credentials) {
+        if (credentials == null || isBlank(credentials.getUsername()) || credentials.getPassword() == null) {
+            return Optional.empty();
         }
 
-        Optional<User> registeredUser = userRepository.findByUsername(user.getUsername());
-        return registeredUser
-                .map(account -> passwordHasher.matches(user.getPassword(), account.getPassword()))
-                .orElse(false);
+        return userRepository.findByUsername(credentials.getUsername())
+                .filter(account -> passwordHasher.matches(credentials.getPassword(), account.getPassword()));
+    }
+
+    public boolean authenticateUser(User credentials) {
+        return authenticate(credentials).isPresent();
     }
 
     public String[] getUserNames() {
