@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.revature.application.AuthenticateAccountCommand;
+import com.revature.application.AcquisitionLifecycleQueryService;
 import com.revature.application.ConfiguredDealershipApplication;
 import com.revature.application.ConfiguredDomainAdapter;
 import com.revature.application.ContextIdentityAdapter;
@@ -106,6 +107,17 @@ class VerifiedPrincipalBoundaryTest {
                 new ConfiguredDomainAdapter(application))
                 .execute(AccountRole.ADMINISTRATOR, credentials, Permission.VIEW_INVENTORY);
         assertEquals(AuthenticateAccountCommand.Status.INVALID_CREDENTIALS, result.getStatus());
+    }
+
+
+    @Test
+    void unauthenticatedActorCannotProbeAcquisitionContractExistence() {
+        ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
+                InfrastructureConfiguration.inMemory());
+        User forged = user("admin", "invented", AccountRole.ADMINISTRATOR);
+        AcquisitionLifecycleQueryService queries = new AcquisitionLifecycleQueryService(application);
+        assertThrows(SecurityException.class, () -> queries.find(forged, "ACQ-000000"));
+        assertThrows(SecurityException.class, () -> queries.find(forged, "ACQ-999999"));
     }
 
     private static User user(String username, String password, AccountRole role) {

@@ -29,6 +29,11 @@ public final class AcquisitionLifecycleQueryService {
 
     public AcquisitionLifecycleView find(User actor, String contractId) {
         String contract = requireContractId(contractId);
+        // Reject unauthenticated callers before probing whether a contract exists.
+        if (actor == null || (!authorization.isAuthorized(actor, Permission.VIEW_OWN_PAYMENTS)
+                && !authorization.isAuthorized(actor, Permission.VIEW_CUSTOMER_PAYMENTS))) {
+            throw new SecurityException("authenticated account is required for acquisition contracts");
+        }
         PurchaseRequest request = application.getInventory().purchaseRequests().stream()
                 .filter(candidate -> candidate.getContractId().map(contract::equals).orElse(false))
                 .findFirst()

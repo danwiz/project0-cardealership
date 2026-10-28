@@ -64,7 +64,8 @@ class AcquisitionLifecycleQueryServiceTest {
         ConfiguredDealershipApplication application = createAcceptedContract(
                 InfrastructureConfiguration.inMemory(), "buyer");
         AcquisitionLifecycleQueryService query = new AcquisitionLifecycleQueryService(application);
-        User employee = user("employee", AccountRole.EMPLOYEE);
+        User employee = com.revature.support.AuthenticatedAccounts.login(application,
+                AccountRole.EMPLOYEE, "employee", "TestPass123!");
 
         assertThrows(IllegalArgumentException.class, () -> query.find(employee, "ACQ-1"));
         assertThrows(IllegalArgumentException.class, () -> query.find(employee, "ACQ-999999"));
