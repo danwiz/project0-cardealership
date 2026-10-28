@@ -18,14 +18,10 @@ public final class ContextIdentityAdapter implements ApplicationPorts.Identity {
 
     @Override
     public User register(AccountRole role, String username, String credential) {
-        User account;
-        switch (Objects.requireNonNull(role, "role")) {
-        case CUSTOMER: account = context.getCustomerLoginService().registerUser(username, credential); break;
-        case EMPLOYEE: account = context.getEmployeeLoginService().registerUser(username, credential); break;
-        case ADMINISTRATOR: account = context.getAdminLoginService().registerUser(username, credential); break;
-        default: throw new IllegalArgumentException("unsupported account role: " + role);
+        if (role != AccountRole.CUSTOMER) {
+            throw new SecurityException("privileged registration requires administrator");
         }
-        return account;
+        return context.getCustomerLoginService().registerUser(username, credential);
     }
 
     @Override

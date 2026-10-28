@@ -69,7 +69,7 @@ class RoleAuthorizationServiceTest {
     void authenticationReturnsVerifiedAccountWithPersistedRole() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         EmployeeLoginService service = new EmployeeLoginService(repository);
-        service.registerUser("employee", "secret");
+        com.revature.support.TestAccounts.seed(repository, AccountRole.EMPLOYEE, "employee", "secret");
 
         Optional<User> authenticated = service.authenticate(credentials("employee", "secret"));
 
@@ -82,10 +82,8 @@ class RoleAuthorizationServiceTest {
     void roleSpecificRegistrationAssignsExpectedRoles() {
         assertEquals(AccountRole.CUSTOMER,
                 new CustomerLoginService().registerUser("customer", "secret").getRole());
-        assertEquals(AccountRole.EMPLOYEE,
-                new EmployeeLoginService().registerUser("employee", "secret").getRole());
-        assertEquals(AccountRole.ADMINISTRATOR,
-                new AdminLoginService().registerUser("admin", "secret").getRole());
+        assertThrows(SecurityException.class, () -> new EmployeeLoginService().registerUser("employee", "secret"));
+        assertThrows(SecurityException.class, () -> new AdminLoginService().registerUser("admin", "secret"));
     }
 
     private static User account(String username, AccountRole role) {

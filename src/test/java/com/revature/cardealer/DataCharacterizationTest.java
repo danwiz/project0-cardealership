@@ -20,7 +20,7 @@ class DataCharacterizationTest {
         CustomerLoginService customerService = new CustomerLoginService(repository);
         EmployeeLoginService employeeService = new EmployeeLoginService(repository);
         User customer = customerService.registerUser("customer", "secret");
-        User employee = employeeService.registerUser("employee", "secret");
+        User employee = com.revature.support.TestAccounts.seed(repository, AccountRole.EMPLOYEE, "employee", "secret");
         Offer inventory = new Offer();
         inventory.registerOffer("Honda", "Accord", 2018, 15_000, "yes", 2);
         inventory.setpOffer("customer", 0);

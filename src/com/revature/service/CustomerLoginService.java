@@ -5,7 +5,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.Car;
 import com.revature.cardealer.OwnedVehicle;
 import com.revature.cardealer.PaymentPlan;
@@ -34,7 +33,7 @@ public class CustomerLoginService extends UserLoginService {
 
     @Override
     public User registerUser(String username, String password) {
-        return super.registerUser(username, password, AccountRole.CUSTOMER);
+        return super.registerUser(username, password);
     }
 
     public OwnedVehicle setCarsOwned(Car owned, int purchasePrice, int termMonths) {

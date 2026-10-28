@@ -49,8 +49,8 @@ class DealershipQueryServiceTest {
     void restrictsQueriesAndReturnsPendingOwnershipAndPaymentModels() {
         DealershipApplicationContext context = new DealershipApplicationContext();
         User customer = context.getCustomerLoginService().registerUser("buyer", "secret");
-        User employee = context.getEmployeeLoginService().registerUser("staff", "secret");
-        User admin = context.getAdminLoginService().registerUser("root", "secret");
+        User employee = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.EMPLOYEE, "staff", "secret");
+        User admin = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.ADMINISTRATOR, "root", "secret");
         context.getInventory().registerOffer("Toyota", "Corolla", 2019, 12000, "yes", 1);
         context.getInventory().setpOffer(customer.getUsername(), 0);
         context.getCustomerLoginService().setCarsOwned(new Car("Mazda", "3", 2018), 10000, 20);

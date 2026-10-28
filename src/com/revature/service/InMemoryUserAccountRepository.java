@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Objects;
 
 import com.revature.cardealer.User;
 
@@ -18,13 +19,14 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
 
     @Override
     public User save(User user) {
-        usersByUsername.put(user.getUsername(), user);
-        return user;
+        User snapshot = copy(Objects.requireNonNull(user, "user"));
+        usersByUsername.put(snapshot.getUsername(), snapshot);
+        return copy(snapshot);
     }
 
     @Override
     public Optional<User> findByUsername(String username) {
-        return Optional.ofNullable(usersByUsername.get(username));
+        return Optional.ofNullable(usersByUsername.get(username)).map(InMemoryUserAccountRepository::copy);
     }
 
     @Override
@@ -34,6 +36,15 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
 
     @Override
     public List<User> findAll() {
-        return Collections.unmodifiableList(new ArrayList<>(usersByUsername.values()));
+        List<User> copies = new ArrayList<>();
+        for (User account : usersByUsername.values()) copies.add(copy(account));
+        return Collections.unmodifiableList(copies);
+    }
+    private static User copy(User source) {
+        User result = new User();
+        result.setUsername(source.getUsername());
+        result.setPassword(source.getPassword());
+        result.setRole(source.getRole());
+        return result;
     }
 }

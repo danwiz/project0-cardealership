@@ -44,6 +44,19 @@ class ApplicationContextCommandHandlerTest {
         assertTrue(io.output().contains("Customer registered"));
     }
 
+
+    @Test
+    @Tag("SECURITY")
+    void publicMenuRejectsEmployeeAndAdminSignupBeforeCredentials() {
+        for (String option : new String[] {"2", "3"}) {
+            DealershipApplicationContext context = new DealershipApplicationContext();
+            FakeConsoleIO io = new FakeConsoleIO(option);
+            new ConsoleCommandHandler(context, io).handleMainCommand("1");
+            assertEquals(0, context.getAccountRepository().findAll().size());
+            assertTrue(io.output().contains("access denied"));
+        }
+    }
+
     @Test
     @Tag("TARGET-BEHAVIOR")
     void failedAuthenticationClearsOnlyTheContextSession() {

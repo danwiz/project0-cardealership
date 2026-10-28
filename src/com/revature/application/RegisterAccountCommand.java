@@ -19,7 +19,10 @@ public final class RegisterAccountCommand {
     }
 
     public User execute(AccountRole role, String username, String password) {
-        User account = identity.register(Objects.requireNonNull(role, "role"), username, password);
+        if (role != AccountRole.CUSTOMER) {
+            throw new SecurityException("public registration permits customer accounts only");
+        }
+        User account = identity.register(role, username, password);
         identity.rememberRegisteredAccount(account);
         return account;
     }

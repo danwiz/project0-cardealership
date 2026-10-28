@@ -24,7 +24,7 @@ class ApplicationCommandTest {
         RegisterAccountCommand register = new RegisterAccountCommand(context);
         AuthenticateAccountCommand authenticate = new AuthenticateAccountCommand(context);
 
-        User registered = register.execute(AccountRole.EMPLOYEE, "employee", "secret");
+        User registered = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.EMPLOYEE, "employee", "secret");
         User credentials = credentials("employee", "secret");
         AuthenticateAccountCommand.Result result = authenticate.execute(
                 AccountRole.EMPLOYEE, credentials, Permission.MANAGE_INVENTORY);
@@ -62,7 +62,7 @@ class ApplicationCommandTest {
         RequestPurchaseCommand request = new RequestPurchaseCommand(context);
         ReviewPurchaseRequestCommand review = new ReviewPurchaseRequestCommand(context);
 
-        User employee = register.execute(AccountRole.EMPLOYEE, "employee", "secret");
+        User employee = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.EMPLOYEE, "employee", "secret");
         User customer = register.execute(AccountRole.CUSTOMER, "customer", "secret");
         inventory.add(employee, "Honda", "Accord", 2020, 20000, 1);
         request.execute(customer, 0);

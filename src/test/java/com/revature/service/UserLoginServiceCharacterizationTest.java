@@ -94,13 +94,12 @@ class UserLoginServiceCharacterizationTest {
     }
 
     @Test
-    void removeUserMakesPreviouslyRegisteredUserUnavailable() {
+    void unauthenticatedDeletionFailsClosed() {
         UserLoginService service = serviceWithFastHasher();
         User registered = service.registerUser("dane", "secret");
 
-        service.removeUser(registered);
-
-        assertFalse(service.authenticateUser(user("dane", "secret")));
+        assertThrows(SecurityException.class, () -> service.removeUser(registered));
+        assertTrue(service.authenticateUser(user("dane", "secret")));
     }
 
     @Test
