@@ -16,6 +16,11 @@ This does not implement a secret manager, trustworthy archive, PostgreSQL
 replication source, shared fencing lease or network control plane. A test
 lambda returning `true` is **never** a production attestor.
 
+The [disposable SQL rotation claim rehearsal](jdbc-rotation-claim-ledger.md)
+demonstrates a cross-process, monotonic epoch claim and restart floor. A
+fixture wiring `ledger::claim` directly into this wrapper is not independent
+source/archive verification and does not fence old replicas' DB transactions.
+
 ## Reopen proof fields and local validation
 
 | Field | Local requirement | Provider's independent obligation |

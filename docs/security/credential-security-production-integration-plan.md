@@ -50,7 +50,7 @@ the implementation owner does not satisfy a production release gate.
 | G05 — Database audit integrity | Owner-held trigger catches service and direct-SQL updates, handles rollback, records correct actor/time; non-owner writer cannot disable or alter ledger | **CI fixture passed; production unverified** |
 | G06 — CDC completeness | Commit order, same-commit ordinals, metadata fidelity, retention floor, over-acknowledged slot, crash retransmission and failover proven on selected source | **Open:** diagnostic test_decoding only |
 | G07 — Immutable archive | Independent administrative ownership, encryption, write-once/retention lock, exact deduplication, read-back, collision rejection and immutable audit access logs | **Open:** in-memory fake receipts only |
-| G08 — Checkpoint/fencing | Cross-process durable CAS, source generation binding, lease fencing and replay after abrupt death between append/checkpoint | **Open:** in-memory fake only |
+| G08 — Checkpoint/fencing | Cross-process durable CAS, source generation binding, lease fencing and replay after abrupt death between append/checkpoint | **Open:** disposable SQL rotation-epoch claim CAS passes in CI only; no external archive receipt/source binding or database-enforced lease fence |
 | G09 — Alert persistence and delivery | Durable outbox, bounded leased relay, downstream idempotency, retries/dead letters, destination outage and an independent outbox-health alarm | **Open:** in-memory fake only |
 | G10 — Privacy and retention | Approved event schema, minimized identifiers, no credential/header/token/exception disclosure, independent retention/deletion policy and legal review | **Open:** policy/retention undecided |
 | G11 — Availability and recovery | Defined backlog/lag, RPO/RTO, capacity, WAL growth thresholds, incident escalation and rehearsed DR runbook | **Open:** SLOs and exercises not set |
@@ -68,7 +68,8 @@ The [existing CDC source acceptance matrix](credential-cdc-production-acceptance
 [writer-session drain contract](fenced-writer-connection-drain.md),
 [disposable PostgreSQL session-revocation rehearsal](postgresql-writer-session-revocation-rehearsal.md), and
 [two-gate commit/fence reconciliation rehearsal](credential-writer-commit-fence-reconciliation.md),
-and [reconciled writer activation barrier](reconciled-writer-reopen-barrier.md)
+and [reconciled writer activation barrier](reconciled-writer-reopen-barrier.md),
+plus [durable SQL rotation claim rehearsal](jdbc-rotation-claim-ledger.md)
 define the non-deployed code seams and CI-only tests. Their fixture successes
 cannot close the release ledger.
 
