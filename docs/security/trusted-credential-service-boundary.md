@@ -34,3 +34,7 @@ The ordinary application currently has a shared JDBC writer and a `UserLoginServ
 Reference: [PostgreSQL GRANT](https://www.postgresql.org/docs/16/sql-grant.html), [PostgreSQL privilege system](https://www.postgresql.org/docs/16/ddl-priv.html).
 
 Keep PR #43 draft, issue #29 open, all production grants unchanged and private ERM paid GitHub Code Security pending.
+
+## Follow-up PR #44 — transaction-coupled audit trigger fixture
+
+Draft PR #44 adds a separate PostgreSQL CI test with an owner-created `AFTER UPDATE OF encoded_credential` trigger. The `SECURITY DEFINER` trigger writes a minimal audit entry for **both** the trusted service path and direct SQL with the restricted credential-writer login. The writer lacks audit-table SELECT/UPDATE/DELETE, trigger DDL, and the independent auditor has SELECT only. See `docs/security/postgresql-credential-audit-trigger.md`. This is tamper-resistant only relative to the restricted SQL roles; owners/superusers, backups and compromised hosts remain outside that guarantee.
