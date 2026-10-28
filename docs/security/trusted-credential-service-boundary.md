@@ -38,3 +38,7 @@ Keep PR #43 draft, issue #29 open, all production grants unchanged and private E
 ## Follow-up PR #44 — transaction-coupled audit trigger fixture
 
 Draft PR #44 adds a separate PostgreSQL CI test with an owner-created `AFTER UPDATE OF encoded_credential` trigger. The `SECURITY DEFINER` trigger writes a minimal audit entry for **both** the trusted service path and direct SQL with the restricted credential-writer login. The writer lacks audit-table SELECT/UPDATE/DELETE, trigger DDL, and the independent auditor has SELECT only. See `docs/security/postgresql-credential-audit-trigger.md`. This is tamper-resistant only relative to the restricted SQL roles; owners/superusers, backups and compromised hosts remain outside that guarantee.
+
+## Follow-up PR #45 — request identity and throttling seam
+
+Draft PR #45 adds a non-wired `TrustedCredentialRequestHandler` and bounded in-process `CredentialRequestRateLimiter`. The target username comes from an injected trusted identity verifier, never request payload. It is a feasibility proof only: production token verification, ingress throttling, distributed quotas and a separately deployed process are still mandatory. See `docs/security/trusted-credential-request-gate.md`.
