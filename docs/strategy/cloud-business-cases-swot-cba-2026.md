@@ -191,3 +191,9 @@ custody, response SLO, user-identity integration and external audit alerting
 are pending. Issue
 [#29](https://github.com/danwiz/project0-cardealership/issues/29)
 stays **open**; draft security PRs remain **unmerged**.
+
+Further design evidence: the [normalized signed-event workload and CBA
+thresholds](normalized-cloud-workload-cost-thresholds-2026.md) and
+[AWS/Azure/GCS/Ceph publication blueprints](immutable-pin-provider-blueprints-2026.md)
+are **illustrations only**. Neither supplies live provider pricing nor
+production acceptance.
