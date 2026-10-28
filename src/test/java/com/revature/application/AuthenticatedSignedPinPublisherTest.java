@@ -147,7 +147,7 @@ class AuthenticatedSignedPinPublisherTest {
                         f.witness);
         AuthenticatedSignedPinPublisher failedPublisher =
                 new AuthenticatedSignedPinPublisher(f.pinVerifier, failedFloor,
-                        (p, k) -> f.storedDocument,
+                        (p, k, revision) -> f.storedDocument,
                         f.publisherKey.getPublic(), "publisher-issuer", f.clock);
         SecurityException error = assertThrows(SecurityException.class,
                 () -> failedPublisher.publish(f.proof, signed, command));
@@ -175,7 +175,7 @@ class AuthenticatedSignedPinPublisherTest {
         f.assertDenied(signed, command);
 
         AuthenticatedSignedPinPublisher unavailable = new AuthenticatedSignedPinPublisher(
-                f.pinVerifier, f.floor, (p, k) -> {
+                f.pinVerifier, f.floor, (p, k, revision) -> {
                     throw new IllegalStateException("private archive diagnostics");
                 }, f.publisherKey.getPublic(), "publisher-issuer", f.clock);
         assertEquals("signed pin publication unavailable", assertThrows(
@@ -254,7 +254,7 @@ class AuthenticatedSignedPinPublisherTest {
                     Kind.ARCHIVE_DURABLE, (p, k) -> null, floor,
                     pinIssuerKey.getPublic(), "archive-pin-issuer", clock);
             publisher = new AuthenticatedSignedPinPublisher(pinVerifier, floor,
-                    (p, k) -> storedDocument,
+                    (p, k, revision) -> storedDocument,
                     publisherKey.getPublic(), "publisher-issuer", clock);
         }
 

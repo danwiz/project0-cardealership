@@ -78,6 +78,7 @@ and [version-pinned signed receipt read-back](version-pinned-signed-receipt-read
 and [independently signed receipt pin index](independently-signed-receipt-pin-index.md)
 and [JDBC signed receipt pin revision floor](jdbc-signed-receipt-pin-revision-floor.md)
 and [authenticated signed-pin publisher](authenticated-signed-pin-publisher.md)
+and [immutable signed-pin document publication](immutable-signed-pin-document-publication.md)
 and [disposable PostgreSQL signed-pin publication rehearsal](postgresql-signed-pin-publication-ci.md)
 define the non-deployed code seams and CI-only tests. Their fixture successes
 cannot close the release ledger.
