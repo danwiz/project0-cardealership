@@ -15,6 +15,11 @@ must supply:
   nonpositive floor is never defaulted to revision zero. This value must not
   be obtained from a mutable object response or a self-declared document.
 
+The [JDBC revision floor and witness contract](jdbc-signed-receipt-pin-revision-floor.md)
+adds a guarded SQL CAS, separate read/publisher connection seams and a
+required independent monotonic reservation interface. CI uses H2 and an
+in-memory witness; no production rollback resistance is claimed.
+
 Each immutable `SignedPinDocument` contains the receipt role, issuer, exact
 canonical key, positive revision, issue/expiry timestamps, expected version
 ID, opaque conditional ETag, byte length, SHA-256 digest and signature. The
