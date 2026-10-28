@@ -85,3 +85,7 @@ release gate.
 unstable replay cursor, conflicting duplicate key, or unverifiable archive
 acknowledgement blocks release. Keep all work draft/unmerged until independent
 security review and production integration approvals.
+
+For the complete cross-boundary cutover sequence and fault-injection evidence,
+use the [provider-neutral production integration plan](credential-security-production-integration-plan.md)
+and its [blank release evidence register](credential-security-release-evidence-register.md).
