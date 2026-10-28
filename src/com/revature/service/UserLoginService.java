@@ -61,10 +61,25 @@ public class UserLoginService {
         return userRepository.save(newUser);
     }
 
+    /**
+     * Deletes an account only after authenticating a principal with MANAGE_USERS.
+     * The target's username is an identifier, never an authorization credential.
+     */
+    public boolean removeUser(User administratorCredentials, String targetUsername) {
+        validateCredential("targetUsername", targetUsername);
+        User verifiedOperator = authenticate(administratorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(verifiedOperator, Permission.MANAGE_USERS);
+        return userRepository.removeByUsername(targetUsername);
+    }
+
+    /**
+     * Legacy unauthenticated deletion is deliberately disabled.
+     * Use the authenticated removeUser overload instead.
+     */
+    @Deprecated
     public void removeUser(User user) {
-        if (user != null && user.getUsername() != null) {
-            userRepository.removeByUsername(user.getUsername());
-        }
+        throw new SecurityException("administrator authentication required for account deletion");
     }
 
     public Optional<User> authenticate(User credentials) {
