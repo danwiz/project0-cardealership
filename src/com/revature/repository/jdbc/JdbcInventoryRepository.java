@@ -22,7 +22,7 @@ public final class JdbcInventoryRepository implements InventoryRepository {
 
     public JdbcInventoryRepository(JdbcDatabase database) {
         this.database = Objects.requireNonNull(database, "database");
-        this.database.migrate();
+        this.database.ensureSchemaReady();
     }
 
     @Override public int listingCount() { return listings().size(); }

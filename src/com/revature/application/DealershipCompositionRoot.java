@@ -49,7 +49,7 @@ public final class DealershipCompositionRoot {
     private static ConfiguredDealershipApplication createJdbc(InfrastructureConfiguration configuration) {
         JdbcDatabase database = new JdbcDatabase(configuration.getJdbcUrl(),
                 configuration.getJdbcUser(), configuration.getJdbcPassword());
-        database.migrate();
+        database.ensureSchemaReady();
         UserAccountRepository accounts = new JdbcUserAccountRepository(database);
         DealershipApplicationContext context = newContext(accounts);
         InventoryRepository inventory = new JdbcInventoryRepository(database);

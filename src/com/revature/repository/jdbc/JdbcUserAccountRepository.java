@@ -20,7 +20,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
 
     public JdbcUserAccountRepository(JdbcDatabase database) {
         this.database = Objects.requireNonNull(database, "database");
-        this.database.migrate();
+        this.database.ensureSchemaReady();
     }
 
     @Override

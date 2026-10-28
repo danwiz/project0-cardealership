@@ -23,7 +23,7 @@ public final class JdbcPaymentTransactionRepository implements PaymentTransactio
 
     public JdbcPaymentTransactionRepository(JdbcDatabase database, String customerName) {
         this.database = Objects.requireNonNull(database, "database");
-        this.database.migrate();
+        this.database.ensureSchemaReady();
         this.customerName = requireText(customerName, "customerName");
         validateCustomer();
     }

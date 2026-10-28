@@ -23,7 +23,7 @@ public final class JdbcOwnershipRepository implements OwnershipRepository {
     public JdbcOwnershipRepository(JdbcDatabase database, String ownerUsername) {
         this.database = Objects.requireNonNull(database, "database");
         this.ownerUsername = requireText(ownerUsername, "owner username");
-        this.database.migrate();
+        this.database.ensureSchemaReady();
         requireOwnerExists();
     }
 
