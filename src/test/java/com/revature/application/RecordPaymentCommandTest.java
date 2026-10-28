@@ -43,7 +43,7 @@ class RecordPaymentCommandTest {
     void employeeCanRecordCustomerPaymentButCustomerCannotPayAnotherAccount() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.inMemory());
-        application.getAccounts().save(user("alice", AccountRole.CUSTOMER));
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "alice", "TestPass123!");
         com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "employee", "TestPass123!");
         application.ownershipFor("alice").add(new Car("Toyota", "Corolla", 2019), 600, 6);
         long ownershipId = application.ownershipFor("alice").findAll().get(0).getOwnershipId();
@@ -61,7 +61,7 @@ class RecordPaymentCommandTest {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.jdbc(url));
-        application.getAccounts().save(user("alice", AccountRole.CUSTOMER));
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "alice", "TestPass123!");
         application.ownershipFor("alice").add(new Car("BMW", "4Series", 2018), 500, 5);
         long ownershipId = application.ownershipFor("alice").findAll().get(0).getOwnershipId();
 
