@@ -40,3 +40,7 @@ The test uses unique per-run schema and role names (instead of the illustrative 
 Reference: [PostgreSQL CREATE POLICY](https://www.postgresql.org/docs/16/sql-createpolicy.html), [PostgreSQL row security](https://www.postgresql.org/docs/16/ddl-rowsecurity.html), and [GRANT](https://www.postgresql.org/docs/16/sql-grant.html).
 
 Keep draft PR #41 unmerged and issue #29 open. No production data, grants, credentials, deployment or paid GitHub entitlement are changed.
+
+## Follow-up PR #42: customer-specific database sessions
+
+Draft PR #42 introduces a separate PostgreSQL CI fixture with two authenticated customer SQL roles and own-row policies bound to `session_user`, exercising isolation of hashes and credential UPDATEs. Unlike the shared runtime policy above, this **does** test database-enforced per-customer ownership. It is not wired to the existing application's shared JDBC identity; see `docs/security/postgresql-credential-ownership-options.md` for production tradeoffs.
