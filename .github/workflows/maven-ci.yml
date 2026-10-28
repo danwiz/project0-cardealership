@@ -40,6 +40,7 @@ on:
       - security/separate-account-administration-20261028
       - security/jdbc-last-admin-guard-20261028
       - security/offline-account-operator-20261028
+      - security/postgresql-account-role-validation-20261028
   pull_request:
     branches:
       - master
@@ -79,6 +80,7 @@ on:
       - security/explicit-account-mutation-20261028
       - security/separate-account-administration-20261028
       - security/jdbc-last-admin-guard-20261028
+      - security/offline-account-operator-20261028
   workflow_dispatch:
 
 permissions:
@@ -96,6 +98,24 @@ jobs:
       fail-fast: false
       matrix:
         java: ['11', '17']
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dealership_ci_owner
+          POSTGRES_PASSWORD: ci-only-postgres-fixture
+          POSTGRES_DB: dealership_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dealership_ci_owner -d dealership_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DEALERSHIP_PG_TEST_URL: jdbc:postgresql://localhost:5432/dealership_ci
+      DEALERSHIP_PG_TEST_USER: dealership_ci_owner
+      DEALERSHIP_PG_TEST_PASSWORD: ci-only-postgres-fixture
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
