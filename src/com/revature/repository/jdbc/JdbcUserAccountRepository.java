@@ -26,7 +26,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public User save(User user) {
         validate(user);
-        String sql = "MERGE INTO accounts (username, encoded_credential, role) KEY(username) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO accounts (username, encoded_credential, role) VALUES (?, ?, ?)";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, user.getUsername());
@@ -35,7 +35,53 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
             statement.executeUpdate();
             return copy(user);
         } catch (SQLException exception) {
+            if ("23505".equals(exception.getSQLState())) {
+                throw new IllegalArgumentException("username is already registered", exception);
+            }
             throw new IllegalStateException("could not save account", exception);
+        }
+    }
+
+    @Override
+    public boolean updateCredentialIfCurrent(String username, String expectedEncoded,
+            String replacementEncoded) {
+        requireText(username, "username");
+        requireText(expectedEncoded, "expected encoded credential");
+        requireText(replacementEncoded, "replacement encoded credential");
+        String sql = "UPDATE accounts SET encoded_credential = ? "
+                + "WHERE username = ? AND encoded_credential = ?";
+        try (Connection connection = database.openConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, replacementEncoded);
+            statement.setString(2, username);
+            statement.setString(3, expectedEncoded);
+            return statement.executeUpdate() == 1;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("could not rotate account credential", exception);
+        }
+    }
+
+    @Override
+    public boolean updateRoleIfCurrent(String username, AccountRole expectedRole,
+            AccountRole replacementRole) {
+        requireText(username, "username");
+        Objects.requireNonNull(expectedRole, "expectedRole");
+        Objects.requireNonNull(replacementRole, "replacementRole");
+        String sql = "UPDATE accounts SET role = ? WHERE username = ? AND role = ?";
+        try (Connection connection = database.openConnection();
+                PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, replacementRole.name());
+            statement.setString(2, username);
+            statement.setString(3, expectedRole.name());
+            return statement.executeUpdate() == 1;
+        } catch (SQLException exception) {
+            throw new IllegalStateException("could not change account role", exception);
+        }
+    }
+
+    private static void requireText(String value, String name) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(name + " must not be blank");
         }
     }
 
