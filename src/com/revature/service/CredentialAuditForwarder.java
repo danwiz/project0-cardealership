@@ -50,11 +50,11 @@ public final class CredentialAuditForwarder {
                 throw new SecurityException("audit checkpoint stream mismatch or missing");
             }
         } catch (RuntimeException failure) {
-            alert("checkpoint-read", 0, 0, failure);
+            alert("checkpoint-read", AuditSourceCursor.origin(), 0, failure);
             throw failure;
         }
 
-        long cursor = acknowledged.sourceCursor();
+        AuditSourceCursor cursor = acknowledged.sourceCursor();
 
         List<CredentialAuditEvent> events;
         try {
@@ -63,10 +63,10 @@ public final class CredentialAuditForwarder {
                 throw new SecurityException("invalid audit source batch");
             }
             events = new ArrayList<>(fetched);
-            long previous = cursor;
+            AuditSourceCursor previous = cursor;
             for (CredentialAuditEvent event : events) {
                 if (event == null || !streamId.equals(event.streamId())
-                        || event.sourceCursor() <= previous) {
+                        || event.sourceCursor().compareTo(previous) <= 0) {
                     throw new SecurityException("audit source stream/order violation");
                 }
                 previous = event.sourceCursor();
@@ -101,7 +101,7 @@ public final class CredentialAuditForwarder {
         return delivered;
     }
 
-    private void alert(String phase, long sourceCursor, long auditId,
+    private void alert(String phase, AuditSourceCursor sourceCursor, long auditId,
             RuntimeException original) {
         try {
             // No password, hash, username or exception message crosses this API.
@@ -118,7 +118,8 @@ public final class CredentialAuditForwarder {
          * MUST throw AuditHistoryUnavailableException if the requested cursor
          * cannot be resumed completely; never disguise missing history as EOF.
          */
-        List<CredentialAuditEvent> readAfter(long lastAcknowledgedCursor, int limit);
+        List<CredentialAuditEvent> readAfter(AuditSourceCursor lastAcknowledgedCursor,
+                int limit);
     }
 
     /** Source cannot establish complete replay from the requested cursor. */
@@ -144,12 +145,13 @@ public final class CredentialAuditForwarder {
          * False means a competing worker or source generation changed the state.
          * This operation must be durable on success; leader fencing is separate.
          */
-        boolean advanceIfCurrent(AuditCheckpoint expected, long nextSourceCursor);
+        boolean advanceIfCurrent(AuditCheckpoint expected, AuditSourceCursor nextSourceCursor);
     }
 
     @FunctionalInterface
     public interface AlertSink {
         /** Alert metadata only; real adapter must reliably deliver/retry alerts. */
-        void forwardingFailed(String phase, String streamId, long sourceCursor, long auditId);
+        void forwardingFailed(String phase, String streamId,
+                AuditSourceCursor sourceCursor, long auditId);
     }
 }

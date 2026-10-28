@@ -26,6 +26,7 @@ import com.revature.repository.jdbc.JdbcCredentialAuditSource;
 import com.revature.repository.jdbc.JdbcUserAccountRepository;
 import com.revature.service.CredentialAuditEvent;
 import com.revature.service.AuditCheckpoint;
+import com.revature.service.AuditSourceCursor;
 import com.revature.service.CredentialAuditForwarder;
 import com.revature.service.TrustedCredentialRotationService;
 import com.revature.support.TestAccounts;
@@ -192,7 +193,8 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
         // The SELECT-only auditor account, not the credential writer, polls.
         String auditStream = "disposable-schema-" + suffix;
         AtomicReference<AuditCheckpoint> acknowledged =
-                new AtomicReference<>(new AuditCheckpoint(auditStream, 0));
+                new AtomicReference<>(new AuditCheckpoint(
+                        auditStream, AuditSourceCursor.origin()));
         List<CredentialAuditEvent> exported = new ArrayList<>();
         CredentialAuditForwarder exporter = new CredentialAuditForwarder(
                 auditStream,
@@ -200,9 +202,10 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
                 exported::add,
                 new CredentialAuditForwarder.CheckpointStore() {
                     @Override public AuditCheckpoint load() { return acknowledged.get(); }
-                    @Override public boolean advanceIfCurrent(AuditCheckpoint expected, long next) {
+                    @Override public boolean advanceIfCurrent(
+                            AuditCheckpoint expected, AuditSourceCursor next) {
                         AuditCheckpoint current = acknowledged.get();
-                        return next > expected.sourceCursor() && current != null
+                        return next.compareTo(expected.sourceCursor()) > 0 && current != null
                                 && current.equals(expected) && acknowledged.compareAndSet(
                                 current, new AuditCheckpoint(auditStream, next));
                     }
@@ -217,7 +220,8 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
         assertEquals(alice, exported.get(0).accountUsername());
         assertEquals(bob, exported.get(1).accountUsername());
         assertEquals(writerRole, exported.get(0).databaseActor());
-        assertTrue(acknowledged.get().sourceCursor() > 0);
+        assertTrue(acknowledged.get().sourceCursor().compareTo(
+                AuditSourceCursor.origin()) > 0);
     }
 
     private static List<AuditRow> auditRows(JdbcDatabase database, String schema)
