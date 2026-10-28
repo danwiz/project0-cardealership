@@ -8,6 +8,17 @@ This staged code supports a **separately isolated** credential-writer process. I
 
 The JDBC driver API requires a Java `String` password, which **cannot be reliably erased from JVM memory**. Zeroing the original array narrows exposure, not guarantees zero residual copies. Existing `JdbcDatabase(url, username, password)` callers are left unchanged for legacy compatibility; they retain a fixed String credential and must **not** be used as the real credential-writer service configuration.
 
+### Follow-up: generation- and expiry-checked lease policy
+
+`RenewableJdbcCredentialSource` adds an optional provider-neutral wrapper
+around “current secret” acquisition: a named writer role, valid time window,
+lease generation, revocation flag and maximum remaining lifetime must all
+pass before constructing the existing `CredentialLease`. A rejected provider
+response clears its buffer and fails closed without retaining a fallback.
+See the [renewable writer lease contract](renewable-writer-secret-lease.md)
+for required provider currentness, durable generation floor, pool draining and
+unimplemented production safeguards. This is not a secret-manager integration.
+
 ## CI-only rotation check
 
 The disposable PostgreSQL fixture creates an isolated SQL login. It proves that:
