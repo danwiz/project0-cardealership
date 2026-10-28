@@ -12,7 +12,7 @@ import java.util.function.LongSupplier;
  * not shared between instances. Production must use an atomic shared limiter
  * and independent gateway limits for invalid/unauthenticated tokens.
  */
-public final class CredentialRequestRateLimiter {
+public final class CredentialRequestRateLimiter implements CredentialRequestQuota {
     private final int maxAttempts;
     private final long windowMillis;
     private final int maxSubjects;
@@ -34,6 +34,7 @@ public final class CredentialRequestRateLimiter {
      * Charges every admitted attempt, including wrong-password requests. The
      * caller must supply a stable subject obtained from a trusted verifier.
      */
+    @Override
     public synchronized void acquire(String verifiedSubject) {
         if (verifiedSubject == null || verifiedSubject.trim().isEmpty()) {
             throw new SecurityException("verified subject required");
