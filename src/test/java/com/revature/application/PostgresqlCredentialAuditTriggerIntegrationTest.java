@@ -201,8 +201,10 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
                 new CredentialAuditForwarder.CheckpointStore() {
                     @Override public AuditCheckpoint load() { return acknowledged.get(); }
                     @Override public boolean advanceIfCurrent(AuditCheckpoint expected, long next) {
-                        return next > expected.sourceCursor() && acknowledged.compareAndSet(
-                                expected, new AuditCheckpoint(auditStream, next));
+                        AuditCheckpoint current = acknowledged.get();
+                        return next > expected.sourceCursor() && current != null
+                                && current.equals(expected) && acknowledged.compareAndSet(
+                                current, new AuditCheckpoint(auditStream, next));
                     }
                 },
                 (phase, stream, cursor, id) -> {

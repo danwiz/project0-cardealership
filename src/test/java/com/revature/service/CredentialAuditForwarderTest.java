@@ -207,7 +207,9 @@ class CredentialAuditForwarderTest {
                     if (sourceCursor <= expected.sourceCursor()) {
                         throw new SecurityException("checkpoint rollback");
                     }
-                    return ack.compareAndSet(expected,
+                    AuditCheckpoint current = ack.get();
+                    return current != null && current.equals(expected)
+                            && ack.compareAndSet(current,
                             new AuditCheckpoint(expected.streamId(), sourceCursor));
                 }
             };

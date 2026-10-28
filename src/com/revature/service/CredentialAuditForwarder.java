@@ -139,7 +139,8 @@ public final class CredentialAuditForwarder {
         AuditCheckpoint load();
 
         /**
-         * Atomic cross-process compare-and-set of both stream identity and cursor.
+         * Atomic cross-process compare-and-set of stream ID and cursor VALUES,
+         * not Java object identity (deserialized checkpoints are equivalent).
          * False means a competing worker or source generation changed the state.
          * This operation must be durable on success; leader fencing is separate.
          */
