@@ -15,6 +15,10 @@ public class AdminLoginService extends UserLoginService {
     public AdminLoginService(UserAccountRepository userRepository) {
         super(userRepository);
     }
+    public AdminLoginService(UserAccountRepository userRepository,
+            UserAccountRepository administrativeRepository) {
+        super(userRepository, administrativeRepository);
+    }
 
     @Override
     public User registerUser(String username, String password) {

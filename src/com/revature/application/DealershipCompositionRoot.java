@@ -37,7 +37,7 @@ public final class DealershipCompositionRoot {
 
     private static ConfiguredDealershipApplication createInMemory(InfrastructureConfiguration configuration) {
         UserAccountRepository accounts = new InMemoryUserAccountRepository();
-        DealershipApplicationContext context = newContext(accounts);
+        DealershipApplicationContext context = newContext(accounts, accounts);
         InventoryRepository inventory = new OfferInventoryRepository(context.getInventory());
         CustomerOwnershipRepository ownership = new CustomerOwnershipRepository(context.getCustomerLoginService());
         LedgerPaymentTransactionRepository payments = new LedgerPaymentTransactionRepository(context.getPayments());
@@ -51,7 +51,7 @@ public final class DealershipCompositionRoot {
                 configuration.getJdbcUser(), configuration.getJdbcPassword());
         database.ensureSchemaReady();
         UserAccountRepository accounts = new JdbcUserAccountRepository(database);
-        DealershipApplicationContext context = newContext(accounts);
+        DealershipApplicationContext context = newContext(accounts, null);
         InventoryRepository inventory = new JdbcInventoryRepository(database);
         JdbcPaymentProcessor paymentProcessor = new JdbcPaymentProcessor(database);
         return new ConfiguredDealershipApplication(configuration, context, accounts, inventory,
@@ -60,8 +60,9 @@ public final class DealershipCompositionRoot {
                 customer -> paymentProcessor);
     }
 
-    private static DealershipApplicationContext newContext(UserAccountRepository accounts) {
+    private static DealershipApplicationContext newContext(UserAccountRepository accounts,
+            UserAccountRepository administrativeAccounts) {
         return new DealershipApplicationContext(accounts, new RoleAuthorizationService(),
-                new SnapshotRehydrator(), new DAOService());
+                new SnapshotRehydrator(), new DAOService(), administrativeAccounts);
     }
 }

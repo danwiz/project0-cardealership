@@ -17,6 +17,10 @@ public class CustomerLoginService extends UserLoginService {
 
     public CustomerLoginService() { super(); }
     public CustomerLoginService(UserAccountRepository userRepository) { super(userRepository); }
+    public CustomerLoginService(UserAccountRepository userRepository,
+            UserAccountRepository administrativeRepository) {
+        super(userRepository, administrativeRepository);
+    }
 
     public void restoreOwnedVehicles(List<OwnedVehicle> restoredVehicles) {
         ownedVehicles.clear();

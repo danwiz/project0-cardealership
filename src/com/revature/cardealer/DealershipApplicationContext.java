@@ -17,6 +17,7 @@ import com.revature.service.UserLoginService;
 public final class DealershipApplicationContext {
 
     private UserAccountRepository accountRepository;
+    private final boolean restrictedAdministration;
     private UserAccountRepository publicAccountView;
     private UserLoginService userLoginService;
     private CustomerLoginService customerLoginService;
@@ -39,22 +40,37 @@ public final class DealershipApplicationContext {
     public DealershipApplicationContext(UserAccountRepository repository,
             RoleAuthorizationService authorizationService,
             SnapshotRehydrator snapshotRehydrator, DataDAO dataStore) {
+        this(repository, authorizationService, snapshotRehydrator, dataStore, repository);
+    }
+
+    /**
+     * With a null administrative repository, normal runtime services cannot
+     * provision privileged accounts, reassign roles or delete accounts.
+     */
+    public DealershipApplicationContext(UserAccountRepository repository,
+            RoleAuthorizationService authorizationService,
+            SnapshotRehydrator snapshotRehydrator, DataDAO dataStore,
+            UserAccountRepository administrativeRepository) {
         this.accountRepository = Objects.requireNonNull(repository, "repository");
+        this.restrictedAdministration = administrativeRepository == null;
         this.publicAccountView = new ReadOnlyUserAccountRepository(this.accountRepository);
         this.authorizationService = Objects.requireNonNull(authorizationService, "authorizationService");
         this.authorizationService.requireVerifiedSessions(() -> this.accountRepository);
         this.snapshotRehydrator = Objects.requireNonNull(snapshotRehydrator, "snapshotRehydrator");
         this.dataStore = Objects.requireNonNull(dataStore, "dataStore");
-        this.userLoginService = new UserLoginService(repository);
-        this.customerLoginService = new CustomerLoginService(repository);
-        this.employeeLoginService = new EmployeeLoginService(repository);
-        this.adminLoginService = new AdminLoginService(repository);
+        this.userLoginService = new UserLoginService(repository, administrativeRepository);
+        this.customerLoginService = new CustomerLoginService(repository, administrativeRepository);
+        this.employeeLoginService = new EmployeeLoginService(repository, administrativeRepository);
+        this.adminLoginService = new AdminLoginService(repository, administrativeRepository);
         this.inventory = new Offer();
         this.payments = new Payments();
     }
 
     public void replaceRuntime(RehydratedApplicationState replacement) {
         Objects.requireNonNull(replacement, "replacement");
+        if (restrictedAdministration) {
+            throw new SecurityException("runtime snapshot replacement requires a separately authorized operator");
+        }
         accountRepository = replacement.getAccountRepository();
         publicAccountView = new ReadOnlyUserAccountRepository(accountRepository);
         userLoginService = replacement.getUserLoginService();

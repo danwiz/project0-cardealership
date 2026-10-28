@@ -1,14 +1,14 @@
 # JDBC runtime trust boundary and credential policy
 
-**Status:** Draft security review (2026-10-28). No real database privileges, deployments, credentials, or administrator accounts have been changed. This document supports issue #29 and stacked PRs #31–#36.
+**Status:** Draft security review (2026-10-28). No real database privileges, deployments, credentials, or administrator accounts have been changed. This document supports issue #29 and stacked PRs #31–#37.
 
 ## Confirmed repository findings
 
 1. `InfrastructureConfiguration.fromSystemProperties()` historically substituted `sa` and an empty password whenever JDBC mode was selected. This is appropriate only for intentionally ephemeral H2 tests, **not** a persistent database. PR #33 rejects implicit or empty credentials for non-`jdbc:h2:mem:` URLs; existing in-memory test behavior is retained.
 2. PR #34 separates automatic transient H2 migration from the persistent JDBC runtime: `ensureSchemaReady()` checks an existing schema using read-only `schema_history` queries for file-backed/remote URLs. The composition root and five JDBC adapter constructors use this check instead of migrating. `JdbcDatabase.migrate()` remains an **explicit operator action**, and the dedicated bootstrap service still invokes it under its privileged operator boundary. No production grants have been configured; **do not** claim least-privilege deployment certification.
-3. PR #35 replaces mutable repositories returned by `ConfiguredDealershipApplication.getAccounts()` and `DealershipApplicationContext.getAccountRepository()` with credential-redacted, read-only facades that refuse `save`/`removeByUsername`. Internal authentication and authorized provisioning services retain their writer references. **PR #36:** raw `save(User)` is now insert-only (no role/hash upsert), with explicit compare-and-update credential/role primitives and authenticated service methods. **Remaining:** trusted in-process code with raw JDBC credentials can still call those primitives or manipulate the runtime replacement boundary; database-level privilege controls and isolated administrative capabilities are still required. This is a privileged infrastructure capability, **not** a supported untrusted API.
+3. PR #35 replaces mutable repositories returned by `ConfiguredDealershipApplication.getAccounts()` and `DealershipApplicationContext.getAccountRepository()` with credential-redacted, read-only facades that refuse `save`/`removeByUsername`. Internal authentication and authorized provisioning services retain their writer references. **PR #36:** raw `save(User)` is now insert-only (no role/hash upsert), with explicit compare-and-update credential/role primitives and authenticated service methods. **PR #37:** normal JDBC composition now supplies no administrative repository to any login service; these services refuse provisioning, role updates and deletion. An independent operator service may be explicitly constructed with an administrative repository, and JDBC context snapshot replacement is denied. **Remaining:** trusted infrastructure holding raw JDBC credentials can still call repository primitives directly; actual database grants and service/process separation still need deployment verification. This is a privileged infrastructure capability, **not** a supported untrusted API.
 4. The `AdministratorBootstrapService` directly inserts the first admin and a single-use marker within one JDBC transaction, but an overprivileged database operator can still modify the database. Database grants, host/OS access and backup governance are part of the trust boundary.
-5. SQL syntax such as H2 `MERGE ... KEY(username)` and current migration DDL is **H2-oriented**. Testing with H2's `MODE=PostgreSQL` is *not* proof of compatibility or privilege behavior against an actual PostgreSQL server.
+5. Historical H2 `MERGE ... KEY(username)` was removed by PR #36, but migration DDL and other SQL remain **H2-oriented**. Testing with H2's `MODE=PostgreSQL` is *not* proof of compatibility or privilege behavior against an actual PostgreSQL server.
 
 ## New configuration guard
 
@@ -32,7 +32,7 @@ This is a **configuration safeguard**, not a claim that an operator selected a s
 | Auditor / monitoring | Read approved evidence and redacted events | Mutate account records or recover secrets |
 | In-memory CI fixture | Create deterministic privileged users for isolated tests | Supply production database credentials |
 
-**Remaining blocking redesign:** PR #36 removes the implicit existing-role/credential upsert and adds authenticated change methods, but direct infrastructure callers with database credentials may still use the explicit update primitives or deletion method. Grant narrowly scoped privileges to ordinary runtime and isolate administrative account modifications; public getters are read-only, but these Java checks are not a security boundary against arbitrary trusted code holding database credentials. PR #34 adds a DDL-free runtime startup *path*, but creating distinct real migration/runtime credentials, granting the minimum database privileges, an independent migration runner, and testing the production target DB remain operator/deployment gates. GitHub CI's H2-only proof cannot certify actual production grants.
+**Remaining blocking redesign:** PRs #36–#37 remove silent role/credential upserts, add authenticated change methods and disable privileged account changes in normal JDBC runtime composition. However, direct infrastructure callers with database credentials may still use the explicit update primitives or deletion method. Grant narrowly scoped privileges to ordinary runtime and isolate administrative account modifications; public getters are read-only, but these Java checks are not a security boundary against arbitrary trusted code holding database credentials. PR #34 adds a DDL-free runtime startup *path*, but creating distinct real migration/runtime credentials, granting the minimum database privileges, an independent migration runner, and testing the production target DB remain operator/deployment gates. GitHub CI's H2-only proof cannot certify actual production grants.
 
 ## Authorization and session boundaries
 
@@ -47,11 +47,13 @@ This is a **configuration safeguard**, not a claim that an operator selected a s
 2. Execute migration with a separate operator principal; verify schema version 4, single-use marker and repeat-attempt denial; restore a backup in a separate test environment.
 3. Verify the real target database dialect, uniqueness/concurrency, transaction rollback and failure during bootstrap; H2 compatibility mode is insufficient proof.
 4. Assert that missing/blank persistent JDBC credentials fail **before any connection**; verify test-only H2 memory mode remains available on Java 11 and 17.
-5. PRs #35–#36 test read-only public account views, denied duplicate account inserts, denied unverified role/credential changes and authenticated explicit updates on in-memory/JDBC adapters; additionally exercise customer/staff/admin and direct infrastructure capabilities from the deployed entrypoint and real database grants.
+5. PRs #35–#37 test read-only views, insert-only creation, authenticated updates, and no administrative mutation channel in ordinary JDBC composition; additionally exercise direct infrastructure capabilities from the deployed entrypoint and real database grants.
 6. Ensure secrets are redacted from CI/job logs, command lines, exception reports and documentation; store only approved evidence metadata.
 7. Record infrastructure owner, risk approval, recovery procedure and gate evidence before merging or deploying.
 
 ## Related sources and artifacts
+
+- `docs/security/account-administration-channels.md` — PR #37 runtime/operator separation and first-/last-admin safeguards.
 
 - `docs/security/administrator-bootstrap.md` — operator-only bootstrap, current limitations.
 - `docs/security/verified-principal-boundary.md` — application-layer verified session gate.
