@@ -70,3 +70,7 @@ and evidence register; until independently reviewed real tests pass, issue
 [#29](https://github.com/danwiz/project0-cardealership/issues/29) stays open
 and security PRs stay draft/unmerged. No CI pass changes G03–G14, ARCH-01/02,
 CKPT-01, or SECRET-01 from **NOT RUN / NO-GO**.
+
+The [non-provisioned provider adapter blueprints](../strategy/immutable-pin-provider-blueprints-2026.md)
+expand this matrix with provider-specific version/delete-marker corner cases
+and document the **unverified atomic conditional PUT** requirement for Ceph.

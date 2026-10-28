@@ -190,5 +190,7 @@ Provider billing calculators, for actual region-specific estimates:
 [Google Cloud](https://cloud.google.com/products/calculator).
 
 See [business cases, SWOT and cost-benefit model](cloud-business-cases-swot-cba-2026.md),
+the [four provider-specific immutable publication blueprints](immutable-pin-provider-blueprints-2026.md),
+the [equal-workload cost and growth threshold model](normalized-cloud-workload-cost-thresholds-2026.md),
 the [adapter acceptance matrix](../security/immutable-pin-adapter-acceptance-matrix.md)
 and [security integration plan](../security/credential-security-production-integration-plan.md).
