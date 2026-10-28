@@ -62,6 +62,7 @@ class AccountAdministrationCliTest {
         owner.migrate();
         JdbcUserAccountRepository ownerAccounts = new JdbcUserAccountRepository(owner);
         TestAccounts.seed(ownerAccounts, AccountRole.ADMINISTRATOR, "root", "correct-admin-password");
+        TestAccounts.seed(ownerAccounts, AccountRole.EMPLOYEE, "existing-employee", "employee-password");
 
         try (Connection connection = owner.openConnection();
                 Statement sql = connection.createStatement()) {
@@ -83,6 +84,11 @@ class AccountAdministrationCliTest {
         assertThrows(IllegalStateException.class,
                 () -> reader.save(account("illegal", AccountRole.ADMINISTRATOR)));
         assertThrows(IllegalStateException.class,
+                () -> reader.updateRoleIfCurrent("existing-employee",
+                        AccountRole.EMPLOYEE, AccountRole.ADMINISTRATOR));
+        assertThrows(IllegalStateException.class,
+                () -> reader.removeByUsername("existing-employee"));
+        assertThrows(SecurityException.class,
                 () -> reader.updateRoleIfCurrent("root",
                         AccountRole.ADMINISTRATOR, AccountRole.CUSTOMER));
         assertThrows(SecurityException.class, () -> AccountAdministrationCli.execute(operatorService,
