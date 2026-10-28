@@ -35,6 +35,15 @@ without promising full secret-memory erasure. The source serializes acquisition
 per JVM to fence local generation rollback. It neither restarts live
 connections nor automatically revokes a database login.
 
+### Follow-up: locally fenced JDBC drain policy
+
+The separately staged [writer-connection drain contract](fenced-writer-connection-drain.md)
+adds a bounded synchronous session callback, initial fail-closed state,
+strictly newer credential-generation attestation, local fencing of in-flight
+work and tracked close attempts. This remains a **non-wired, single-process
+fixture**; server-side transaction termination, real pool draining and
+cross-process fences are still required for production.
+
 ## Provider adapter responsibilities (still missing)
 
 - Independently authenticate the isolated writer workload using an approved
