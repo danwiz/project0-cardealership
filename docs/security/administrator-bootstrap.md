@@ -65,7 +65,9 @@ persisted completion after account deletion. The CLI intentionally requires
 `System.console()` and cannot perform the bootstrap in headless CI.
 
 This increment does **not** certify the full authorization architecture.
-Application command/query boundaries that accept mutable caller-supplied
-`User` records still need a verified-principal security review. Actual
-production/operator execution, database backups, rollout/rollback rehearsal,
-and security sign-off remain outstanding. Keep the stacked pull request draft.
+The subsequent draft verified-principal authorization work (PR #32) rejects
+forged and mutated `User` identities at the application command/query
+boundary, but in-process direct repository capabilities and actual database
+role separation remain under review. Actual production/operator execution,
+database backups, rollout/rollback rehearsal, and security sign-off remain
+outstanding. Keep the stacked pull requests draft.

@@ -28,14 +28,30 @@ public final class InfrastructureConfiguration {
         return new InfrastructureConfiguration(Mode.IN_MEMORY, null, null, null);
     }
 
+    /**
+     * Development convenience only: passwordless H2 is allowed for a transient
+     * in-memory database. Persistent JDBC storage requires explicit credentials.
+     */
     public static InfrastructureConfiguration jdbc(String url) {
-        return jdbc(url, "sa", "");
+        String normalizedUrl = requireText(url, "url");
+        if (!isInMemoryH2(normalizedUrl)) {
+            throw new IllegalArgumentException(
+                    "persistent JDBC storage requires explicit username and password");
+        }
+        return jdbc(normalizedUrl, "sa", "");
     }
 
     public static InfrastructureConfiguration jdbc(String url, String username, String password) {
         String normalizedUrl = requireText(url, "url");
+        String configuredUser = Objects.requireNonNull(username, "username");
+        String configuredPassword = Objects.requireNonNull(password, "password");
+        if (!isInMemoryH2(normalizedUrl)
+                && (configuredUser.trim().isEmpty() || configuredPassword.isEmpty())) {
+            throw new IllegalArgumentException(
+                    "persistent JDBC storage requires a nonblank username and nonempty password");
+        }
         return new InfrastructureConfiguration(Mode.JDBC, normalizedUrl,
-                Objects.requireNonNull(username, "username"), Objects.requireNonNull(password, "password"));
+                configuredUser, configuredPassword);
     }
 
     public static InfrastructureConfiguration fromSystemProperties() {
@@ -48,14 +64,25 @@ public final class InfrastructureConfiguration {
         if (url == null || url.trim().isEmpty()) {
             throw new IllegalArgumentException(JDBC_URL_PROPERTY + " is required for JDBC mode");
         }
-        return jdbc(url, System.getProperty(JDBC_USER_PROPERTY, "sa"),
-                System.getProperty(JDBC_PASSWORD_PROPERTY, ""));
+        String configuredUser = System.getProperty(JDBC_USER_PROPERTY);
+        String configuredPassword = System.getProperty(JDBC_PASSWORD_PROPERTY);
+        if (isInMemoryH2(url)) {
+            return jdbc(url, configuredUser == null ? "sa" : configuredUser,
+                    configuredPassword == null ? "" : configuredPassword);
+        }
+        // Never silently substitute an H2 test identity for persistent storage.
+        return jdbc(url, configuredUser == null ? "" : configuredUser,
+                configuredPassword == null ? "" : configuredPassword);
     }
 
     public Mode getMode() { return mode; }
     public String getJdbcUrl() { return jdbcUrl; }
     public String getJdbcUser() { return jdbcUser; }
     public String getJdbcPassword() { return jdbcPassword; }
+
+    private static boolean isInMemoryH2(String url) {
+        return url.toLowerCase(Locale.ROOT).startsWith("jdbc:h2:mem:");
+    }
 
     private static String requireText(String value, String field) {
         String normalized = Objects.requireNonNull(value, field).trim();
