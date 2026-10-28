@@ -77,6 +77,11 @@ close failure and cleanup after callback exceptions. They do not prove
 PostgreSQL process termination, cluster-wide fencing, SSL session lifetime,
 pool draining, transaction rollback or real provider readiness.
 
+The separate [PostgreSQL 16 CI-only revocation rehearsal](postgresql-writer-session-revocation-rehearsal.md)
+checks local drain/transaction rollback, stale password denial, current-login
+reopening and test-owned backend termination against real PostgreSQL sessions.
+This improves test coverage but is **not independent staging acceptance**.
+
 Before [SECRET-01](credential-security-production-integration-plan.md) can
 close, select a real provider and independently witness staging tests with
 two live writer replicas and a real PostgreSQL connection pool: pre-rotation
