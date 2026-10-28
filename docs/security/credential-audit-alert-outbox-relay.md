@@ -13,8 +13,8 @@ order while remaining neutral to alert routing, queuing and storage providers.
 ## Delivery and failure semantics
 
 1. `VerifiedAuditAlertSink` creates each immutable `AuditFailureNotice` with a
-   new unique ID. The external outbox backend persists it and returns a durable receipt before the
-   originating failure is considered recorded. Original audit forwarding
+   new unique ID. The external outbox backend persists it and returns a durable
+   receipt before the originating failure is considered recorded. Original audit forwarding
    failures remain unmasked even when alert persistence fails; a separate
    monitor must detect outbox storage outages.
 2. A relay worker obtains a **bounded, atomically leased** batch via
@@ -76,3 +76,8 @@ idempotent consumers. It is a reference example, **not** a provider selection.
 
 Keep the PR draft/unmerged and issue #29 open. This seam is not a substitute
 for independent security review or live integration acceptance testing.
+
+The [production integration plan](credential-security-production-integration-plan.md)
+and [blank evidence register](credential-security-release-evidence-register.md)
+list the real external alert and independent monitoring tests that must pass
+before any deployment approval.
