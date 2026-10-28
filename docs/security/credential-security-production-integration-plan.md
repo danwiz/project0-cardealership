@@ -73,6 +73,7 @@ plus [durable SQL rotation claim rehearsal](jdbc-rotation-claim-ledger.md)
 and [PostgreSQL transaction-level writer fence](postgresql-writer-epoch-transaction-fence.md),
 plus [independently signed receipt verification](signed-rotation-reconciliation-evidence.md)
 and [bounded artifact transport adapter](signed-evidence-artifact-transport.md)
+and [canonical signed receipt location](canonical-signed-receipt-location.md)
 define the non-deployed code seams and CI-only tests. Their fixture successes
 cannot close the release ledger.
 
