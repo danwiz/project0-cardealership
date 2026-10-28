@@ -43,3 +43,7 @@ Before production implementation, decide the identity architecture, threat model
 References: [PostgreSQL row security](https://www.postgresql.org/docs/16/ddl-rowsecurity.html), [CREATE POLICY](https://www.postgresql.org/docs/16/sql-createpolicy.html), and [GRANT](https://www.postgresql.org/docs/16/sql-grant.html).
 
 Keep PR #42 draft, issue #29 open, all production privileges unchanged, and private ERM paid Code Security pending.
+
+## Follow-up PR #43 — dedicated credential-writer process option
+
+Draft PR #43 adds `TrustedCredentialRotationService` as a **non-wired application service** and a PostgreSQL CI test separating a read-only application SQL login from a second credential-only writer login. This is the alternative to one database role per customer. It relies on **process isolation and custody of the privileged SQL credential**, not database-level end-user ownership; direct SQL compromise of the credential-writer login remains capable of changing any account's encoded hash. Details: `docs/security/trusted-credential-service-boundary.md`.
