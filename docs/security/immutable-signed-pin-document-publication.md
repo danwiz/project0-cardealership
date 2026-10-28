@@ -73,6 +73,11 @@ and floor advance only after publication. **These fixtures do not establish
 real durable or immutable storage, provider read consistency, independent
 administration, retention lock or deployment readiness.**
 
+The separate [adapter fault-injection acceptance matrix](immutable-pin-adapter-acceptance-matrix.md)
+adds concurrency, logical restart, before-commit failure, inconsistent reads,
+simulated administrator tampering and proof-key isolation. It is CI evidence
+for *control logic*, not vendor, storage or production acceptance.
+
 Continue to hold issue [#29](https://github.com/danwiz/project0-cardealership/issues/29)
 open and every security PR draft/unmerged. G03–G14, especially real archive
 immutability and the provider-neutral publication integration rehearsal,
