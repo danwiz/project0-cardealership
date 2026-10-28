@@ -18,7 +18,7 @@ public final class JdbcPaymentProcessor implements PaymentProcessor {
 
     public JdbcPaymentProcessor(JdbcDatabase database) {
         this.database = Objects.requireNonNull(database, "database");
-        this.database.migrate();
+        this.database.ensureSchemaReady();
     }
 
     @Override

@@ -1,11 +1,11 @@
 # JDBC runtime trust boundary and credential policy
 
-**Status:** Draft security review (2026-10-28). No real database privileges, deployments, credentials, or administrator accounts have been changed. This document supports issue #29 and stacked PRs #31–#33.
+**Status:** Draft security review (2026-10-28). No real database privileges, deployments, credentials, or administrator accounts have been changed. This document supports issue #29 and stacked PRs #31–#34.
 
 ## Confirmed repository findings
 
 1. `InfrastructureConfiguration.fromSystemProperties()` historically substituted `sa` and an empty password whenever JDBC mode was selected. This is appropriate only for intentionally ephemeral H2 tests, **not** a persistent database. PR #33 rejects implicit or empty credentials for non-`jdbc:h2:mem:` URLs; existing in-memory test behavior is retained.
-2. `DealershipCompositionRoot.createJdbc()` calls `JdbcDatabase.migrate()` every time the runtime is composed. `JdbcDatabase.migrate()` executes schema-changing DDL and updates migration history. Consequently, current startup **does not** support a truly DDL-free runtime account without refactoring. Do **not** claim least-privilege database deployment has been implemented.
+2. PR #34 separates automatic transient H2 migration from the persistent JDBC runtime: `ensureSchemaReady()` checks an existing schema using read-only `schema_history` queries for file-backed/remote URLs. The composition root and five JDBC adapter constructors use this check instead of migrating. `JdbcDatabase.migrate()` remains an **explicit operator action**, and the dedicated bootstrap service still invokes it under its privileged operator boundary. No production grants have been configured; **do not** claim least-privilege deployment certification.
 3. `JdbcUserAccountRepository.save(User)` uses an upsert that includes the account's **role and encoded credential**. `ConfiguredDealershipApplication.getAccounts()` exposes that repository to trusted in-process code. A caller already able to execute arbitrary code with this infrastructure object/database credential can bypass application-level permission checks. This is a privileged infrastructure capability, **not** a supported untrusted API.
 4. The `AdministratorBootstrapService` directly inserts the first admin and a single-use marker within one JDBC transaction, but an overprivileged database operator can still modify the database. Database grants, host/OS access and backup governance are part of the trust boundary.
 5. SQL syntax such as H2 `MERGE ... KEY(username)` and current migration DDL is **H2-oriented**. Testing with H2's `MODE=PostgreSQL` is *not* proof of compatibility or privilege behavior against an actual PostgreSQL server.
@@ -21,7 +21,7 @@
 
 This is a **configuration safeguard**, not a claim that an operator selected a strong password or configured TLS, network policy, and secret rotation correctly. Prefer a managed secret-delivery mechanism over exposing credentials on a command line; current configuration still relies on Java system properties, which requires deployment review.
 
-## Target privilege and capability separation (not yet implemented)
+## Target privilege and capability separation (partly implemented; operator grants still pending)
 
 | Principal / component | Expected authority | Not allowed |
 |---|---|---|
@@ -32,7 +32,7 @@ This is a **configuration safeguard**, not a claim that an operator selected a s
 | Auditor / monitoring | Read approved evidence and redacted events | Mutate account records or recover secrets |
 | In-memory CI fixture | Create deterministic privileged users for isolated tests | Supply production database credentials |
 
-**Blocking redesign:** separate privileged account operations from raw repository `save`/upsert, remove arbitrary role writes from ordinary runtime capability, and split the migration/DDL account from the runtime account. That requires an explicit design review, application refactoring and integration tests; GitHub CI's current H2 test databases cannot prove actual production grants.
+**Remaining blocking redesign:** separate privileged account operations from raw repository `save`/upsert and remove arbitrary role writes from ordinary runtime capability. PR #34 adds a DDL-free runtime startup *path*, but creating distinct real migration/runtime credentials, granting the minimum database privileges, an independent migration runner, and testing the production target DB remain operator/deployment gates. GitHub CI's H2-only proof cannot certify actual production grants.
 
 ## Authorization and session boundaries
 
@@ -41,9 +41,9 @@ This is a **configuration safeguard**, not a claim that an operator selected a s
 - Domain-level transaction consistency and authorization must be enforced before (and where necessary within) database writes; merely hiding a console menu is insufficient.
 - Track logout, password rotation, account deletion, multi-session revocation, process restart, audit events and role changes as separate test cases.
 
-## Release acceptance tests (pending)
+## Release acceptance tests (partially covered in H2; production gates pending)
 
-1. Start against a **staged persistent database** using a truly restricted runtime principal and prove DDL fails, approved DML works, and arbitrary account-role updates are denied.
+1. PR #34 exercises a restricted H2 user for DDL-free schema validation; additionally start against the **staged target database** using a truly restricted runtime principal and prove DDL fails, approved DML works, and arbitrary account-role updates are denied.
 2. Execute migration with a separate operator principal; verify schema version 4, single-use marker and repeat-attempt denial; restore a backup in a separate test environment.
 3. Verify the real target database dialect, uniqueness/concurrency, transaction rollback and failure during bootstrap; H2 compatibility mode is insufficient proof.
 4. Assert that missing/blank persistent JDBC credentials fail **before any connection**; verify test-only H2 memory mode remains available on Java 11 and 17.

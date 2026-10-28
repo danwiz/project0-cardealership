@@ -66,12 +66,37 @@ public final class JdbcDatabase {
         }
     }
 
+    /**
+     * Prepares only transient H2 test stores automatically. Persistent databases
+     * must already be migrated by a separately authorized operator.
+     */
+    public void ensureSchemaReady() {
+        if (url.regionMatches(true, 0, "jdbc:h2:mem:", 0, "jdbc:h2:mem:".length())) {
+            migrate();
+        } else {
+            requireCurrentSchema();
+        }
+    }
+
+    /**
+     * Read-only startup gate: does not create schema history or execute DDL.
+     * The runtime database principal needs only SELECT on schema_history here.
+     */
+    public void requireCurrentSchema() {
+        int version = schemaVersion();
+        if (version != CURRENT_SCHEMA_VERSION) {
+            throw new IllegalStateException("database schema version " + version
+                    + " is not current; run the privileged database migrator first");
+        }
+    }
+
     public int schemaVersion() {
         try (Connection connection = openConnection()) {
-            createHistoryTable(connection);
             return currentVersion(connection);
         } catch (SQLException exception) {
-            throw new IllegalStateException("could not read schema version", exception);
+            throw new IllegalStateException(
+                    "could not read schema version; persistent databases must be migrated before runtime startup",
+                    exception);
         }
     }
 
