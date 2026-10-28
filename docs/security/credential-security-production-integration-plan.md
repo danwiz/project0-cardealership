@@ -43,7 +43,7 @@ the implementation owner does not satisfy a production release gate.
 
 | Gate | Required acceptance evidence | Current status |
 | --- | --- | --- |
-| G01 — Authentication | Real token/session verifier checks signature, issuer, audience, expiry, revocation, account binding and required assurance; rejects forged/missing identities before writer invocation | **Open:** verifier is a test stub |
+| G01 — Authentication | Real token/session verifier checks signature, issuer, audience, expiry, revocation, account binding and required assurance; rejects forged/missing identities before writer invocation | **Open:** policy seam uses a fake authenticated source, no real verifier |
 | G02 — Rate limiting | Distributed pre-verification and per-subject limits remain effective across replicas, restart, forged forwarding headers, burst boundaries and sustained abusive traffic | **Open:** local in-memory fixture only |
 | G03 — Writer isolation | Separately deployed service, authenticated private channel, ordinary-app DB role denied credential UPDATE; SQL grant/DDL tests and rollback access check | **Open:** CI-only database roles |
 | G04 — Writer secret lifecycle | Workload identity/secret store, rotation, connection-drain, outage/revocation, role separation and no secret disclosure in diagnostics | **Open:** injected secret-source seam only |
@@ -61,7 +61,8 @@ the implementation owner does not satisfy a production release gate.
 The [existing CDC source acceptance matrix](credential-cdc-production-acceptance.md),
 [durable destination contract](credential-audit-durable-destination.md),
 [alert relay contract](credential-audit-alert-outbox-relay.md),
-[request gate](trusted-credential-request-gate.md), and
+[request gate](trusted-credential-request-gate.md),
+[authenticated-session contract](credential-session-verifier-contract.md), and
 [rotating writer secret source](jdbc-writer-secret-source.md) define the
 non-deployed code seams. Their fixture successes cannot close the release ledger.
 
