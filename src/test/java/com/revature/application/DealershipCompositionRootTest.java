@@ -3,6 +3,7 @@ package com.revature.application;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -16,8 +17,7 @@ import com.revature.repository.OfferInventoryRepository;
 import com.revature.repository.jdbc.JdbcInventoryRepository;
 import com.revature.repository.jdbc.JdbcOwnershipRepository;
 import com.revature.repository.jdbc.JdbcPaymentTransactionRepository;
-import com.revature.repository.jdbc.JdbcUserAccountRepository;
-import com.revature.service.InMemoryUserAccountRepository;
+import com.revature.service.ReadOnlyUserAccountRepository;
 
 class DealershipCompositionRootTest {
 
@@ -35,7 +35,7 @@ class DealershipCompositionRootTest {
 
         assertEquals(InfrastructureConfiguration.Mode.IN_MEMORY,
                 application.getConfiguration().getMode());
-        assertTrue(application.getAccounts() instanceof InMemoryUserAccountRepository);
+        assertTrue(application.getAccounts() instanceof ReadOnlyUserAccountRepository);
         assertTrue(application.getInventory() instanceof OfferInventoryRepository);
         assertTrue(application.getContext().getAccountRepository() == application.getAccounts());
     }
@@ -56,11 +56,11 @@ class DealershipCompositionRootTest {
         System.setProperty(InfrastructureConfiguration.JDBC_URL_PROPERTY, url);
 
         ConfiguredDealershipApplication first = DealershipCompositionRoot.createDefault();
-        assertTrue(first.getAccounts() instanceof JdbcUserAccountRepository);
+        assertTrue(first.getAccounts() instanceof ReadOnlyUserAccountRepository);
         assertTrue(first.getInventory() instanceof JdbcInventoryRepository);
         assertTrue(first.getContext().getAccountRepository() == first.getAccounts());
 
-        first.getAccounts().save(user("alice", AccountRole.CUSTOMER));
+        first.getContext().getCustomerLoginService().registerUser("alice", "sample-secret");
         first.getInventory().addListing("Honda", "Civic", 2024, 30000, 2);
         first.ownershipFor("alice").add(new Car("Honda", "Civic", 2024), 30000, 60);
         ((JdbcPaymentTransactionRepository) first.paymentsFor("alice")).recordPayment(500, 30000);
@@ -80,8 +80,8 @@ class DealershipCompositionRootTest {
     void jdbcFactoriesRemainCustomerScoped() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.jdbc(jdbcUrl("scoped")));
-        application.getAccounts().save(user("alice", AccountRole.CUSTOMER));
-        application.getAccounts().save(user("bob", AccountRole.CUSTOMER));
+        application.getContext().getCustomerLoginService().registerUser("alice", "sample-secret");
+        application.getContext().getCustomerLoginService().registerUser("bob", "sample-secret");
 
         application.ownershipFor("alice").add(new Car("A", "One", 2020), 1000, 10);
         ((JdbcPaymentTransactionRepository) application.paymentsFor("alice")).recordPayment(100, 1000);
@@ -123,12 +123,54 @@ class DealershipCompositionRootTest {
         assertEquals("", configuration.getJdbcPassword());
     }
 
-    private static User user(String username, AccountRole role) {
-        User user = new User();
-        user.setUsername(username);
-        user.setPassword("encoded-credential");
-        user.setRole(role);
-        return user;
+    @Test
+    void inMemoryPublicAccountViewCannotModifyRolesOrCredentials() {
+        verifyPublicViewIsReadOnly(DealershipCompositionRoot.create(
+                InfrastructureConfiguration.inMemory()));
+    }
+
+    @Test
+    void jdbcPublicAccountViewCannotModifyRolesOrCredentials() {
+        verifyPublicViewIsReadOnly(DealershipCompositionRoot.create(
+                InfrastructureConfiguration.jdbc(jdbcUrl("public_account_view"))));
+    }
+
+    private static void verifyPublicViewIsReadOnly(ConfiguredDealershipApplication application) {
+        application.getContext().getCustomerLoginService().registerUser("alice", "valid-password");
+        User persisted = application.getAccounts().findByUsername("alice")
+                .orElseThrow(AssertionError::new);
+        assertEquals(AccountRole.CUSTOMER, persisted.getRole());
+        assertNull(persisted.getPassword());
+
+        persisted.setRole(AccountRole.ADMINISTRATOR);
+        persisted.setPassword("forged-encoded-secret");
+        assertThrows(SecurityException.class, () -> application.getAccounts().save(persisted));
+        assertThrows(SecurityException.class, () ->
+                application.getContext().getAccountRepository().removeByUsername("alice"));
+
+        User inventedAdmin = new User();
+        inventedAdmin.setUsername("forged-admin");
+        inventedAdmin.setRole(AccountRole.ADMINISTRATOR);
+        inventedAdmin.setPassword("fake-hash");
+        assertThrows(SecurityException.class, () ->
+                application.getContext().getAccountRepository().save(inventedAdmin));
+
+        User reloaded = application.getAccounts().findByUsername("alice")
+                .orElseThrow(AssertionError::new);
+        assertEquals(AccountRole.CUSTOMER, reloaded.getRole());
+        assertNull(reloaded.getPassword());
+        assertFalse(application.getAccounts().findByUsername("forged-admin").isPresent());
+
+        // Normal public customer enrollment continues through the trusted service.
+        assertTrue(application.getContext().getCustomerLoginService().authenticate(
+                login("alice", "valid-password")).isPresent());
+    }
+
+    private static User login(String username, String password) {
+        User credentials = new User();
+        credentials.setUsername(username);
+        credentials.setPassword(password);
+        return credentials;
     }
 
     private static String jdbcUrl(String name) {

@@ -13,7 +13,6 @@ import com.revature.service.UserAccountRepository;
 public final class ConfiguredDealershipApplication {
     private final InfrastructureConfiguration configuration;
     private final DealershipApplicationContext context;
-    private final UserAccountRepository accounts;
     private final InventoryRepository inventory;
     private final Function<String, OwnershipRepository> ownershipRepositories;
     private final Function<String, PaymentTransactionRepository> paymentRepositories;
@@ -27,7 +26,7 @@ public final class ConfiguredDealershipApplication {
             Function<String, PaymentProcessor> paymentProcessors) {
         this.configuration = Objects.requireNonNull(configuration, "configuration");
         this.context = Objects.requireNonNull(context, "context");
-        this.accounts = Objects.requireNonNull(accounts, "accounts");
+        Objects.requireNonNull(accounts, "accounts");
         this.inventory = Objects.requireNonNull(inventory, "inventory");
         this.ownershipRepositories = Objects.requireNonNull(ownershipRepositories, "ownershipRepositories");
         this.paymentRepositories = Objects.requireNonNull(paymentRepositories, "paymentRepositories");
@@ -36,7 +35,8 @@ public final class ConfiguredDealershipApplication {
 
     public InfrastructureConfiguration getConfiguration() { return configuration; }
     public DealershipApplicationContext getContext() { return context; }
-    public UserAccountRepository getAccounts() { return accounts; }
+    /** Public read-only account view; use authenticated services for modifications. */
+    public UserAccountRepository getAccounts() { return context.getAccountRepository(); }
     public InventoryRepository getInventory() { return inventory; }
     public OwnershipRepository ownershipFor(String customerName) {
         return ownershipRepositories.apply(customerName);

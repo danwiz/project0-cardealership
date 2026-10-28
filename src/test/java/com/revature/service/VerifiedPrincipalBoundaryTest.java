@@ -29,7 +29,7 @@ class VerifiedPrincipalBoundaryTest {
     void forgedAdministratorAndCopiedAccountAreNotVerifiedSessions() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.inMemory());
-        TestAccounts.seed(application.getAccounts(), AccountRole.ADMINISTRATOR, "admin", "TestPass123!");
+        TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.ADMINISTRATOR, "admin", "TestPass123!");
         ConfiguredDomainAdapter adapter = new ConfiguredDomainAdapter(application);
         ManageInventoryCommand command = new ManageInventoryCommand(adapter, adapter);
 
@@ -50,7 +50,7 @@ class VerifiedPrincipalBoundaryTest {
     void editingAValidSessionRoleNeverElevatesCustomer() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.inMemory());
-        new UserLoginService(application.getAccounts()).registerUser("buyer", "TestPass123!");
+        application.getContext().getUserLoginService().registerUser("buyer", "TestPass123!");
         User verified = AuthenticatedAccounts.login(application, AccountRole.CUSTOMER, "buyer", "TestPass123!");
         ConfiguredDomainAdapter adapter = new ConfiguredDomainAdapter(application);
         ManageInventoryCommand command = new ManageInventoryCommand(adapter, adapter);
@@ -67,14 +67,14 @@ class VerifiedPrincipalBoundaryTest {
     void deletedOrPasswordRotatedAccountLosesExistingSession() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.inMemory());
-        TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "staff", "TestPass123!");
+        TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.EMPLOYEE, "staff", "TestPass123!");
         User verified = AuthenticatedAccounts.login(application, AccountRole.EMPLOYEE, "staff", "TestPass123!");
         ConfiguredDomainAdapter adapter = new ConfiguredDomainAdapter(application);
         assertTrue(adapter.isAuthorized(verified, Permission.MANAGE_INVENTORY));
 
-        TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "staff", "ChangedPass123!");
+        TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.EMPLOYEE, "staff", "ChangedPass123!");
         assertFalse(adapter.isAuthorized(verified, Permission.MANAGE_INVENTORY));
-        application.getAccounts().removeByUsername("staff");
+        TestAccounts.trustedRepository(application).removeByUsername("staff");
         assertFalse(adapter.isAuthorized(verified, Permission.MANAGE_INVENTORY));
     }
 
@@ -83,7 +83,7 @@ class VerifiedPrincipalBoundaryTest {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.jdbc("jdbc:h2:mem:verified_actor_" + System.nanoTime()
                     + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE"));
-        TestAccounts.seed(application.getAccounts(), AccountRole.ADMINISTRATOR, "admin", "TestPass123!");
+        TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.ADMINISTRATOR, "admin", "TestPass123!");
         ConfiguredDomainAdapter adapter = new ConfiguredDomainAdapter(application);
         ManageInventoryCommand command = new ManageInventoryCommand(adapter, adapter);
         User fake = user("admin", "invalid", AccountRole.ADMINISTRATOR);
@@ -100,7 +100,7 @@ class VerifiedPrincipalBoundaryTest {
     void loginCannotClaimAnAdministratorRoleForCustomerCredentials() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.inMemory());
-        new UserLoginService(application.getAccounts()).registerUser("buyer", "TestPass123!");
+        application.getContext().getUserLoginService().registerUser("buyer", "TestPass123!");
         User credentials = user("buyer", "TestPass123!", AccountRole.ADMINISTRATOR);
         AuthenticateAccountCommand.Result result = new AuthenticateAccountCommand(
                 new ContextIdentityAdapter(application.getContext()),
