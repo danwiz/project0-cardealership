@@ -8,6 +8,9 @@ import java.util.Objects;
  * Provider-neutral, single-instance audit forwarding seam (not a deployed job).
  * The real destination must durably append/idempotently acknowledge eventKey,
  * and the checkpoint must live outside the database being audited.
+ * The sourceCursor is distinct from the database's audit ID. Production MUST
+ * use a commit-ordered source cursor or a proven reconciliation scan: PostgreSQL
+ * sequence IDs alone can skip late-committing rows.
  */
 public final class CredentialAuditForwarder {
     private final String streamId;
@@ -35,14 +38,14 @@ public final class CredentialAuditForwarder {
     }
 
     /**
-     * Preserve strict order, allow sequence gaps from rolled-back transactions,
+     * Preserve strict SOURCE-CURSOR order, allow arbitrary audit-ID order/gaps,
      * and never advance the checkpoint on a failed durable append.
      * Synchronization covers one JVM only; production needs an external lease.
      */
     public synchronized int forwardNextBatch() {
         long cursor;
         try {
-            cursor = checkpoint.lastAcknowledgedId();
+            cursor = checkpoint.lastAcknowledgedCursor();
             if (cursor < 0) throw new SecurityException("invalid audit checkpoint");
         } catch (RuntimeException failure) {
             alert("checkpoint-read", 0, failure);
@@ -59,10 +62,10 @@ public final class CredentialAuditForwarder {
             long previous = cursor;
             for (CredentialAuditEvent event : events) {
                 if (event == null || !streamId.equals(event.streamId())
-                        || event.auditId() <= previous) {
+                        || event.sourceCursor() <= previous) {
                     throw new SecurityException("audit source stream/order violation");
                 }
-                previous = event.auditId();
+                previous = event.sourceCursor();
             }
         } catch (RuntimeException failure) {
             alert("source-read-or-order", cursor, failure);
@@ -79,7 +82,7 @@ public final class CredentialAuditForwarder {
                 throw failure;
             }
             try {
-                checkpoint.markAcknowledged(event.auditId());
+                checkpoint.markAcknowledged(event.sourceCursor());
             } catch (RuntimeException failure) {
                 // If append succeeded, retries MUST be deduplicated by eventKey.
                 alert("checkpoint-write", event.auditId(), failure);
@@ -101,7 +104,8 @@ public final class CredentialAuditForwarder {
 
     @FunctionalInterface
     public interface AuditSource {
-        List<CredentialAuditEvent> readAfter(long lastAcknowledgedId, int limit);
+        /** Must return events in stable commit-cursor order, not audit-ID order. */
+        List<CredentialAuditEvent> readAfter(long lastAcknowledgedCursor, int limit);
     }
 
     @FunctionalInterface
@@ -111,8 +115,8 @@ public final class CredentialAuditForwarder {
     }
 
     public interface CheckpointStore {
-        long lastAcknowledgedId();
-        void markAcknowledged(long auditId);
+        long lastAcknowledgedCursor();
+        void markAcknowledged(long sourceCursor);
     }
 
     @FunctionalInterface

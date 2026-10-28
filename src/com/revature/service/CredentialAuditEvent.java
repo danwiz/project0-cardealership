@@ -6,14 +6,17 @@ import java.util.Objects;
 /** Minimal event metadata; never contains a password or encoded credential. */
 public final class CredentialAuditEvent {
     private final String streamId;
+    private final long sourceCursor;
     private final long auditId;
     private final String accountUsername;
     private final String databaseActor;
     private final Instant changedAt;
 
-    public CredentialAuditEvent(String streamId, long auditId, String accountUsername,
-            String databaseActor, Instant changedAt) {
+    public CredentialAuditEvent(String streamId, long sourceCursor, long auditId,
+            String accountUsername, String databaseActor, Instant changedAt) {
         this.streamId = required(streamId, "streamId");
+        if (sourceCursor <= 0) throw new IllegalArgumentException("source cursor must be positive");
+        this.sourceCursor = sourceCursor;
         if (auditId <= 0) throw new IllegalArgumentException("audit ID must be positive");
         this.auditId = auditId;
         this.accountUsername = required(accountUsername, "accountUsername");
@@ -22,6 +25,8 @@ public final class CredentialAuditEvent {
     }
 
     public String streamId() { return streamId; }
+    /** Monotonic commit-order cursor assigned by the trusted source adapter. */
+    public long sourceCursor() { return sourceCursor; }
     public long auditId() { return auditId; }
     public String accountUsername() { return accountUsername; }
     public String databaseActor() { return databaseActor; }

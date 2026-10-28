@@ -196,7 +196,7 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
                 new JdbcCredentialAuditSource(auditorDatabase, "disposable-schema-" + suffix),
                 exported::add,
                 new CredentialAuditForwarder.CheckpointStore() {
-                    @Override public long lastAcknowledgedId() { return acknowledged.get(); }
+                    @Override public long lastAcknowledgedCursor() { return acknowledged.get(); }
                     @Override public void markAcknowledged(long id) { acknowledged.set(id); }
                 },
                 (phase, stream, id) -> { throw new AssertionError("unexpected audit failure"); },

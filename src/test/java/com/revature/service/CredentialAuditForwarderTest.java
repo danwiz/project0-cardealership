@@ -60,7 +60,8 @@ class CredentialAuditForwarderTest {
     @Test
     void wrongStreamOrReorderedBatchFailsBeforeAnyDelivery() {
         Harness wrongStream = new Harness(List.of(
-                new CredentialAuditEvent("other-stream", 1, "alice", "writer", Instant.EPOCH)));
+                new CredentialAuditEvent("other-stream", 1, 1,
+                        "alice", "writer", Instant.EPOCH)));
         assertThrows(SecurityException.class, wrongStream.forwarder::forwardNextBatch);
         assertTrue(wrongStream.archive.isEmpty());
         assertEquals(List.of("source-read-or-order:0"), wrongStream.alerts);
@@ -69,6 +70,19 @@ class CredentialAuditForwarderTest {
         assertThrows(SecurityException.class, reversed.forwarder::forwardNextBatch);
         assertTrue(reversed.archive.isEmpty());
         assertEquals(0, reversed.ack.get());
+    }
+
+    @Test
+    void commitOrderCursorCanAdvanceWhenDatabaseAuditIdsArriveOutOfOrder() {
+        // Commit-order CDC may emit audit ID 11 before late-committing ID 10.
+        Harness fixture = new Harness(List.of(
+                new CredentialAuditEvent(STREAM, 1, 11, "alice", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, 2, 10, "bob", "writer", Instant.EPOCH)));
+        assertEquals(2, fixture.forwarder.forwardNextBatch());
+        assertEquals(2, fixture.ack.get());
+        assertEquals(List.of(STREAM + ":11", STREAM + ":10"),
+                new ArrayList<>(fixture.archive.keySet()));
+        assertEquals(0, fixture.forwarder.forwardNextBatch());
     }
 
     @Test
@@ -84,7 +98,7 @@ class CredentialAuditForwarderTest {
     }
 
     private static CredentialAuditEvent event(long id) {
-        return new CredentialAuditEvent(STREAM, id, "alice", "writer", Instant.EPOCH);
+        return new CredentialAuditEvent(STREAM, id, id, "alice", "writer", Instant.EPOCH);
     }
 
     private static final class Harness {
@@ -99,7 +113,7 @@ class CredentialAuditForwarderTest {
 
         private Harness(List<CredentialAuditEvent> records) {
             CredentialAuditForwarder.AuditSource source = (after, limit) -> records.stream()
-                    .filter(event -> event.auditId() > after)
+                    .filter(event -> event.sourceCursor() > after)
                     .limit(limit)
                     .collect(Collectors.toList());
             CredentialAuditForwarder.AppendOnlySink sink = event -> {
@@ -112,14 +126,14 @@ class CredentialAuditForwarderTest {
             };
             CredentialAuditForwarder.CheckpointStore checkpoint =
                     new CredentialAuditForwarder.CheckpointStore() {
-                @Override public long lastAcknowledgedId() { return ack.get(); }
-                @Override public void markAcknowledged(long auditId) {
-                    if (failCheckpointId == auditId) {
+                @Override public long lastAcknowledgedCursor() { return ack.get(); }
+                @Override public void markAcknowledged(long sourceCursor) {
+                    if (failCheckpointId == sourceCursor) {
                         failCheckpointId = 0;
                         throw new IllegalStateException("fixture checkpoint unavailable");
                     }
-                    if (auditId <= ack.get()) throw new SecurityException("checkpoint rollback");
-                    ack.set(auditId);
+                    if (sourceCursor <= ack.get()) throw new SecurityException("checkpoint rollback");
+                    ack.set(sourceCursor);
                 }
             };
             CredentialAuditForwarder.AlertSink notifications = (phase, stream, id) -> {
