@@ -1,6 +1,11 @@
 # Maven
 /target/
 
+# Legacy Eclipse build output and machine-specific project files
+/bin/
+/.classpath
+/.project
+
 # Java
 *.class
 *.jar
