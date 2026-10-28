@@ -105,6 +105,67 @@ class CredentialAuditForwarderTest {
     }
 
     @Test
+    void checkpointBetweenTwoRowsOfOneCommitSurvivesRestartAndPageBoundaries() {
+        AuditSourceCursor first = new AuditSourceCursor(50, 0);
+        AuditSourceCursor second = new AuditSourceCursor(50, 1);
+        AuditSourceCursor third = new AuditSourceCursor(60, 0);
+        Harness fixture = new Harness(List.of(
+                new CredentialAuditEvent(STREAM, first, 11, "a", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, second, 12, "b", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, third, 10, "c", "writer", Instant.EPOCH)));
+        fixture.restart(1);
+        assertEquals(1, fixture.forwarder.forwardNextBatch());
+        assertEquals(first, fixture.ack.get().sourceCursor());
+        fixture.restart(1);
+        assertEquals(1, fixture.forwarder.forwardNextBatch());
+        assertEquals(second, fixture.ack.get().sourceCursor());
+        assertEquals(1, fixture.forwarder.forwardNextBatch());
+        assertEquals(third, fixture.ack.get().sourceCursor());
+        assertEquals(0, fixture.forwarder.forwardNextBatch());
+        assertEquals(List.of(STREAM + ":11", STREAM + ":12", STREAM + ":10"),
+                new ArrayList<>(fixture.archive.keySet()));
+        assertTrue(fixture.alerts.isEmpty());
+    }
+
+    @Test
+    void lossOfSourceHistoryAfterFirstPageNeverLooksLikeIdleStream() {
+        Harness fixture = new Harness(List.of(event(1), event(2)));
+        fixture.restart(1);
+        assertEquals(1, fixture.forwarder.forwardNextBatch());
+        fixture.historyUnavailable = true;
+        assertThrows(CredentialAuditForwarder.AuditHistoryUnavailableException.class,
+                fixture.forwarder::forwardNextBatch);
+        assertEquals(cursor(1), fixture.ack.get().sourceCursor());
+        assertEquals(List.of(STREAM + ":1"), new ArrayList<>(fixture.archive.keySet()));
+        assertEquals(List.of("source-history-unavailable:1:0:0"), fixture.alerts);
+    }
+
+    @Test
+    void duplicateAuditKeyAtDifferentCursorsIsRejectedBeforeAnyAppend() {
+        Harness fixture = new Harness(List.of(
+                new CredentialAuditEvent(STREAM, cursor(1), 7, "a", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, cursor(2), 7, "b", "writer", Instant.EPOCH)));
+        assertThrows(SecurityException.class, fixture.forwarder::forwardNextBatch);
+        assertEquals(AuditSourceCursor.origin(), fixture.ack.get().sourceCursor());
+        assertTrue(fixture.archive.isEmpty());
+        assertEquals(List.of("source-read-or-order:0:0:0"), fixture.alerts);
+    }
+
+    @Test
+    void immutableArchiveRejectsConflictingReplayKeyAcrossPageBoundary() {
+        Harness fixture = new Harness(List.of(
+                new CredentialAuditEvent(STREAM, cursor(1), 7, "a", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, cursor(2), 7, "b", "writer", Instant.EPOCH)));
+        fixture.restart(1);
+        assertEquals(1, fixture.forwarder.forwardNextBatch());
+        assertThrows(SecurityException.class, fixture.forwarder::forwardNextBatch);
+        assertEquals(cursor(1), fixture.ack.get().sourceCursor());
+        assertEquals(1, fixture.archive.size());
+        assertEquals("a", fixture.archive.get(STREAM + ":7").accountUsername());
+        assertEquals(List.of("append:2:0:7"), fixture.alerts);
+    }
+
+    @Test
     void alertTransportFailureCannotMaskOriginalDeliveryFailure() {
         Harness fixture = new Harness(List.of(event(1)));
         fixture.failAppendId = 1;
@@ -212,7 +273,14 @@ class CredentialAuditForwarderTest {
                     failAppendId = 0;
                     throw new IllegalStateException("fixture append unavailable");
                 }
-                archive.putIfAbsent(event.eventKey(), event);
+                CredentialAuditEvent prior = archive.putIfAbsent(event.eventKey(), event);
+                if (prior != null && (!prior.sourceCursor().equals(event.sourceCursor())
+                        || prior.auditId() != event.auditId()
+                        || !prior.accountUsername().equals(event.accountUsername())
+                        || !prior.databaseActor().equals(event.databaseActor())
+                        || !prior.changedAt().equals(event.changedAt()))) {
+                    throw new SecurityException("fixture archive immutable-event collision");
+                }
             };
             checkpoint =
                     new CredentialAuditForwarder.CheckpointStore() {
@@ -244,8 +312,12 @@ class CredentialAuditForwarderTest {
         }
 
         private void restart() {
+            restart(10);
+        }
+
+        private void restart(int limit) {
             forwarder = new CredentialAuditForwarder(STREAM, source, sink,
-                    checkpoint, notifications, 10);
+                    checkpoint, notifications, limit);
         }
     }
 }

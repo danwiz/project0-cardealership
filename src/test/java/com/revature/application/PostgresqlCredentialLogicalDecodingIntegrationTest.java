@@ -15,6 +15,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -137,14 +139,30 @@ class PostgresqlCredentialLogicalDecodingIntegrationTest {
                         source.readAfter(AuditSourceCursor.origin(), 10).stream()
                                 .map(CredentialAuditEvent::sourceCursor)
                                 .collect(Collectors.toList()));
+                // Checkpoint after the first row of a committed transaction;
+                // the next page must resume with ordinal 1 at the SAME LSN.
+                assertEquals(List.of(decoded.get(0).sourceCursor()),
+                        source.readAfter(AuditSourceCursor.origin(), 1).stream()
+                                .map(CredentialAuditEvent::sourceCursor)
+                                .collect(Collectors.toList()));
+                assertEquals(List.of(decoded.get(1).sourceCursor()),
+                        source.readAfter(decoded.get(0).sourceCursor(), 1).stream()
+                                .map(CredentialAuditEvent::sourceCursor)
+                                .collect(Collectors.toList()));
 
                 AtomicReference<AuditCheckpoint> acknowledged = new AtomicReference<>(
                         new AuditCheckpoint(streamId, AuditSourceCursor.origin()));
+                AtomicBoolean failSecondCheckpointOnce = new AtomicBoolean(true);
                 CredentialAuditForwarder.CheckpointStore checkpoint =
                         new CredentialAuditForwarder.CheckpointStore() {
                     @Override public AuditCheckpoint load() { return acknowledged.get(); }
                     @Override public boolean advanceIfCurrent(
                             AuditCheckpoint expected, AuditSourceCursor next) {
+                        if (next.equals(decoded.get(1).sourceCursor())
+                                && failSecondCheckpointOnce.getAndSet(false)) {
+                            // Crash after the sink's durable acknowledgement.
+                            throw new IllegalStateException("fixture checkpoint interrupted");
+                        }
                         AuditCheckpoint current = acknowledged.get();
                         return current != null && current.equals(expected)
                                 && next.compareTo(expected.sourceCursor()) > 0
@@ -154,24 +172,51 @@ class PostgresqlCredentialLogicalDecodingIntegrationTest {
                 };
                 Map<String, CredentialAuditEvent> archive = new LinkedHashMap<>();
                 List<String> alerts = new ArrayList<>();
-                CredentialAuditForwarder.AppendOnlySink sink =
-                        event -> archive.putIfAbsent(event.eventKey(), event);
+                AtomicInteger secondEventAppendAttempts = new AtomicInteger();
+                CredentialAuditForwarder.AppendOnlySink sink = event -> {
+                    if (event.auditId() == earlyTwoId) secondEventAppendAttempts.incrementAndGet();
+                    CredentialAuditEvent prior = archive.putIfAbsent(event.eventKey(), event);
+                    if (prior != null) {
+                        // A replay is safe only when the source presents the
+                        // same immutable event; conflicting keys must fail.
+                        if (!prior.sourceCursor().equals(event.sourceCursor())
+                                || prior.auditId() != event.auditId()
+                                || !prior.accountUsername().equals(event.accountUsername())
+                                || !prior.databaseActor().equals(event.databaseActor())
+                                || !prior.changedAt().equals(event.changedAt())) {
+                            throw new SecurityException("archive event key collision");
+                        }
+                    }
+                };
                 CredentialAuditForwarder.AlertSink notifications =
-                        (phase, stream, cursor, id) -> alerts.add(phase);
+                        (phase, stream, cursor, id) -> alerts.add(phase + ":" + cursor);
                 CredentialAuditForwarder forwarder = new CredentialAuditForwarder(
-                        streamId, source, sink, checkpoint, notifications, 10);
-                assertEquals(3, forwarder.forwardNextBatch());
+                        streamId, source, sink, checkpoint, notifications, 1);
+                assertEquals(1, forwarder.forwardNextBatch());
+                assertEquals(decoded.get(0).sourceCursor(),
+                        acknowledged.get().sourceCursor());
+                assertEquals(1, archive.size());
+                assertThrows(IllegalStateException.class, forwarder::forwardNextBatch);
+                assertEquals(decoded.get(0).sourceCursor(),
+                        acknowledged.get().sourceCursor());
+                assertEquals(2, archive.size()); // Append succeeded before the crash.
+                assertEquals(List.of("checkpoint-write:" + decoded.get(1).sourceCursor()), alerts);
+
+                // A restarted forwarder retries ordinal 1 and the external
+                // archive deduplicates the exact event, then resumes later LSNs.
+                CredentialAuditForwarder restarted = new CredentialAuditForwarder(
+                        streamId, source, sink, checkpoint, notifications, 1);
+                assertEquals(1, restarted.forwardNextBatch());
+                assertEquals(decoded.get(1).sourceCursor(),
+                        acknowledged.get().sourceCursor());
+                assertEquals(2, secondEventAppendAttempts.get());
+                assertEquals(2, archive.size());
+                assertEquals(1, restarted.forwardNextBatch());
                 assertEquals(decoded.get(2).sourceCursor(),
                         acknowledged.get().sourceCursor());
-                assertEquals(3, archive.size());
-
-                // A restarted forwarder with the same persisted checkpoint
-                // cannot silently re-deliver or omit a committed fixture row.
-                CredentialAuditForwarder restarted = new CredentialAuditForwarder(
-                        streamId, source, sink, checkpoint, notifications, 10);
                 assertEquals(0, restarted.forwardNextBatch());
                 assertEquals(3, archive.size());
-                assertTrue(alerts.isEmpty());
+                assertEquals(List.of("checkpoint-write:" + decoded.get(1).sourceCursor()), alerts);
 
                 assertEquals(committed,
                         decodedLedgerRows(ownerConnection, slot, schema, true));
@@ -183,7 +228,8 @@ class PostgresqlCredentialLogicalDecodingIntegrationTest {
                         () -> decodedLedgerRows(ownerConnection, slot, schema, false));
                 assertThrows(CredentialAuditForwarder.AuditHistoryUnavailableException.class,
                         restarted::forwardNextBatch);
-                assertEquals(List.of("source-history-unavailable"), alerts);
+                assertEquals(List.of("checkpoint-write:" + decoded.get(1).sourceCursor(),
+                        "source-history-unavailable:" + decoded.get(2).sourceCursor()), alerts);
             } finally {
                 try {
                     if (slotCreated) dropSlot(ownerConnection, slot);
