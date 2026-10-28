@@ -12,6 +12,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
@@ -21,7 +22,10 @@ import org.junit.jupiter.api.function.Executable;
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 import com.revature.repository.jdbc.JdbcDatabase;
+import com.revature.repository.jdbc.JdbcCredentialAuditSource;
 import com.revature.repository.jdbc.JdbcUserAccountRepository;
+import com.revature.service.CredentialAuditEvent;
+import com.revature.service.CredentialAuditForwarder;
 import com.revature.service.TrustedCredentialRotationService;
 import com.revature.support.TestAccounts;
 
@@ -182,6 +186,28 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
                 statement.executeUpdate("DELETE FROM credential_rotation_audit");
             }
         });
+
+        // Provider-neutral export proof with a fake external sink/checkpoint.
+        // The SELECT-only auditor account, not the credential writer, polls.
+        AtomicLong acknowledged = new AtomicLong();
+        List<CredentialAuditEvent> exported = new ArrayList<>();
+        CredentialAuditForwarder exporter = new CredentialAuditForwarder(
+                "disposable-schema-" + suffix,
+                new JdbcCredentialAuditSource(auditorDatabase, "disposable-schema-" + suffix),
+                exported::add,
+                new CredentialAuditForwarder.CheckpointStore() {
+                    @Override public long lastAcknowledgedCursor() { return acknowledged.get(); }
+                    @Override public void markAcknowledged(long id) { acknowledged.set(id); }
+                },
+                (phase, stream, id) -> { throw new AssertionError("unexpected audit failure"); },
+                10);
+        assertEquals(2, exporter.forwardNextBatch());
+        assertEquals(0, exporter.forwardNextBatch());
+        assertEquals(2, exported.size());
+        assertEquals(alice, exported.get(0).accountUsername());
+        assertEquals(bob, exported.get(1).accountUsername());
+        assertEquals(writerRole, exported.get(0).databaseActor());
+        assertTrue(acknowledged.get() > 0);
     }
 
     private static List<AuditRow> auditRows(JdbcDatabase database, String schema)
