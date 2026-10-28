@@ -27,12 +27,15 @@ The coordinator contains **public** trust anchors only; test signers live in
 disposable fixtures. The coordinator itself neither publishes the signed
 document to object storage nor delivers/rotates private keys.
 
-It also requires an independent `DurableDocumentReadback` before floor
-advancement: the provider must return the **exact signed document**, matching
-both the canonical signing transcript and issuer signature. Missing, altered,
-or unavailable read-back denies publication. The interface alone cannot prove
-real WORM durability or administrative independence; production adapters
-must authenticate that read-back boundary.
+It also requires an independent, **revision-qualified**
+`DurableDocumentReadback` before floor advancement: the provider must return
+the **exact requested signed revision**, matching both the canonical signing
+transcript and issuer signature. Missing, altered, mismatched or unavailable
+read-back denies publication. The separate
+[immutable document publication contract](immutable-signed-pin-document-publication.md)
+models atomic put-if-absent, idempotent retry after uncertain commit, collision
+denial and exact revision read-back; none of these CI fixtures prove real WORM
+durability or administrative independence.
 
 ## Privilege and deployment boundary
 

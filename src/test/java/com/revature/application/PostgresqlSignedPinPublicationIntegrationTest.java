@@ -158,7 +158,7 @@ class PostgresqlSignedPinPublicationIntegrationTest {
                 issuerKey.getPublic(), "archive-pin-issuer", clock);
         AtomicReference<SignedPinDocument> durable = new AtomicReference<>();
         AuthenticatedSignedPinPublisher coordinator = new AuthenticatedSignedPinPublisher(
-                index, floor, (p, k) -> durable.get(), authorizerKey.getPublic(),
+                index, floor, (p, k, revision) -> durable.get(), authorizerKey.getPublic(),
                 "publisher-issuer", clock);
 
         SignedPinDocument document = signedPin(key, issuerKey);

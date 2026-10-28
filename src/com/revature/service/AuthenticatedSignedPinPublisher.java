@@ -78,7 +78,8 @@ public final class AuthenticatedSignedPinPublisher {
 
             // Durable visibility is a separate provider-controlled boundary:
             // never advance the floor based on a caller's acknowledgement.
-            SignedPinDocument persisted = readback.read(proof, command.canonicalKey);
+            SignedPinDocument persisted = readback.read(proof,
+                    command.canonicalKey, document.revision());
             if (persisted == null
                     || !MessageDigest.isEqual(
                             SignedReceiptPinIndex.signingPayload(document),
@@ -147,8 +148,9 @@ public final class AuthenticatedSignedPinPublisher {
 
     @FunctionalInterface
     public interface DurableDocumentReadback {
-        /** Independent authenticated read of the durably published signed pin. */
-        SignedPinDocument read(ReopenProof proof, String canonicalKey) throws Exception;
+        /** Exact revision-qualified read; never fall back to a latest document. */
+        SignedPinDocument read(ReopenProof proof, String canonicalKey,
+                long expectedRevision) throws Exception;
     }
 
     /** Immutable caller-supplied signed authorization, not an identity claim. */
