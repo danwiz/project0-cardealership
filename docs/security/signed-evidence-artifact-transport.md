@@ -26,6 +26,11 @@ Additional parsing tests deny truncation, oversized and malformed artifacts,
 wrong-kind receipt swapping and missing file/provider errors. Local files are
 not immutable and cannot satisfy the production audit release gate.
 
+The subsequent [canonical locator contract](canonical-signed-receipt-location.md)
+adds path-safe, content-addressed lookup keys tied to the exact tenant,
+stream, role, generation, epoch and cursor. Its backing object maps remain
+synthetic and do not prove independent storage administration.
+
 ## Provider implementations deferred
 
 | Transport candidate | Read-only adapter requirement | Independently administered destination requirement |
