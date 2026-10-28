@@ -140,6 +140,24 @@ jobs:
           distribution: temurin
           java-version: ${{ matrix.java }}
           cache: maven
+      - name: Enable logical decoding in disposable CI PostgreSQL only
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_container='${{ job.services.postgres.id }}'
+          docker exec "$pg_container" psql -U dealership_ci_owner -d dealership_ci -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET wal_level = 'logical'"
+          docker restart "$pg_container"
+          ready=0
+          for attempt in {1..30}; do
+            if docker exec "$pg_container" pg_isready -U dealership_ci_owner -d dealership_ci >/dev/null 2>&1; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+          actual=$(docker exec "$pg_container" psql -U dealership_ci_owner -d dealership_ci -At -c 'SHOW wal_level')
+          test "$actual" = 'logical'
       - name: Display tool versions
         run: |
           java -version
