@@ -33,13 +33,13 @@ class FencedJdbcConnectionGateTest {
                 db::openConnection, generation -> generation == 1 || generation == 2);
         assertDenied(() -> gate.withConnection(c -> true));
         gate.activate(1);
-        assertTrue(gate.withConnection(c -> !c.isClosed()));
+        assertEquals(Boolean.TRUE, gate.withConnection(c -> !c.isClosed()));
         assertDenied(() -> gate.activate(1));
         gate.pauseAndDrain(1);
         assertDenied(() -> gate.withConnection(c -> true));
         assertDenied(() -> gate.activate(1));
         gate.activate(2);
-        assertTrue(gate.withConnection(c -> !c.isClosed()));
+        assertEquals(Boolean.TRUE, gate.withConnection(c -> !c.isClosed()));
     }
 
     @Test
@@ -72,7 +72,7 @@ class FencedJdbcConnectionGateTest {
             resume.countDown();
             assertFutureDenied(pending);
             gate.activate(2);
-            assertTrue(gate.withConnection(c -> !c.isClosed()));
+            assertEquals(Boolean.TRUE, gate.withConnection(c -> !c.isClosed()));
         } finally {
             resume.countDown();
             workers.shutdownNow();
@@ -139,7 +139,7 @@ class FencedJdbcConnectionGateTest {
         assertDenied(() -> gate.withConnection(c -> true));
         ready.set(true);
         gate.activate(4);
-        assertTrue(gate.withConnection(c -> true));
+        assertEquals(Boolean.TRUE, gate.withConnection(c -> true));
     }
 
     @Test
@@ -173,7 +173,7 @@ class FencedJdbcConnectionGateTest {
             throw new SQLException("test failed query");
         }));
         assertTrue(observed.get().isClosed());
-        assertTrue(gate.withConnection(c -> true));
+        assertEquals(Boolean.TRUE, gate.withConnection(c -> true));
     }
 
     private static JdbcDatabase database() {
