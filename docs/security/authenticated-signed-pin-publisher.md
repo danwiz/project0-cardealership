@@ -27,6 +27,13 @@ The coordinator contains **public** trust anchors only; test signers live in
 disposable fixtures. The coordinator itself neither publishes the signed
 document to object storage nor delivers/rotates private keys.
 
+It also requires an independent `DurableDocumentReadback` before floor
+advancement: the provider must return the **exact signed document**, matching
+both the canonical signing transcript and issuer signature. Missing, altered,
+or unavailable read-back denies publication. The interface alone cannot prove
+real WORM durability or administrative independence; production adapters
+must authenticate that read-back boundary.
+
 ## Privilege and deployment boundary
 
 * **Receipt readers:** SQL `SELECT` on the trusted revision floor; no
@@ -64,7 +71,12 @@ issuance, witness and SQL. Design outage/replay/key-revocation procedures,
 durable document publication acknowledgments and regional isolation before
 using a real provider.
 
-All four CI integration tests use only synthetic RSA signers, H2 role grants
+A [disposable PostgreSQL rehearsal](postgresql-signed-pin-publication-ci.md)
+tests real PostgreSQL column-level revision grants, a database-side monotonic
+trigger and read-back-before-floor ordering. Its read-back and witness remain
+synthetic, and it is not staging acceptance.
+
+The H2 CI integration tests use only synthetic RSA signers, H2 role grants
 and an in-memory `AtomicLong` witness. They are **not** production control
 acceptance evidence. Issue #29 remains open and G03–G09 / ARCH-01/02 /
 CKPT-01 / SECRET-01 remain **NOT RUN / NO-GO**.
