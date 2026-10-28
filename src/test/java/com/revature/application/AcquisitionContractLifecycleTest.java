@@ -21,8 +21,8 @@ class AcquisitionContractLifecycleTest {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         InfrastructureConfiguration configuration = InfrastructureConfiguration.jdbc(url);
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(configuration);
-        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "buyer", "TestPass123!");
-        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "employee", "TestPass123!");
+        com.revature.support.TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.CUSTOMER, "buyer", "TestPass123!");
+        com.revature.support.TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.EMPLOYEE, "employee", "TestPass123!");
         application.getInventory().addListing("Honda", "Accord", 2024, 24000, 1);
         application.getInventory().requestPurchase("buyer", 0);
 

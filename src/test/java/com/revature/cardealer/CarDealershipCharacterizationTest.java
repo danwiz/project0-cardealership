@@ -70,7 +70,7 @@ class CarDealershipCharacterizationTest {
         String username = uniqueUsername("employee");
         ByteArrayOutputStream output = captureOutput();
         com.revature.support.TestAccounts.seed(
-                CarDealership.getApplicationContext().getAccountRepository(),
+                com.revature.support.TestAccounts.trustedRepository(CarDealership.getApplicationContext()),
                 AccountRole.EMPLOYEE, username, "secret");
         replaceScanner(username + "\nsecret\n3\n");
         invokePerformUserAction("3");
@@ -86,7 +86,7 @@ class CarDealershipCharacterizationTest {
         String username = uniqueUsername("administrator");
         ByteArrayOutputStream output = captureOutput();
         com.revature.support.TestAccounts.seed(
-                CarDealership.getApplicationContext().getAccountRepository(),
+                com.revature.support.TestAccounts.trustedRepository(CarDealership.getApplicationContext()),
                 AccountRole.ADMINISTRATOR, username, "secret");
         replaceScanner(username + "\nsecret\n9\n");
         invokePerformUserAction("5");

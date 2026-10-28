@@ -18,7 +18,7 @@ class RecordPaymentCommandTest {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         InfrastructureConfiguration configuration = InfrastructureConfiguration.jdbc(url);
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(configuration);
-        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "alice", "TestPass123!");
+        com.revature.support.TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.CUSTOMER, "alice", "TestPass123!");
         application.ownershipFor("alice").add(new Car("Honda", "Accord", 2020), 1200, 12);
         long ownershipId = application.ownershipFor("alice").findAll().get(0).getOwnershipId();
 
@@ -43,8 +43,8 @@ class RecordPaymentCommandTest {
     void employeeCanRecordCustomerPaymentButCustomerCannotPayAnotherAccount() {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.inMemory());
-        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "alice", "TestPass123!");
-        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "employee", "TestPass123!");
+        com.revature.support.TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.CUSTOMER, "alice", "TestPass123!");
+        com.revature.support.TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.EMPLOYEE, "employee", "TestPass123!");
         application.ownershipFor("alice").add(new Car("Toyota", "Corolla", 2019), 600, 6);
         long ownershipId = application.ownershipFor("alice").findAll().get(0).getOwnershipId();
         RecordPaymentCommand command = new RecordPaymentCommand(application);
@@ -61,7 +61,7 @@ class RecordPaymentCommandTest {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.jdbc(url));
-        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "alice", "TestPass123!");
+        com.revature.support.TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.CUSTOMER, "alice", "TestPass123!");
         application.ownershipFor("alice").add(new Car("BMW", "4Series", 2018), 500, 5);
         long ownershipId = application.ownershipFor("alice").findAll().get(0).getOwnershipId();
 
