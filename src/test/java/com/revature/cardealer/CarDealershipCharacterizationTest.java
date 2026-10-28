@@ -61,7 +61,7 @@ class CarDealershipCharacterizationTest {
         invokePerformUserAction("1");
         replaceScanner(username + "\nsecret\n");
         invokePerformUserAction("3");
-        assertTrue(output.toString(StandardCharsets.UTF_8).contains("access denied"));
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("failure"));
     }
 
     @Test

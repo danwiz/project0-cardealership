@@ -64,6 +64,8 @@ class ApplicationCommandTest {
 
         User employee = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.EMPLOYEE, "employee", "secret");
         User customer = register.execute(AccountRole.CUSTOMER, "customer", "secret");
+        employee = com.revature.support.AuthenticatedAccounts.login(context, AccountRole.EMPLOYEE, "employee", "secret");
+        customer = com.revature.support.AuthenticatedAccounts.login(context, AccountRole.CUSTOMER, "customer", "secret");
         inventory.add(employee, "Honda", "Accord", 2020, 20000, 1);
         request.execute(customer, 0);
 

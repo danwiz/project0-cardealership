@@ -39,6 +39,7 @@ public final class DealershipApplicationContext {
             SnapshotRehydrator snapshotRehydrator, DataDAO dataStore) {
         this.accountRepository = Objects.requireNonNull(repository, "repository");
         this.authorizationService = Objects.requireNonNull(authorizationService, "authorizationService");
+        this.authorizationService.requireVerifiedSessions(() -> this.accountRepository);
         this.snapshotRehydrator = Objects.requireNonNull(snapshotRehydrator, "snapshotRehydrator");
         this.dataStore = Objects.requireNonNull(dataStore, "dataStore");
         this.userLoginService = new UserLoginService(repository);
@@ -59,6 +60,7 @@ public final class DealershipApplicationContext {
         inventory = replacement.getInventory();
         payments = replacement.getPayments();
         currentAccount = null;
+        authorizationService.clearVerifiedSessions();
     }
 
     public Data snapshotSource() {
@@ -77,7 +79,10 @@ public final class DealershipApplicationContext {
     public SnapshotRehydrator getSnapshotRehydrator() { return snapshotRehydrator; }
     public DataDAO getDataStore() { return dataStore; }
     public User getCurrentAccount() { return currentAccount; }
-    public void setCurrentAccount(User currentAccount) { this.currentAccount = currentAccount; }
+    public void setCurrentAccount(User currentAccount) {
+        this.currentAccount = currentAccount;
+        if (currentAccount == null) authorizationService.clearVerifiedSessions();
+    }
     public void setLatestCustomer(User latestCustomer) { this.latestCustomer = latestCustomer; }
     public void setLatestEmployee(User latestEmployee) { this.latestEmployee = latestEmployee; }
 }

@@ -28,7 +28,8 @@ class DealershipQueryServiceTest {
     @Test
     void returnsImmutableCredentialFreeAccountAndInventoryViews() {
         DealershipApplicationContext context = new DealershipApplicationContext();
-        User customer = context.getCustomerLoginService().registerUser("casey", "secret");
+        context.getCustomerLoginService().registerUser("casey", "secret");
+        User customer = com.revature.support.AuthenticatedAccounts.login(context, AccountRole.CUSTOMER, "casey", "secret");
         context.getInventory().registerOffer("Honda", "Civic", 2020, 17000, "yes", 2);
         DealershipQueryService queries = new DealershipQueryService(context);
 
@@ -48,9 +49,12 @@ class DealershipQueryServiceTest {
     @Test
     void restrictsQueriesAndReturnsPendingOwnershipAndPaymentModels() {
         DealershipApplicationContext context = new DealershipApplicationContext();
-        User customer = context.getCustomerLoginService().registerUser("buyer", "secret");
-        User employee = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.EMPLOYEE, "staff", "secret");
-        User admin = com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.ADMINISTRATOR, "root", "secret");
+        context.getCustomerLoginService().registerUser("buyer", "secret");
+        com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.EMPLOYEE, "staff", "secret");
+        com.revature.support.TestAccounts.seed(context.getAccountRepository(), AccountRole.ADMINISTRATOR, "root", "secret");
+        User customer = com.revature.support.AuthenticatedAccounts.login(context, AccountRole.CUSTOMER, "buyer", "secret");
+        User employee = com.revature.support.AuthenticatedAccounts.login(context, AccountRole.EMPLOYEE, "staff", "secret");
+        User admin = com.revature.support.AuthenticatedAccounts.login(context, AccountRole.ADMINISTRATOR, "root", "secret");
         context.getInventory().registerOffer("Toyota", "Corolla", 2019, 12000, "yes", 1);
         context.getInventory().setpOffer(customer.getUsername(), 0);
         context.getCustomerLoginService().setCarsOwned(new Car("Mazda", "3", 2018), 10000, 20);

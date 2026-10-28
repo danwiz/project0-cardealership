@@ -33,7 +33,11 @@ public final class ContextIdentityAdapter implements ApplicationPorts.Identity {
         case ADMINISTRATOR: service = context.getAdminLoginService(); break;
         default: throw new IllegalArgumentException("unsupported account role: " + role);
         }
-        return service.authenticate(credentials);
+        Optional<User> authenticated = service.authenticate(credentials)
+                .filter(account -> account.getRole() == role);
+        authenticated.ifPresent(account ->
+                context.getAuthorizationService().establishVerifiedSession(account, credentials));
+        return authenticated;
     }
 
     @Override public void setCurrentAccount(User account) { context.setCurrentAccount(account); }
