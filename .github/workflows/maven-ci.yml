@@ -43,6 +43,7 @@ on:
       - security/postgresql-account-role-validation-20261028
       - security/postgresql-runtime-account-policy-20261028
       - security/postgresql-account-owner-credential-20261028
+      - security/trusted-credential-writer-boundary-20261028
   pull_request:
     branches:
       - master
@@ -85,6 +86,7 @@ on:
       - security/offline-account-operator-20261028
       - security/postgresql-account-role-validation-20261028
       - security/postgresql-runtime-account-policy-20261028
+      - security/postgresql-account-owner-credential-20261028
   workflow_dispatch:
 
 permissions:
