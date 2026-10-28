@@ -75,6 +75,12 @@ query.
 | Actual metadata and tamper resistance | Test decoder uses synthetic timestamps | Validate real timestamp/actor/subject and independent owner-threat assessment |
 | External WORM destination and audited alerts | In-memory test fakes only | Independent retention, write-once, access, dedup, alert delivery and review |
 
+The follow-on [durable destination receipt contract](credential-audit-durable-destination.md)
+tests immutable-event digest matching, conflict rejection, external checkpoint
+value acknowledgements and a metadata-only alert outbox **with fakes**. These
+tests narrow the integration contract; they do not close any provider-specific
+release gate.
+
 **Stop condition:** Any unknown history/identity, missing committed row,
 unstable replay cursor, conflicting duplicate key, or unverifiable archive
 acknowledgement blocks release. Keep all work draft/unmerged until independent
