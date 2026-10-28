@@ -44,6 +44,7 @@ class AuthenticatedSignedPinPublisherTest {
         Fixture f = new Fixture();
         SignedPinDocument signed = f.document(5);
         PublishCommand command = f.command(signed, 4, f.publisherKey);
+        f.storedDocument = signed;
         assertTrue(f.publisher.publish(f.proof, signed, command));
         assertEquals(5, f.floor.minimumRevision(f.proof, f.key));
         assertEquals(5, f.witnessValue.get());
@@ -75,10 +76,12 @@ class AuthenticatedSignedPinPublisherTest {
                 NOW - 61000, NOW - 1);
         f.assertDenied(signed, expired);
 
+        f.storedDocument = signed;
         PublishCommand staleExpected = f.command(signed, 3, f.publisherKey);
         assertFalse(f.publisher.publish(f.proof, signed, staleExpected));
         assertEquals(4, f.rawSql());
         assertEquals(4, f.witnessValue.get());
+        f.storedDocument = signed;
         assertTrue(f.publisher.publish(f.proof, signed, legitimate));
     }
 
@@ -126,6 +129,7 @@ class AuthenticatedSignedPinPublisherTest {
         }
         assertEquals(4, f.floor.minimumRevision(f.proof, f.key));
         SignedPinDocument doc = f.document(5);
+        f.storedDocument = doc;
         assertTrue(f.publisher.publish(f.proof, doc,
                 f.command(doc, 4, f.publisherKey)));
     }
@@ -135,6 +139,7 @@ class AuthenticatedSignedPinPublisherTest {
         Fixture f = new Fixture();
         SignedPinDocument signed = f.document(5);
         PublishCommand command = f.command(signed, 4, f.publisherKey);
+        f.storedDocument = signed;
         JdbcSignedReceiptPinRevisionFloor failedFloor =
                 new JdbcSignedReceiptPinRevisionFloor(NAMESPACE, Kind.ARCHIVE_DURABLE,
                         f.readerDb::openConnection,
@@ -142,6 +147,7 @@ class AuthenticatedSignedPinPublisherTest {
                         f.witness);
         AuthenticatedSignedPinPublisher failedPublisher =
                 new AuthenticatedSignedPinPublisher(f.pinVerifier, failedFloor,
+                        (p, k) -> f.storedDocument,
                         f.publisherKey.getPublic(), "publisher-issuer", f.clock);
         SecurityException error = assertThrows(SecurityException.class,
                 () -> failedPublisher.publish(f.proof, signed, command));
@@ -154,6 +160,32 @@ class AuthenticatedSignedPinPublisherTest {
         f.assertDenied(signed, f.command(signed, 4, f.rogueKey), false);
         assertTrue(f.publisher.publish(f.proof, signed, command),
                 "legitimate, still-valid publisher authorization may repair SQL");
+        assertEquals(5, f.floor.minimumRevision(f.proof, f.key));
+    }
+
+    @Test
+    void publicationRequiresIndependentDurableReadbackBeforeWitnessReservation()
+            throws Exception {
+        Fixture f = new Fixture();
+        SignedPinDocument signed = f.document(5);
+        PublishCommand command = f.command(signed, 4, f.publisherKey);
+        f.assertDenied(signed, command);
+
+        f.storedDocument = f.document(6);
+        f.assertDenied(signed, command);
+
+        AuthenticatedSignedPinPublisher unavailable = new AuthenticatedSignedPinPublisher(
+                f.pinVerifier, f.floor, (p, k) -> {
+                    throw new IllegalStateException("private archive diagnostics");
+                }, f.publisherKey.getPublic(), "publisher-issuer", f.clock);
+        assertEquals("signed pin publication unavailable", assertThrows(
+                SecurityException.class,
+                () -> unavailable.publish(f.proof, signed, command)).getMessage());
+        assertEquals(4, f.witnessValue.get());
+        assertEquals(4, f.rawSql());
+
+        f.storedDocument = signed;
+        assertTrue(f.publisher.publish(f.proof, signed, command));
         assertEquals(5, f.floor.minimumRevision(f.proof, f.key));
     }
 
@@ -186,6 +218,7 @@ class AuthenticatedSignedPinPublisherTest {
         final JdbcSignedReceiptPinRevisionFloor floor;
         final SignedReceiptPinIndex pinVerifier;
         final AuthenticatedSignedPinPublisher publisher;
+        SignedPinDocument storedDocument;
 
         Fixture() throws Exception {
             AuditCheckpoint checkpoint = new AuditCheckpoint("ci-auth-pin-publisher",
@@ -221,6 +254,7 @@ class AuthenticatedSignedPinPublisherTest {
                     Kind.ARCHIVE_DURABLE, (p, k) -> null, floor,
                     pinIssuerKey.getPublic(), "archive-pin-issuer", clock);
             publisher = new AuthenticatedSignedPinPublisher(pinVerifier, floor,
+                    (p, k) -> storedDocument,
                     publisherKey.getPublic(), "publisher-issuer", clock);
         }
 

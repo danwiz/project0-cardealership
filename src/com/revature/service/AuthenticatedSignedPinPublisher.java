@@ -4,6 +4,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.interfaces.RSAPublicKey;
@@ -29,15 +30,18 @@ public final class AuthenticatedSignedPinPublisher {
 
     private final SignedReceiptPinIndex pinVerifier;
     private final JdbcSignedReceiptPinRevisionFloor revisionFloor;
+    private final DurableDocumentReadback readback;
     private final PublicKey publisherKey;
     private final String publisherIssuer;
     private final Clock clock;
 
     public AuthenticatedSignedPinPublisher(SignedReceiptPinIndex pinVerifier,
-            JdbcSignedReceiptPinRevisionFloor revisionFloor, PublicKey publisherKey,
+            JdbcSignedReceiptPinRevisionFloor revisionFloor,
+            DurableDocumentReadback readback, PublicKey publisherKey,
             String publisherIssuer, Clock clock) {
         this.pinVerifier = Objects.requireNonNull(pinVerifier, "pinVerifier");
         this.revisionFloor = Objects.requireNonNull(revisionFloor, "revisionFloor");
+        this.readback = Objects.requireNonNull(readback, "readback");
         this.publisherKey = requireStrongRsa(publisherKey);
         this.publisherIssuer = requireToken(publisherIssuer, 256);
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -71,6 +75,16 @@ public final class AuthenticatedSignedPinPublisher {
             verifier.initVerify(publisherKey);
             verifier.update(signingPayload(command, document));
             if (!verifier.verify(command.signature)) throw blocked();
+
+            // Durable visibility is a separate provider-controlled boundary:
+            // never advance the floor based on a caller's acknowledgement.
+            SignedPinDocument persisted = readback.read(proof, command.canonicalKey);
+            if (persisted == null
+                    || !MessageDigest.isEqual(
+                            SignedReceiptPinIndex.signingPayload(document),
+                            SignedReceiptPinIndex.signingPayload(persisted))
+                    || !MessageDigest.isEqual(document.signature(),
+                            persisted.signature())) throw blocked();
             return revisionFloor.advance(proof, command.canonicalKey,
                     command.expectedRevision, command.nextRevision);
         } catch (Exception unavailable) {
@@ -130,6 +144,12 @@ public final class AuthenticatedSignedPinPublisher {
     }
 
     private static SecurityException blocked() { return new SecurityException(BLOCKED); }
+
+    @FunctionalInterface
+    public interface DurableDocumentReadback {
+        /** Independent authenticated read of the durably published signed pin. */
+        SignedPinDocument read(ReopenProof proof, String canonicalKey) throws Exception;
+    }
 
     /** Immutable caller-supplied signed authorization, not an identity claim. */
     public static final class PublishCommand {
