@@ -48,6 +48,8 @@ on:
       - security/credential-request-gate-20261028
       # Run CI for future staged security increments without manual allowlist edits.
       - 'security/**'
+      # Documentation/strategy increments receive the same push verification.
+      - 'strategy/**'
   pull_request:
     branches:
       - master
@@ -94,6 +96,7 @@ on:
       - security/trusted-credential-writer-boundary-20261028
       - security/postgresql-credential-audit-trigger-20261028
       - 'security/**'
+      - 'strategy/**'
   workflow_dispatch:
 
 permissions:
