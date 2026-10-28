@@ -1,6 +1,6 @@
 # Separate account-administration operator CLI — draft
 
-**Status (2026-10-28):** Test-only implementation, stacked draft PR #39, tracking issue #29. The CLI has **not** been exercised against PostgreSQL with real operator grants. Do not deploy or use it with production accounts until its role assignments, audit, TLS and recovery plan are approved.
+**Status (2026-10-28):** Test-only implementation, stacked draft PRs #39–#40, tracking issue #29. The CLI has **not** been exercised against a production PostgreSQL database or approved operator grants. PR #40 adds a separate disposable PostgreSQL service-container grant test; its CI outcome must be reviewed before claiming staged technical verification. Do not deploy or use it with production accounts until its role assignments, audit, TLS and recovery plan are approved.
 
 ## Intent and trust boundary
 
@@ -36,6 +36,9 @@ The CLI prints a **minimal receipt only after successful mutation**. That consol
 ## Evidence, negative tests and unresolved gates
 
 Automated H2 **file-backed** tests create different local principals and explicit SELECT-only versus DML-capable grants. They prove that a reader cannot directly insert or modify accounts, while an authenticated administrator can request allowed writes through a separate operator repository. This is a test fixture, **not** evidence of real PostgreSQL permissions or runtime-path safety.
+
+
+The proposed PR #40 PostgreSQL service test uses a generated isolated schema and distinct roles, checking both permitted and denied operations with SQLSTATE `42501`. See `docs/security/postgresql-ci-grant-verification.md`. A successful result would validate this *operator fixture only*, not the broader production runtime or immutable audit design.
 
 Before any real deployment:
 

@@ -1,6 +1,6 @@
 # Account administration channels and recovery invariants
 
-**Draft design / test checkpoint — 2026-10-28.** Tracks dealership security issue #29 and stacked PRs #37–#39. This is **not** approval to deploy to a real database.
+**Draft design / test checkpoint — 2026-10-28.** Tracks dealership security issue #29 and stacked PRs #37–#40. This is **not** approval to deploy to a real database.
 
 ## Authority separation
 
@@ -33,6 +33,6 @@ The normal JDBC application path (`DealershipCompositionRoot.createJdbc`) intent
 - Test real PostgreSQL dialect, rollback behavior, restricted SQL errors and backup/restore; H2 compatibility mode is not sufficient.
 - Rehearse merge order of stacked drafts, post-merge master CI and release rollback before any production change.
 
-See `docs/security/account-operator-cli.md` for distinct-principal operator verification and remaining release gates.
+See `docs/security/account-operator-cli.md` and `docs/security/postgresql-ci-grant-verification.md` for operator privilege tests and remaining release gates.
 
 **No live database grants, production accounts, credentials, deployment or GitHub billing entitlement were changed by this PR.**

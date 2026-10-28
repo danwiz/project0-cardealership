@@ -1,6 +1,6 @@
 # JDBC runtime trust boundary and credential policy
 
-**Status:** Draft security review (2026-10-28). No real database privileges, deployments, credentials, or administrator accounts have been changed. This document supports issue #29 and stacked PRs #31–#39.
+**Status:** Draft security review (2026-10-28). No real database privileges, deployments, credentials, or administrator accounts have been changed. This document supports issue #29 and stacked PRs #31–#40.
 
 ## Confirmed repository findings
 
@@ -54,7 +54,8 @@ This is a **configuration safeguard**, not a claim that an operator selected a s
 ## Related sources and artifacts
 
 - `docs/security/account-administration-channels.md` — PRs #37–#39 separation, last-admin safeguards and operator prototype.
-- `docs/security/account-operator-cli.md` — PR #39 operator guidance, distinct principals and release gates.
+- `docs/security/account-operator-cli.md` — PRs #39–#40 operator guidance, distinct principals and release gates.
+- `docs/security/postgresql-ci-grant-verification.md` — PR #40 proposed PostgreSQL service-container grants and evidence boundaries.
 
 - `docs/security/administrator-bootstrap.md` — operator-only bootstrap, current limitations.
 - `docs/security/verified-principal-boundary.md` — application-layer verified session gate.
