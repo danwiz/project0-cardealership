@@ -21,7 +21,7 @@ class CredentialAuditForwarderTest {
     void forwardsOnlyNewEventsAndAllowsNormalSequenceGaps() {
         Harness fixture = new Harness(List.of(event(1), event(3)));
         assertEquals(2, fixture.forwarder.forwardNextBatch());
-        assertEquals(3, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(3), fixture.ack.get().sourceCursor());
         assertEquals(List.of(STREAM + ":1", STREAM + ":3"),
                 new ArrayList<>(fixture.archive.keySet()));
         assertEquals(0, fixture.forwarder.forwardNextBatch());
@@ -33,12 +33,12 @@ class CredentialAuditForwarderTest {
         Harness fixture = new Harness(List.of(event(1), event(2)));
         fixture.failAppendId = 2;
         assertThrows(IllegalStateException.class, fixture.forwarder::forwardNextBatch);
-        assertEquals(1, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(1), fixture.ack.get().sourceCursor());
         assertEquals(1, fixture.archive.size());
-        assertEquals(List.of("append:2:2"), fixture.alerts);
+        assertEquals(List.of("append:2:0:2"), fixture.alerts);
 
         assertEquals(1, fixture.forwarder.forwardNextBatch());
-        assertEquals(2, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(2), fixture.ack.get().sourceCursor());
         assertEquals(2, fixture.archive.size());
     }
 
@@ -47,13 +47,13 @@ class CredentialAuditForwarderTest {
         Harness fixture = new Harness(List.of(event(1)));
         fixture.failCheckpointId = 1;
         assertThrows(IllegalStateException.class, fixture.forwarder::forwardNextBatch);
-        assertEquals(0, fixture.ack.get().sourceCursor());
+        assertEquals(AuditSourceCursor.origin(), fixture.ack.get().sourceCursor());
         assertEquals(1, fixture.archive.size());
-        assertEquals(List.of("checkpoint-write:1:1"), fixture.alerts);
+        assertEquals(List.of("checkpoint-write:1:0:1"), fixture.alerts);
 
         fixture.restart(); // Simulated process crash after durable append, before checkpoint.
         assertEquals(1, fixture.forwarder.forwardNextBatch());
-        assertEquals(1, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(1), fixture.ack.get().sourceCursor());
         assertEquals(1, fixture.archive.size());
         assertEquals(2, fixture.appendAttempts);
     }
@@ -61,28 +61,46 @@ class CredentialAuditForwarderTest {
     @Test
     void wrongStreamOrReorderedBatchFailsBeforeAnyDelivery() {
         Harness wrongStream = new Harness(List.of(
-                new CredentialAuditEvent("other-stream", 1, 1,
+                new CredentialAuditEvent("other-stream", cursor(1), 1,
                         "alice", "writer", Instant.EPOCH)));
         assertThrows(SecurityException.class, wrongStream.forwarder::forwardNextBatch);
         assertTrue(wrongStream.archive.isEmpty());
-        assertEquals(List.of("source-read-or-order:0:0"), wrongStream.alerts);
+        assertEquals(List.of("source-read-or-order:0:0:0"), wrongStream.alerts);
 
         Harness reversed = new Harness(List.of(event(2), event(1)));
         assertThrows(SecurityException.class, reversed.forwarder::forwardNextBatch);
         assertTrue(reversed.archive.isEmpty());
-        assertEquals(0, reversed.ack.get().sourceCursor());
+        assertEquals(AuditSourceCursor.origin(), reversed.ack.get().sourceCursor());
     }
 
     @Test
     void commitOrderCursorCanAdvanceWhenDatabaseAuditIdsArriveOutOfOrder() {
         // Commit-order CDC may emit audit ID 11 before late-committing ID 10.
         Harness fixture = new Harness(List.of(
-                new CredentialAuditEvent(STREAM, 1, 11, "alice", "writer", Instant.EPOCH),
-                new CredentialAuditEvent(STREAM, 2, 10, "bob", "writer", Instant.EPOCH)));
+                new CredentialAuditEvent(STREAM, cursor(1), 11, "alice", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, cursor(2), 10, "bob", "writer", Instant.EPOCH)));
         assertEquals(2, fixture.forwarder.forwardNextBatch());
-        assertEquals(2, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(2), fixture.ack.get().sourceCursor());
         assertEquals(List.of(STREAM + ":11", STREAM + ":10"),
                 new ArrayList<>(fixture.archive.keySet()));
+        assertEquals(0, fixture.forwarder.forwardNextBatch());
+    }
+
+    @Test
+    void twoChangesInOneCommitHaveDifferentReplayableCursors() {
+        AuditSourceCursor first = new AuditSourceCursor(50, 0);
+        AuditSourceCursor second = new AuditSourceCursor(50, 1);
+        AuditSourceCursor nextCommit = new AuditSourceCursor(60, 0);
+        Harness fixture = new Harness(List.of(
+                new CredentialAuditEvent(STREAM, first, 2, "alice", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, second, 3, "bob", "writer", Instant.EPOCH),
+                new CredentialAuditEvent(STREAM, nextCommit, 1,
+                        "carol", "writer", Instant.EPOCH)));
+        assertEquals(3, fixture.forwarder.forwardNextBatch());
+        assertEquals(nextCommit, fixture.ack.get().sourceCursor());
+        assertEquals(List.of(STREAM + ":2", STREAM + ":3", STREAM + ":1"),
+                new ArrayList<>(fixture.archive.keySet()));
+        fixture.restart();
         assertEquals(0, fixture.forwarder.forwardNextBatch());
     }
 
@@ -95,15 +113,16 @@ class CredentialAuditForwarderTest {
                 fixture.forwarder::forwardNextBatch);
         assertEquals("fixture append unavailable", failure.getMessage());
         assertEquals(1, failure.getSuppressed().length);
-        assertEquals(0, fixture.ack.get().sourceCursor());
+        assertEquals(AuditSourceCursor.origin(), fixture.ack.get().sourceCursor());
     }
 
     @Test
     void checkpointCannotBeReusedForAnotherSourceGeneration() {
         Harness fixture = new Harness(List.of(event(1)));
-        fixture.ack.set(new AuditCheckpoint("restored-different-stream", 0));
+        fixture.ack.set(new AuditCheckpoint("restored-different-stream",
+                AuditSourceCursor.origin()));
         assertThrows(SecurityException.class, fixture.forwarder::forwardNextBatch);
-        assertEquals(List.of("checkpoint-read:0:0"), fixture.alerts);
+        assertEquals(List.of("checkpoint-read:0:0:0"), fixture.alerts);
         assertTrue(fixture.archive.isEmpty());
     }
 
@@ -112,13 +131,13 @@ class CredentialAuditForwarderTest {
         Harness fixture = new Harness(List.of(event(1)));
         fixture.rejectNextCheckpoint = true;
         assertThrows(SecurityException.class, fixture.forwarder::forwardNextBatch);
-        assertEquals(0, fixture.ack.get().sourceCursor());
+        assertEquals(AuditSourceCursor.origin(), fixture.ack.get().sourceCursor());
         assertEquals(1, fixture.archive.size());
-        assertEquals(List.of("checkpoint-write:1:1"), fixture.alerts);
+        assertEquals(List.of("checkpoint-write:1:0:1"), fixture.alerts);
 
         fixture.restart();
         assertEquals(1, fixture.forwarder.forwardNextBatch());
-        assertEquals(1, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(1), fixture.ack.get().sourceCursor());
         assertEquals(1, fixture.archive.size());
         assertEquals(2, fixture.appendAttempts);
     }
@@ -129,13 +148,13 @@ class CredentialAuditForwarderTest {
         fixture.historyUnavailable = true;
         assertThrows(CredentialAuditForwarder.AuditHistoryUnavailableException.class,
                 fixture.forwarder::forwardNextBatch);
-        assertEquals(List.of("source-history-unavailable:0:0"), fixture.alerts);
-        assertEquals(0, fixture.ack.get().sourceCursor());
+        assertEquals(List.of("source-history-unavailable:0:0:0"), fixture.alerts);
+        assertEquals(AuditSourceCursor.origin(), fixture.ack.get().sourceCursor());
         assertTrue(fixture.archive.isEmpty());
 
         fixture.historyUnavailable = false;
         assertEquals(1, fixture.forwarder.forwardNextBatch());
-        assertEquals(1, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(1), fixture.ack.get().sourceCursor());
     }
 
     @Test
@@ -143,20 +162,24 @@ class CredentialAuditForwarderTest {
         Harness fixture = new Harness(List.of(event(1), event(2)));
         fixture.sourceUnavailable = true;
         assertThrows(IllegalStateException.class, fixture.forwarder::forwardNextBatch);
-        assertEquals(List.of("source-read-or-order:0:0"), fixture.alerts);
-        assertEquals(0, fixture.ack.get().sourceCursor());
+        assertEquals(List.of("source-read-or-order:0:0:0"), fixture.alerts);
+        assertEquals(AuditSourceCursor.origin(), fixture.ack.get().sourceCursor());
         fixture.sourceUnavailable = false;
         assertEquals(2, fixture.forwarder.forwardNextBatch());
-        assertEquals(2, fixture.ack.get().sourceCursor());
+        assertEquals(cursor(2), fixture.ack.get().sourceCursor());
     }
 
     private static CredentialAuditEvent event(long id) {
-        return new CredentialAuditEvent(STREAM, id, id, "alice", "writer", Instant.EPOCH);
+        return new CredentialAuditEvent(STREAM, cursor(id), id, "alice", "writer", Instant.EPOCH);
+    }
+
+    private static AuditSourceCursor cursor(long id) {
+        return new AuditSourceCursor(id, 0);
     }
 
     private static final class Harness {
         private final AtomicReference<AuditCheckpoint> ack =
-                new AtomicReference<>(new AuditCheckpoint(STREAM, 0));
+                new AtomicReference<>(new AuditCheckpoint(STREAM, AuditSourceCursor.origin()));
         private final Map<String, CredentialAuditEvent> archive = new LinkedHashMap<>();
         private final List<String> alerts = new ArrayList<>();
         private CredentialAuditForwarder forwarder;
@@ -179,7 +202,7 @@ class CredentialAuditForwarderTest {
                 }
                 if (sourceUnavailable) throw new IllegalStateException("fixture source offline");
                 return records.stream()
-                    .filter(event -> event.sourceCursor() > after)
+                    .filter(event -> event.sourceCursor().compareTo(after) > 0)
                     .limit(limit)
                     .collect(Collectors.toList());
             };
@@ -195,8 +218,8 @@ class CredentialAuditForwarderTest {
                     new CredentialAuditForwarder.CheckpointStore() {
                 @Override public AuditCheckpoint load() { return ack.get(); }
                 @Override public boolean advanceIfCurrent(
-                        AuditCheckpoint expected, long sourceCursor) {
-                    if (failCheckpointId == sourceCursor) {
+                        AuditCheckpoint expected, AuditSourceCursor sourceCursor) {
+                    if (failCheckpointId == sourceCursor.commitPosition()) {
                         failCheckpointId = 0;
                         throw new IllegalStateException("fixture checkpoint unavailable");
                     }
@@ -204,7 +227,7 @@ class CredentialAuditForwarderTest {
                         rejectNextCheckpoint = false;
                         return false;
                     }
-                    if (sourceCursor <= expected.sourceCursor()) {
+                    if (sourceCursor.compareTo(expected.sourceCursor()) <= 0) {
                         throw new SecurityException("checkpoint rollback");
                     }
                     AuditCheckpoint current = ack.get();

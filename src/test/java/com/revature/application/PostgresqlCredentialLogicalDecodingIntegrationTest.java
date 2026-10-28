@@ -11,13 +11,20 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
+import com.revature.service.AuditCheckpoint;
+import com.revature.service.AuditSourceCursor;
+import com.revature.service.CredentialAuditEvent;
 import com.revature.service.CredentialAuditForwarder;
 
 /**
@@ -107,6 +114,65 @@ class PostgresqlCredentialLogicalDecodingIntegrationTest {
                 assertTrue(committed.get(2).contains("'late-commit'"));
                 assertEquals(committed,
                         decodedLedgerRows(ownerConnection, slot, schema, false));
+
+                // Wire real test_decoding transaction frames into the
+                // provider-neutral forwarder using a test-only text parser.
+                String streamId = "disposable-cdc-" + suffix;
+                TestDecodingAuditSource source = new TestDecodingAuditSource(
+                        ownerConnection, slot, schema, streamId);
+                List<CredentialAuditEvent> decoded = source.readAfter(
+                        AuditSourceCursor.origin(), 10);
+                assertEquals(3, decoded.size());
+                assertEquals(earlyOneId, decoded.get(0).auditId());
+                assertEquals(earlyTwoId, decoded.get(1).auditId());
+                assertEquals(lateId, decoded.get(2).auditId());
+                assertEquals(decoded.get(0).sourceCursor().commitPosition(),
+                        decoded.get(1).sourceCursor().commitPosition());
+                assertEquals(0, decoded.get(0).sourceCursor().eventOrdinal());
+                assertEquals(1, decoded.get(1).sourceCursor().eventOrdinal());
+                assertTrue(decoded.get(1).sourceCursor().compareTo(
+                        decoded.get(2).sourceCursor()) < 0);
+                assertEquals(decoded.stream().map(CredentialAuditEvent::sourceCursor)
+                                .collect(Collectors.toList()),
+                        source.readAfter(AuditSourceCursor.origin(), 10).stream()
+                                .map(CredentialAuditEvent::sourceCursor)
+                                .collect(Collectors.toList()));
+
+                AtomicReference<AuditCheckpoint> acknowledged = new AtomicReference<>(
+                        new AuditCheckpoint(streamId, AuditSourceCursor.origin()));
+                CredentialAuditForwarder.CheckpointStore checkpoint =
+                        new CredentialAuditForwarder.CheckpointStore() {
+                    @Override public AuditCheckpoint load() { return acknowledged.get(); }
+                    @Override public boolean advanceIfCurrent(
+                            AuditCheckpoint expected, AuditSourceCursor next) {
+                        AuditCheckpoint current = acknowledged.get();
+                        return current != null && current.equals(expected)
+                                && next.compareTo(expected.sourceCursor()) > 0
+                                && acknowledged.compareAndSet(current,
+                                        new AuditCheckpoint(streamId, next));
+                    }
+                };
+                Map<String, CredentialAuditEvent> archive = new LinkedHashMap<>();
+                List<String> alerts = new ArrayList<>();
+                CredentialAuditForwarder.AppendOnlySink sink =
+                        event -> archive.putIfAbsent(event.eventKey(), event);
+                CredentialAuditForwarder.AlertSink notifications =
+                        (phase, stream, cursor, id) -> alerts.add(phase);
+                CredentialAuditForwarder forwarder = new CredentialAuditForwarder(
+                        streamId, source, sink, checkpoint, notifications, 10);
+                assertEquals(3, forwarder.forwardNextBatch());
+                assertEquals(decoded.get(2).sourceCursor(),
+                        acknowledged.get().sourceCursor());
+                assertEquals(3, archive.size());
+
+                // A restarted forwarder with the same persisted checkpoint
+                // cannot silently re-deliver or omit a committed fixture row.
+                CredentialAuditForwarder restarted = new CredentialAuditForwarder(
+                        streamId, source, sink, checkpoint, notifications, 10);
+                assertEquals(0, restarted.forwardNextBatch());
+                assertEquals(3, archive.size());
+                assertTrue(alerts.isEmpty());
+
                 assertEquals(committed,
                         decodedLedgerRows(ownerConnection, slot, schema, true));
                 assertTrue(decodedLedgerRows(ownerConnection, slot, schema, false).isEmpty());
@@ -115,6 +181,9 @@ class PostgresqlCredentialLogicalDecodingIntegrationTest {
                 slotCreated = false;
                 assertThrows(CredentialAuditForwarder.AuditHistoryUnavailableException.class,
                         () -> decodedLedgerRows(ownerConnection, slot, schema, false));
+                assertThrows(CredentialAuditForwarder.AuditHistoryUnavailableException.class,
+                        restarted::forwardNextBatch);
+                assertEquals(List.of("source-history-unavailable"), alerts);
             } finally {
                 try {
                     if (slotCreated) dropSlot(ownerConnection, slot);
