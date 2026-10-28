@@ -46,7 +46,7 @@ the implementation owner does not satisfy a production release gate.
 | G01 — Authentication | Real token/session verifier checks signature, issuer, audience, expiry, revocation, account binding and required assurance; rejects forged/missing identities before writer invocation | **Open:** policy seam uses a fake authenticated source, no real verifier |
 | G02 — Rate limiting | Distributed pre-verification and per-subject limits remain effective across replicas, restart, forged forwarding headers, burst boundaries and sustained abusive traffic | **Open:** local in-memory fixture only |
 | G03 — Writer isolation | Separately deployed service, authenticated private channel, ordinary-app DB role denied credential UPDATE; SQL grant/DDL tests and rollback access check | **Open:** CI-only database roles |
-| G04 — Writer secret lifecycle | Workload identity/secret store, rotation, connection-drain, outage/revocation, role separation and no secret disclosure in diagnostics | **Open:** injected secret-source seam only |
+| G04 — Writer secret lifecycle | Workload identity/secret store, rotation, connection-drain, outage/revocation, role separation and no secret disclosure in diagnostics | **Open:** lease policy seam only; no real provider or connection draining |
 | G05 — Database audit integrity | Owner-held trigger catches service and direct-SQL updates, handles rollback, records correct actor/time; non-owner writer cannot disable or alter ledger | **CI fixture passed; production unverified** |
 | G06 — CDC completeness | Commit order, same-commit ordinals, metadata fidelity, retention floor, over-acknowledged slot, crash retransmission and failover proven on selected source | **Open:** diagnostic test_decoding only |
 | G07 — Immutable archive | Independent administrative ownership, encryption, write-once/retention lock, exact deduplication, read-back, collision rejection and immutable audit access logs | **Open:** in-memory fake receipts only |
@@ -62,8 +62,9 @@ The [existing CDC source acceptance matrix](credential-cdc-production-acceptance
 [durable destination contract](credential-audit-durable-destination.md),
 [alert relay contract](credential-audit-alert-outbox-relay.md),
 [request gate](trusted-credential-request-gate.md),
-[authenticated-session contract](credential-session-verifier-contract.md), and
-[rotating writer secret source](jdbc-writer-secret-source.md) define the
+[authenticated-session contract](credential-session-verifier-contract.md),
+[rotating writer secret source](jdbc-writer-secret-source.md) and
+[renewable lease policy](renewable-writer-secret-lease.md) define the
 non-deployed code seams. Their fixture successes cannot close the release ledger.
 
 ## Pre-production acceptance test catalog
