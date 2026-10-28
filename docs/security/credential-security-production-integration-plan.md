@@ -77,6 +77,7 @@ and [canonical signed receipt location](canonical-signed-receipt-location.md)
 and [version-pinned signed receipt read-back](version-pinned-signed-receipt-readback.md)
 and [independently signed receipt pin index](independently-signed-receipt-pin-index.md)
 and [JDBC signed receipt pin revision floor](jdbc-signed-receipt-pin-revision-floor.md)
+and [authenticated signed-pin publisher](authenticated-signed-pin-publisher.md)
 define the non-deployed code seams and CI-only tests. Their fixture successes
 cannot close the release ledger.
 
