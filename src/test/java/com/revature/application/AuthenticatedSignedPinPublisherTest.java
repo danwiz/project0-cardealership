@@ -160,7 +160,7 @@ class AuthenticatedSignedPinPublisherTest {
     private static final class Fixture {
         final String dbName = "signed_pin_pub_" + UUID.randomUUID().toString().replace("-", "");
         final String url = "jdbc:h2:mem:" + dbName
-                + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
+                + ";MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         final JdbcDatabase ownerDb = JdbcDatabase.inMemory(dbName);
         final JdbcDatabase readerDb = new JdbcDatabase(url,
                 "pin_floor_reader", "ci-only-reader");
