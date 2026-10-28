@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /** Owns JDBC connection creation and applies ordered schema migrations. */
 public final class JdbcDatabase {
-    public static final int CURRENT_SCHEMA_VERSION = 3;
+    public static final int CURRENT_SCHEMA_VERSION = 4;
 
     private final String url;
     private final String username;
@@ -49,6 +49,11 @@ public final class JdbcDatabase {
                 if (version < 3) {
                     applyVersionThree(connection);
                     recordVersion(connection, 3, "acquisition contract lifecycle");
+                    version = 3;
+                }
+                if (version < 4) {
+                    applyVersionFour(connection);
+                    recordVersion(connection, 4, "one-time administrator bootstrap audit");
                 }
                 if (currentVersion(connection) != CURRENT_SCHEMA_VERSION) throw new IllegalStateException("unsupported schema version");
                 connection.commit();
@@ -110,6 +115,13 @@ public final class JdbcDatabase {
         execute(connection, "ALTER TABLE purchase_requests ADD CONSTRAINT uq_purchase_contract UNIQUE (contract_id)");
         execute(connection, "ALTER TABLE owned_vehicles ADD CONSTRAINT uq_ownership_contract UNIQUE (contract_id)");
         execute(connection, "CREATE INDEX idx_payment_transactions_contract ON payment_transactions(contract_id)");
+    }
+
+    private static void applyVersionFour(Connection connection) throws SQLException {
+        execute(connection, "CREATE TABLE administrator_bootstrap_state (" +
+                "bootstrap_id INTEGER PRIMARY KEY CHECK (bootstrap_id = 1), " +
+                "initial_admin_username VARCHAR(100) NOT NULL, " +
+                "completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
     }
 
     private static void execute(Connection connection, String sql) throws SQLException {
