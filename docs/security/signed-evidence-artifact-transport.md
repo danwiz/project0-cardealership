@@ -31,6 +31,12 @@ adds path-safe, content-addressed lookup keys tied to the exact tenant,
 stream, role, generation, epoch and cursor. Its backing object maps remain
 synthetic and do not prove independent storage administration.
 
+The further [version-pinned read-back contract](version-pinned-signed-receipt-readback.md)
+adds an independently trusted version/ETag/length/SHA-256 pin and a required
+version-qualified conditional read before this adapter accepts receipt bytes.
+Its in-memory versioned-object maps are also synthetic; no provider retention
+or immutable storage guarantee is demonstrated.
+
 ## Provider implementations deferred
 
 | Transport candidate | Read-only adapter requirement | Independently administered destination requirement |

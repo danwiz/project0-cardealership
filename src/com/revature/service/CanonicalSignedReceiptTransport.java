@@ -88,7 +88,7 @@ public final class CanonicalSignedReceiptTransport implements ArtifactTransport 
         out.write(raw);
     }
 
-    private static String requireNamespace(String namespace) {
+    static String requireNamespace(String namespace) {
         if (namespace == null || !namespace.matches("[a-z][a-z0-9-]{0,62}")) {
             throw new IllegalArgumentException("invalid artifact namespace");
         }
