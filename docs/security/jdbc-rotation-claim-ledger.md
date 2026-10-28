@@ -56,6 +56,11 @@ well as revocation of old database sessions and reconciliation of commits
 that happened before the fence. This PR does not implement that distributed
 database enforcement, nor signed source generation identity or a WORM archive.
 
+The subsequent [PostgreSQL transaction fence rehearsal](postgresql-writer-epoch-transaction-fence.md)
+uses this exact ledger row in a database-side trigger to serialize committed
+writes against rotation claims. It remains **fixture-only**, with no real
+secret, complete source/archive attestation or approved deployment adapter.
+
 ## Verification scope
 
 - H2: persisted recovery floor, old-generation/replayed-epoch/rollback denial,
