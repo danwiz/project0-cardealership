@@ -12,6 +12,12 @@ service, alerting endpoint, secrets, production database changes or deployment.
 | `VerifiedAuditCheckpointStore` | Backend CAS returns the exact persisted `AuditCheckpoint(streamId, nextCursor)`, or null for stale expected state | Commit cross-process compare-and-set outside audited database; enforce stream-generation identity, monotonic progress and fencing; never signal success before durable storage commit |
 | `VerifiedAuditAlertSink` | Backend `AlertOutbox.store` returns a matching `AuditDurableReceipt(alertKey, alert digest)` | Persist metadata-only notice before acknowledgement; separately drain/retry/monitor outbox to a monitored external alert transport, with dead-letter handling and an independent outage alarm |
 
+The follow-on [provider-neutral alert relay contract](credential-audit-alert-outbox-relay.md)
+defines bounded claim leases, per-claim fencing tokens, matching downstream
+receipts and durable conditional delivery acknowledgement. It exercises
+at-least-once retry and stale-worker cases with in-memory fakes only; it does
+not send a real alert or close the independent monitoring gate.
+
 The forwarder continues to **append, verify acknowledgement, then checkpoint**.
 An error or mismatched archive receipt halts without checkpoint progress.
 An archive write that succeeded while the checkpoint write failed is retried
