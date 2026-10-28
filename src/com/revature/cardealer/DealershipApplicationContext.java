@@ -8,6 +8,7 @@ import com.revature.service.AdminLoginService;
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
 import com.revature.service.InMemoryUserAccountRepository;
+import com.revature.service.ReadOnlyUserAccountRepository;
 import com.revature.service.RoleAuthorizationService;
 import com.revature.service.UserAccountRepository;
 import com.revature.service.UserLoginService;
@@ -16,6 +17,7 @@ import com.revature.service.UserLoginService;
 public final class DealershipApplicationContext {
 
     private UserAccountRepository accountRepository;
+    private UserAccountRepository publicAccountView;
     private UserLoginService userLoginService;
     private CustomerLoginService customerLoginService;
     private EmployeeLoginService employeeLoginService;
@@ -38,6 +40,7 @@ public final class DealershipApplicationContext {
             RoleAuthorizationService authorizationService,
             SnapshotRehydrator snapshotRehydrator, DataDAO dataStore) {
         this.accountRepository = Objects.requireNonNull(repository, "repository");
+        this.publicAccountView = new ReadOnlyUserAccountRepository(this.accountRepository);
         this.authorizationService = Objects.requireNonNull(authorizationService, "authorizationService");
         this.authorizationService.requireVerifiedSessions(() -> this.accountRepository);
         this.snapshotRehydrator = Objects.requireNonNull(snapshotRehydrator, "snapshotRehydrator");
@@ -53,6 +56,7 @@ public final class DealershipApplicationContext {
     public void replaceRuntime(RehydratedApplicationState replacement) {
         Objects.requireNonNull(replacement, "replacement");
         accountRepository = replacement.getAccountRepository();
+        publicAccountView = new ReadOnlyUserAccountRepository(accountRepository);
         userLoginService = replacement.getUserLoginService();
         customerLoginService = replacement.getCustomerLoginService();
         employeeLoginService = replacement.getEmployeeLoginService();
@@ -68,7 +72,8 @@ public final class DealershipApplicationContext {
                 latestCustomer, inventory, payments);
     }
 
-    public UserAccountRepository getAccountRepository() { return accountRepository; }
+    /** Read-only, credential-redacted view; privileged writes stay with identity services. */
+    public UserAccountRepository getAccountRepository() { return publicAccountView; }
     public UserLoginService getUserLoginService() { return userLoginService; }
     public CustomerLoginService getCustomerLoginService() { return customerLoginService; }
     public EmployeeLoginService getEmployeeLoginService() { return employeeLoginService; }
