@@ -22,12 +22,12 @@ class AcquisitionLifecycleQueryServiceTest {
         ConfiguredDealershipApplication application = createAcceptedContract(configuration, "buyer");
         OwnedVehicle ownership = application.ownershipFor("buyer").findAll().get(0);
         RecordPaymentCommand payments = new RecordPaymentCommand(application);
-        payments.execute(user("buyer", AccountRole.CUSTOMER), "buyer", ownership.getOwnershipId(), 500);
-        payments.execute(user("employee", AccountRole.EMPLOYEE), "buyer", ownership.getOwnershipId(), 250);
+        payments.execute(com.revature.support.AuthenticatedAccounts.login(application, AccountRole.CUSTOMER, "buyer", "TestPass123!"), "buyer", ownership.getOwnershipId(), 500);
+        payments.execute(com.revature.support.AuthenticatedAccounts.login(application, AccountRole.EMPLOYEE, "employee", "TestPass123!"), "buyer", ownership.getOwnershipId(), 250);
 
         ConfiguredDealershipApplication restarted = DealershipCompositionRoot.create(configuration);
         AcquisitionLifecycleView view = new AcquisitionLifecycleQueryService(restarted)
-                .find(user("employee", AccountRole.EMPLOYEE), "ACQ-000000");
+                .find(com.revature.support.AuthenticatedAccounts.login(restarted, AccountRole.EMPLOYEE, "employee", "TestPass123!"), "ACQ-000000");
 
         assertEquals("ACQ-000000", view.getContractId());
         assertEquals(0, view.getRequestId());
@@ -50,13 +50,13 @@ class AcquisitionLifecycleQueryServiceTest {
     void customerCanReadOwnContractButNotAnotherCustomersContract() {
         ConfiguredDealershipApplication application = createAcceptedContract(
                 InfrastructureConfiguration.inMemory(), "buyer");
-        application.getAccounts().save(user("other", AccountRole.CUSTOMER));
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "other", "TestPass123!");
         AcquisitionLifecycleQueryService query = new AcquisitionLifecycleQueryService(application);
 
-        assertEquals("buyer", query.find(user("buyer", AccountRole.CUSTOMER), "ACQ-000000")
+        assertEquals("buyer", query.find(com.revature.support.AuthenticatedAccounts.login(application, AccountRole.CUSTOMER, "buyer", "TestPass123!"), "ACQ-000000")
                 .getCustomerName());
         assertThrows(SecurityException.class,
-                () -> query.find(user("other", AccountRole.CUSTOMER), "ACQ-000000"));
+                () -> query.find(com.revature.support.AuthenticatedAccounts.login(application, AccountRole.CUSTOMER, "other", "TestPass123!"), "ACQ-000000"));
     }
 
     @Test
@@ -73,13 +73,13 @@ class AcquisitionLifecycleQueryServiceTest {
     private static ConfiguredDealershipApplication createAcceptedContract(
             InfrastructureConfiguration configuration, String customerName) {
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(configuration);
-        application.getAccounts().save(user(customerName, AccountRole.CUSTOMER));
-        application.getAccounts().save(user("employee", AccountRole.EMPLOYEE));
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, customerName, "TestPass123!");
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "employee", "TestPass123!");
         application.getInventory().addListing("Honda", "Accord", 2024, 24000, 1);
         application.getInventory().requestPurchase(customerName, 0);
         ConfiguredDomainAdapter domain = new ConfiguredDomainAdapter(application);
         new ReviewPurchaseRequestCommand(domain, domain, domain)
-                .approve(user("employee", AccountRole.EMPLOYEE), 0, 24, false);
+                .approve(com.revature.support.AuthenticatedAccounts.login(application, AccountRole.EMPLOYEE, "employee", "TestPass123!"), 0, 24, false);
         return application;
     }
 

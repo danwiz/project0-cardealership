@@ -21,14 +21,14 @@ class AcquisitionContractLifecycleTest {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         InfrastructureConfiguration configuration = InfrastructureConfiguration.jdbc(url);
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(configuration);
-        application.getAccounts().save(user("buyer", AccountRole.CUSTOMER));
-        application.getAccounts().save(user("employee", AccountRole.EMPLOYEE));
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.CUSTOMER, "buyer", "TestPass123!");
+        com.revature.support.TestAccounts.seed(application.getAccounts(), AccountRole.EMPLOYEE, "employee", "TestPass123!");
         application.getInventory().addListing("Honda", "Accord", 2024, 24000, 1);
         application.getInventory().requestPurchase("buyer", 0);
 
         ConfiguredDomainAdapter domain = new ConfiguredDomainAdapter(application);
         new ReviewPurchaseRequestCommand(domain, domain, domain)
-                .approve(user("employee", AccountRole.EMPLOYEE), 0, 24, false);
+                .approve(com.revature.support.AuthenticatedAccounts.login(application, AccountRole.EMPLOYEE, "employee", "TestPass123!"), 0, 24, false);
 
         PurchaseRequest accepted = application.getInventory().purchaseRequests().get(0);
         String contractId = accepted.getContractId().orElseThrow(AssertionError::new);
@@ -38,7 +38,7 @@ class AcquisitionContractLifecycleTest {
         assertEquals(contractId, ownership.getContractId().orElseThrow(AssertionError::new));
 
         PaymentTransaction payment = new RecordPaymentCommand(application).execute(
-                user("buyer", AccountRole.CUSTOMER), "buyer", ownership.getOwnershipId(), 1000);
+                com.revature.support.AuthenticatedAccounts.login(application, AccountRole.CUSTOMER, "buyer", "TestPass123!"), "buyer", ownership.getOwnershipId(), 1000);
         assertEquals(contractId, payment.getContractId().orElseThrow(AssertionError::new));
         assertTrue(payment.getOwnershipId().isPresent());
         assertEquals(ownership.getOwnershipId(), payment.getOwnershipId().getAsLong());
