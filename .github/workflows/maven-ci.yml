@@ -33,6 +33,7 @@ on:
       - security/role-escalation-regression-20261028
       - security/one-time-jdbc-admin-bootstrap-20261028
       - security/verified-principal-boundary-20261028
+      - security/jdbc-credential-and-db-boundary-20261028
   pull_request:
     branches:
       - master
@@ -65,6 +66,7 @@ on:
       - refactor/acquisition-lifecycle-query
       - security/role-escalation-regression-20261028
       - security/one-time-jdbc-admin-bootstrap-20261028
+      - security/verified-principal-boundary-20261028
   workflow_dispatch:
 
 permissions:

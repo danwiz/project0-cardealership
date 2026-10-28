@@ -93,6 +93,36 @@ class DealershipCompositionRootTest {
         assertFalse(application.getAccounts().findByUsername("missing").isPresent());
     }
 
+    @Test
+    void persistentJdbcRequiresExplicitNonemptyCredentials() {
+        String fileUrl = "jdbc:h2:file:./test-dealership";
+        String remoteUrl = "jdbc:postgresql://db.example.invalid:5432/dealership";
+        assertThrows(IllegalArgumentException.class,
+                () -> InfrastructureConfiguration.jdbc(fileUrl));
+        assertThrows(IllegalArgumentException.class,
+                () -> InfrastructureConfiguration.jdbc(remoteUrl, "service", ""));
+        assertThrows(IllegalArgumentException.class,
+                () -> InfrastructureConfiguration.jdbc(fileUrl, "", "not-empty"));
+
+        System.setProperty(InfrastructureConfiguration.MODE_PROPERTY, "jdbc");
+        System.setProperty(InfrastructureConfiguration.JDBC_URL_PROPERTY, fileUrl);
+        assertThrows(IllegalArgumentException.class, InfrastructureConfiguration::fromSystemProperties);
+        System.setProperty(InfrastructureConfiguration.JDBC_PASSWORD_PROPERTY, "configured-secret");
+        assertThrows(IllegalArgumentException.class, InfrastructureConfiguration::fromSystemProperties);
+        System.setProperty(InfrastructureConfiguration.JDBC_USER_PROPERTY, "restricted_service");
+        InfrastructureConfiguration configured = InfrastructureConfiguration.fromSystemProperties();
+        assertEquals("restricted_service", configured.getJdbcUser());
+        assertEquals("configured-secret", configured.getJdbcPassword());
+        assertEquals(InfrastructureConfiguration.Mode.JDBC, configured.getMode());
+    }
+
+    @Test
+    void transientH2StillAllowsExplicitTestModeDefaultCredentials() {
+        InfrastructureConfiguration configuration = InfrastructureConfiguration.jdbc(jdbcUrl("transient"));
+        assertEquals("sa", configuration.getJdbcUser());
+        assertEquals("", configuration.getJdbcPassword());
+    }
+
     private static User user(String username, AccountRole role) {
         User user = new User();
         user.setUsername(username);

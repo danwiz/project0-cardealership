@@ -42,6 +42,7 @@ into a production application adapter outside the secured composition root.
   capabilities. They must not be accessible to untrusted callers.
 - Role-only standalone injected test ports are separately outside the real
   context's authentication guarantee.
-- Acquisition contract lookups verify an authenticated session before checking whether a contract identifier exists.\n- Secure first-admin deployment, operator/DB permissions, and broader
+- Acquisition contract lookups verify an authenticated session before checking whether a contract identifier exists.
+- Secure first-admin deployment, operator/DB permissions, and broader
   session lifecycle review still require signoff. The original issue #29
   remains open pending these and post-merge validation.
