@@ -46,6 +46,8 @@ on:
       - security/trusted-credential-writer-boundary-20261028
       - security/postgresql-credential-audit-trigger-20261028
       - security/credential-request-gate-20261028
+      # Run CI for future staged security increments without manual allowlist edits.
+      - 'security/**'
   pull_request:
     branches:
       - master
@@ -91,6 +93,7 @@ on:
       - security/postgresql-account-owner-credential-20261028
       - security/trusted-credential-writer-boundary-20261028
       - security/postgresql-credential-audit-trigger-20261028
+      - 'security/**'
   workflow_dispatch:
 
 permissions:
