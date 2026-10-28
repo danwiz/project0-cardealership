@@ -25,11 +25,27 @@ public class UserLoginService {
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
     }
 
+    /**
+     * Unauthenticated self-service registration always creates a customer.
+     */
     public User registerUser(String username, String password) {
-        return registerUser(username, password, AccountRole.CUSTOMER);
+        return registerWithRole(username, password, AccountRole.CUSTOMER);
     }
 
-    public User registerUser(String username, String password, AccountRole role) {
+    /**
+     * Privileged provisioning requires a verified account with MANAGE_USERS.
+     * The initial administrator must be installed through a separate trusted
+     * bootstrap process; this API does not create one without authentication.
+     */
+    public User provisionUser(User administratorCredentials, String username,
+            String password, AccountRole role) {
+        User verifiedOperator = authenticate(administratorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(verifiedOperator, Permission.MANAGE_USERS);
+        return registerWithRole(username, password, role);
+    }
+
+    private User registerWithRole(String username, String password, AccountRole role) {
         validateCredential("username", username);
         validateCredential("password", password);
         Objects.requireNonNull(role, "role");

@@ -19,7 +19,7 @@ public class AdminLoginService extends UserLoginService {
 
     @Override
     public User registerUser(String username, String password) {
-        return super.registerUser(username, password, AccountRole.ADMINISTRATOR);
+        throw new SecurityException("administrator provisioning requires authenticated administrator");
     }
 
     public void deleteAllUsers() {
