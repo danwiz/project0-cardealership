@@ -36,6 +36,16 @@ test-only shared in-memory fake**. The
 define the remaining production implementation obligations; G02 is **not**
 closed by these tests.
 
+### Follow-up: validated-session policy and independent account binding
+
+`TrustedSessionPrincipalVerifier` can enforce exact issuer/audience, active
+session, time and MFA/step-up assurance policy on evidence from a future
+**authenticated** identity source. It resolves the write target through an
+independent current subject-to-account binding, never token/request username.
+See the [session verifier contract](credential-session-verifier-contract.md).
+**No production signed-token/introspection implementation** exists in this
+increment; G01 remains a release blocker despite fixture tests.
+
 ## Release blockers / limitations
 
 - The supplied verifier in tests is a stub mapping strings to principals. **Passing tests do not validate OAuth/OIDC, JWT signatures, key rotation, revocation, audience, device assurance, MFA or replay defense.** Do not expose this class on a live network until a reviewed implementation exists.
