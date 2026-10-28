@@ -43,6 +43,9 @@ If a live transaction commits before a drain or termination fence, it may
 already have taken effect; suppressing the callback result does **not** undo
 that commit. A real security design must reconcile all committed trigger
 rows with the independent append-only archive and prove no event was lost.
+The follow-on [two-gate commit/fence reconciliation fixture](credential-writer-commit-fence-reconciliation.md)
+tests this specific race and verifies the database-local audit row through a
+separate read-only PostgreSQL principal; it is still **not** external archival evidence.
 
 ## Verification and release criteria
 

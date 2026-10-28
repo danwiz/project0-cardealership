@@ -64,9 +64,10 @@ The [existing CDC source acceptance matrix](credential-cdc-production-acceptance
 [request gate](trusted-credential-request-gate.md),
 [authenticated-session contract](credential-session-verifier-contract.md),
 [rotating writer secret source](jdbc-writer-secret-source.md),
-[renewable lease policy](renewable-writer-secret-lease.md), and
-[writer-session drain contract](fenced-writer-connection-drain.md), and
-[disposable PostgreSQL session-revocation rehearsal](postgresql-writer-session-revocation-rehearsal.md)
+[renewable lease policy](renewable-writer-secret-lease.md),
+[writer-session drain contract](fenced-writer-connection-drain.md),
+[disposable PostgreSQL session-revocation rehearsal](postgresql-writer-session-revocation-rehearsal.md), and
+[two-gate commit/fence reconciliation rehearsal](credential-writer-commit-fence-reconciliation.md)
 define the non-deployed code seams and CI-only tests. Their fixture successes
 cannot close the release ledger.
 
