@@ -60,6 +60,37 @@ class TrustedCredentialRequestHandlerTest {
     }
 
     @Test
+    void missingAndInvalidBearersConsumeAnIndependentIngressBudget() {
+        AtomicLong now = new AtomicLong(3000);
+        Fixture fixture = fixture(5, 2, now);
+        assertThrows(SecurityException.class,
+                () -> fixture.handler.rotate(null, "first-alice", "second-alice"));
+        assertThrows(SecurityException.class,
+                () -> fixture.handler.rotate("forged-token", "first-alice", "second-alice"));
+        assertThrows(SecurityException.class,
+                () -> fixture.handler.rotate("valid-alice", "first-alice", "second-alice"));
+        assertTrue(new UserLoginService(fixture.reader)
+                .authenticate(credentials("alice", "first-alice")).isPresent());
+        now.addAndGet(15 * 60 * 1000L);
+        assertTrue(fixture.handler.rotate("valid-alice", "first-alice", "second-alice"));
+    }
+
+    @Test
+    void absentTrustedIngressIdentityFailsClosedBeforeTokenVerification() {
+        AtomicLong now = new AtomicLong(1000);
+        Fixture fixture = fixture(3, now);
+        TrustedCredentialRequestHandler unsafeIngress = new TrustedCredentialRequestHandler(
+                () -> null,
+                new CredentialRequestRateLimiter(3, 60_000, 4, now::get),
+                bearer -> { throw new AssertionError("verifier must not be reached"); },
+                new CredentialRequestRateLimiter(3, 60_000, 4, now::get),
+                new TrustedCredentialRotationService(fixture.reader,
+                        new JdbcUserAccountRepository(JdbcDatabase.inMemory("unused_writer"))));
+        assertThrows(SecurityException.class,
+                () -> unsafeIngress.rotate("valid-alice", "first-alice", "second-alice"));
+    }
+
+    @Test
     void boundOnTrackedSubjectsFailsClosedAndExpiresStaleWindows() {
         AtomicLong now = new AtomicLong(5000);
         CredentialRequestRateLimiter limiter = new CredentialRequestRateLimiter(
@@ -105,6 +136,10 @@ class TrustedCredentialRequestHandlerTest {
     }
 
     private static Fixture fixture(int maxAttempts, AtomicLong now) {
+        return fixture(maxAttempts, 100, now);
+    }
+
+    private static Fixture fixture(int maxAttempts, int ingressAttempts, AtomicLong now) {
         JdbcDatabase db = JdbcDatabase.inMemory("gate_" +
                 UUID.randomUUID().toString().replace("-", ""));
         JdbcUserAccountRepository reader = new JdbcUserAccountRepository(db);
@@ -124,8 +159,12 @@ class TrustedCredentialRequestHandlerTest {
         };
         CredentialRequestRateLimiter limiter = new CredentialRequestRateLimiter(
                 maxAttempts, 15 * 60 * 1000L, 20, now::get);
+        CredentialRequestRateLimiter ingressLimiter = new CredentialRequestRateLimiter(
+                ingressAttempts, 15 * 60 * 1000L, 20, now::get);
         return new Fixture(reader,
-                new TrustedCredentialRequestHandler(verifier, limiter, rotation));
+                new TrustedCredentialRequestHandler(
+                        () -> "trusted-ingress-client-A", ingressLimiter, verifier,
+                        limiter, rotation));
     }
 
     private static com.revature.cardealer.User credentials(String name, String password) {

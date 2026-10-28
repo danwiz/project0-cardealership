@@ -12,13 +12,18 @@ import com.revature.cardealer.User;
  * Never derive the rotation target from an untrusted request field.
  */
 public final class TrustedCredentialRequestHandler {
+    private final TrustedIngressIdentityResolver ingressIdentity;
+    private final CredentialRequestRateLimiter ingressLimiter;
     private final PrincipalVerifier verifier;
     private final CredentialRequestRateLimiter limiter;
     private final TrustedCredentialRotationService rotation;
 
-    public TrustedCredentialRequestHandler(PrincipalVerifier verifier,
+    public TrustedCredentialRequestHandler(TrustedIngressIdentityResolver ingressIdentity,
+            CredentialRequestRateLimiter ingressLimiter, PrincipalVerifier verifier,
             CredentialRequestRateLimiter limiter,
             TrustedCredentialRotationService rotation) {
+        this.ingressIdentity = Objects.requireNonNull(ingressIdentity, "ingressIdentity");
+        this.ingressLimiter = Objects.requireNonNull(ingressLimiter, "ingressLimiter");
         this.verifier = Objects.requireNonNull(verifier, "verifier");
         this.limiter = Objects.requireNonNull(limiter, "limiter");
         this.rotation = Objects.requireNonNull(rotation, "rotation");
@@ -30,6 +35,9 @@ public final class TrustedCredentialRequestHandler {
      */
     public boolean rotate(String bearerCredential, String currentPassword,
             String replacementPassword) {
+        // Charge unauthenticated requests before inspecting their bearer token.
+        // Identity MUST come from trusted transport metadata, never request input.
+        ingressLimiter.acquire(ingressIdentity.resolveTrustedKey());
         if (bearerCredential == null || bearerCredential.isEmpty()) {
             throw new SecurityException("verified session required");
         }
@@ -51,6 +59,15 @@ public final class TrustedCredentialRequestHandler {
     /** Implementations are part of the trusted service boundary, not clients. */
     public interface PrincipalVerifier {
         VerifiedPrincipal verify(String bearerCredential);
+    }
+
+    /**
+     * Supplies a stable requester key from authenticated ingress/gateway context.
+     * Never trust a client-supplied IP, forwarded header or request parameter.
+     * The implementation must fail closed if its transport identity is absent.
+     */
+    public interface TrustedIngressIdentityResolver {
+        String resolveTrustedKey();
     }
 
     /** Immutable identity assertion created only by a trusted verifier. */

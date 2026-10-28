@@ -9,6 +9,12 @@
 3. Before PBKDF2 work, `CredentialRequestRateLimiter` consumes a quota keyed to the stable verified subject, regardless of success or failure. The limiter is synchronized, uses a fixed window, limits the number of tracked subjects, fails closed at capacity, and does not reset on a backward wall-clock jump.
 4. `TrustedCredentialRotationService` reauthenticates against the persisted hash and submits a compare-and-swap update using the separately held writer repository. PR #44's PostgreSQL audit-trigger fixture covers the DB writer's committed updates.
 
+## Follow-up: pre-verification ingress quota (staged, not deployed)
+
+`TrustedCredentialRequestHandler` now requires a separately injected `TrustedIngressIdentityResolver` and a second, independent `CredentialRequestRateLimiter`. Each attempted rotation consumes an ingress quota **before** its bearer token is inspected, including blank, invalid and forged tokens. If ingress identity cannot be established, it fails closed without calling the verifier or writer. The existing verified-subject quota remains in place after token verification. There is deliberately no legacy constructor omitting ingress enforcement.
+
+The resolver's key is **trusted server-side transport context**, never a client-supplied username, arbitrary `X-Forwarded-For` header or unverified token field. Tests use a fixture resolver. No proxy trust configuration, network listener, session binding, distributed atomic limiter or real ingress identity implementation is delivered here. A hostile network client must never be able to choose or rotate their own rate-limit key. Both in-memory limiters remain restartable, single-process prototypes; shared-state and gateway-wide protection are release blockers.
+
 ## Test coverage
 
 - Verified caller identity determines the account being changed. The client has no way to substitute another username.
@@ -16,6 +22,7 @@
 - Wrong passwords consume attempts and reaching the quota blocks even a correct password until the time window expires.
 - Cardinality is bounded; expired subjects can be evicted and backwards time does not open new quota.
 - Concurrent threads cannot exceed the per-subject admission budget.
+- Blank/forged bearer attempts consume a separate ingress budget before verification, and exhaustion denies an otherwise valid bearer. Missing trusted ingress identity prevents verification.
 
 ## Release blockers / limitations
 
