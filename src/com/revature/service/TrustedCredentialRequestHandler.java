@@ -13,14 +13,14 @@ import com.revature.cardealer.User;
  */
 public final class TrustedCredentialRequestHandler {
     private final TrustedIngressIdentityResolver ingressIdentity;
-    private final CredentialRequestRateLimiter ingressLimiter;
+    private final CredentialRequestQuota ingressLimiter;
     private final PrincipalVerifier verifier;
-    private final CredentialRequestRateLimiter limiter;
+    private final CredentialRequestQuota limiter;
     private final TrustedCredentialRotationService rotation;
 
     public TrustedCredentialRequestHandler(TrustedIngressIdentityResolver ingressIdentity,
-            CredentialRequestRateLimiter ingressLimiter, PrincipalVerifier verifier,
-            CredentialRequestRateLimiter limiter,
+            CredentialRequestQuota ingressLimiter, PrincipalVerifier verifier,
+            CredentialRequestQuota limiter,
             TrustedCredentialRotationService rotation) {
         this.ingressIdentity = Objects.requireNonNull(ingressIdentity, "ingressIdentity");
         this.ingressLimiter = Objects.requireNonNull(ingressLimiter, "ingressLimiter");

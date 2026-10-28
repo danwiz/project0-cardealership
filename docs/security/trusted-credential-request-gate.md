@@ -24,6 +24,18 @@ The resolver's key is **trusted server-side transport context**, never a client-
 - Concurrent threads cannot exceed the per-subject admission budget.
 - Blank/forged bearer attempts consume a separate ingress budget before verification, and exhaustion denies an otherwise valid bearer. Missing trusted ingress identity prevents verification.
 
+### Follow-up: provider-neutral atomic quota seam (non-deployed)
+
+The handler can now receive any `CredentialRequestQuota` implementation for
+both stages, including `AtomicCredentialRequestQuota` backed by a future shared
+atomic store. The original synchronized `CredentialRequestRateLimiter` remains
+a single-process fixture. Separate ingress/subject namespaces, backend outage
+denial, concurrency and cross-replica behavior are tested **only against a
+test-only shared in-memory fake**. The
+[atomic quota contract and acceptance requirements](credential-atomic-request-quota.md)
+define the remaining production implementation obligations; G02 is **not**
+closed by these tests.
+
 ## Release blockers / limitations
 
 - The supplied verifier in tests is a stub mapping strings to principals. **Passing tests do not validate OAuth/OIDC, JWT signatures, key rotation, revocation, audience, device assurance, MFA or replay defense.** Do not expose this class on a live network until a reviewed implementation exists.
