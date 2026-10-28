@@ -1,8 +1,10 @@
 package com.revature.service;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Provider-neutral, single-instance audit forwarding seam (not a deployed job).
@@ -64,10 +66,17 @@ public final class CredentialAuditForwarder {
             }
             events = new ArrayList<>(fetched);
             AuditSourceCursor previous = cursor;
+            Set<String> eventKeys = new HashSet<>();
             for (CredentialAuditEvent event : events) {
                 if (event == null || !streamId.equals(event.streamId())
                         || event.sourceCursor().compareTo(previous) <= 0) {
                     throw new SecurityException("audit source stream/order violation");
+                }
+                // Two distinct source positions cannot represent the same
+                // immutable audit row within one page. Cross-page collisions
+                // still require the external sink to reject conflicting data.
+                if (!eventKeys.add(event.eventKey())) {
+                    throw new SecurityException("duplicate audit event key in source batch");
                 }
                 previous = event.sourceCursor();
             }
@@ -131,7 +140,13 @@ public final class CredentialAuditForwarder {
 
     @FunctionalInterface
     public interface AppendOnlySink {
-        /** Must implement durable, append-only, idempotent acknowledgement. */
+        /**
+         * Must implement durable, append-only, idempotent acknowledgement.
+         * Repeated keys with identical immutable event content are replay;
+         * repeated keys with CONFLICTING content are integrity errors, not
+         * successful deduplication. The sink must reject them without mutating
+         * the existing record, including collisions across pages/restarts.
+         */
         void appendIfAbsent(CredentialAuditEvent event);
     }
 
