@@ -22,7 +22,7 @@ public class CustomerLoginService extends UserLoginService {
 
     @Override
     public User registerUser(String username, String password) {
-        return super.registerUser(username, password, AccountRole.CUSTOMER);
+        return super.registerUser(username, password);
     }
 
     public void setCarsOwned(Car owned, int cprice, int pmths) {

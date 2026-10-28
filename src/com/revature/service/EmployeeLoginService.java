@@ -15,6 +15,6 @@ public class EmployeeLoginService extends UserLoginService {
 
     @Override
     public User registerUser(String username, String password) {
-        return super.registerUser(username, password, AccountRole.EMPLOYEE);
+        throw new SecurityException("employee provisioning requires authenticated administrator");
     }
 }

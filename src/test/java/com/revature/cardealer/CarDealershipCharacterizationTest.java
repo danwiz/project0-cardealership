@@ -14,6 +14,10 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.util.Scanner;
 
+import com.revature.service.Pbkdf2PasswordHasher;
+import com.revature.service.UserAccountRepository;
+import com.revature.service.UserLoginService;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -28,7 +32,7 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void customerRegistrationUsesSharedServiceWithoutUnsafeDowncast() throws Throwable {
         String username = uniqueUsername("customer");
         ByteArrayOutputStream output = captureOutput();
@@ -40,8 +44,8 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void unregisteredEmployeeCannotReachInventoryManagementFlow() throws Throwable {
         ByteArrayOutputStream output = captureOutput();
         replaceScanner(uniqueUsername("unknown") + "\npassword\n");
@@ -55,8 +59,8 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void customerCredentialsCannotEnterEmployeeMenu() throws Throwable {
         String username = uniqueUsername("customer-role");
         ByteArrayOutputStream output = captureOutput();
@@ -73,13 +77,12 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void registeredEmployeeReachesOnlyAuthorizedEmployeeMenu() throws Throwable {
         String username = uniqueUsername("employee");
         ByteArrayOutputStream output = captureOutput();
 
-        replaceScanner("2\n" + username + "\nsecret\n");
-        invokePerformUserAction("1");
+        provisionStaff(username, "secret", AccountRole.EMPLOYEE);
 
         replaceScanner(username + "\nsecret\n3\n");
         invokePerformUserAction("3");
@@ -92,14 +95,13 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void administratorFeaturesRequireAuthenticatedAdministratorRole() throws Throwable {
         String username = uniqueUsername("administrator");
         ByteArrayOutputStream output = captureOutput();
 
-        replaceScanner("3\n" + username + "\nsecret\n");
-        invokePerformUserAction("1");
+        provisionStaff(username, "secret", AccountRole.ADMINISTRATOR);
 
         replaceScanner(username + "\nsecret\n9\n");
         invokePerformUserAction("5");
@@ -110,7 +112,45 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("security")
+    void publicRegistrationRefusesEmployeeAndAdministratorCreation() throws Throwable {
+        ByteArrayOutputStream output = captureOutput();
+        replaceScanner("2\n");
+        invokePerformUserAction("1");
+        replaceScanner("3\n");
+        invokePerformUserAction("1");
+
+        String rendered = output.toString(StandardCharsets.UTF_8);
+        assertTrue(rendered.contains("access denied: privileged registration requires administrator"));
+        assertFalse(rendered.contains("Employee registered"));
+        assertFalse(rendered.contains("Administrator registered"));
+    }
+
+    private static void provisionStaff(String username, String password, AccountRole role) throws Exception {
+        Field repositoryField = CarDealership.class.getDeclaredField("USER_REPOSITORY");
+        repositoryField.setAccessible(true);
+        UserAccountRepository repository = (UserAccountRepository) repositoryField.get(null);
+
+        // Test-only trusted bootstrap. The production bootstrap flow is a separate release gate.
+        String bootstrapName = uniqueUsername("bootstrap-admin");
+        User admin = credentials(bootstrapName, new Pbkdf2PasswordHasher().hash("bootstrap-secret"));
+        admin.setRole(AccountRole.ADMINISTRATOR);
+        repository.save(admin);
+
+        new UserLoginService(repository).provisionUser(
+                credentials(bootstrapName, "bootstrap-secret"),
+                username, password, role);
+    }
+
+    private static User credentials(String username, String password) {
+        User user = new User();
+        user.setUsername(username);
+        user.setPassword(password);
+        return user;
+    }
+
+    @Test
+    @Tag("known-defect")
     void loadDataAddsASecondDatExtensionThenDereferencesNull() {
         CarDealership application = new CarDealership();
 

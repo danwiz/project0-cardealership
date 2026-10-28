@@ -30,8 +30,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void customerAuthenticationRejectsUnregisteredUser() {
         CustomerLoginService service = new CustomerLoginService();
 
@@ -39,8 +39,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void employeeAuthenticationRejectsUnregisteredUser() {
         EmployeeLoginService service = new EmployeeLoginService();
 
@@ -48,8 +48,8 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void administratorAuthenticationRejectsUnregisteredUser() {
         AdminLoginService service = new AdminLoginService();
 
@@ -57,24 +57,29 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void roleServicesAuthenticateRegisteredCredentials() {
-        CustomerLoginService customerService = new CustomerLoginService();
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        CustomerLoginService customerService = new CustomerLoginService(repository);
         customerService.registerUser("customer", "secret");
         assertTrue(customerService.authenticateUser(user("customer", "secret")));
 
-        EmployeeLoginService employeeService = new EmployeeLoginService();
-        employeeService.registerUser("employee", "secret");
-        assertTrue(employeeService.authenticateUser(user("employee", "secret")));
+        User bootstrapAdmin = user("bootstrap-admin", new Pbkdf2PasswordHasher().hash("bootstrap-secret"));
+        bootstrapAdmin.setRole(com.revature.cardealer.AccountRole.ADMINISTRATOR);
+        repository.save(bootstrapAdmin);
+        UserLoginService provisioner = new UserLoginService(repository);
+        provisioner.provisionUser(user("bootstrap-admin", "bootstrap-secret"),
+                "employee", "secret", com.revature.cardealer.AccountRole.EMPLOYEE);
+        provisioner.provisionUser(user("bootstrap-admin", "bootstrap-secret"),
+                "admin", "secret", com.revature.cardealer.AccountRole.ADMINISTRATOR);
 
-        AdminLoginService adminService = new AdminLoginService();
-        adminService.registerUser("admin", "secret");
-        assertTrue(adminService.authenticateUser(user("admin", "secret")));
+        assertTrue(new EmployeeLoginService(repository).authenticateUser(user("employee", "secret")));
+        assertTrue(new AdminLoginService(repository).authenticateUser(user("admin", "secret")));
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
-    @Tag("SECURITY")
+    @Tag("target-behavior")
+    @Tag("security")
     void customerAuthenticationDoesNotPrintSubmittedUsername() {
         CustomerLoginService service = new CustomerLoginService();
         service.registerUser("dane", "secret");
@@ -87,7 +92,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void customerOwnedCarStorageFailsAtFixedArrayBoundary() {
         CustomerLoginService service = new CustomerLoginService();
         for (int i = 0; i < 20; i++) {
@@ -99,7 +104,7 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("KNOWN-DEFECT")
+    @Tag("known-defect")
     void viewingOwnedCarsFailsOnFirstNullSlot() {
         CustomerLoginService service = new CustomerLoginService();
         service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);

@@ -18,7 +18,7 @@ class RoleAuthorizationServiceTest {
     private final RoleAuthorizationService authorization = new RoleAuthorizationService();
 
     @Test
-    @Tag("SECURITY")
+    @Tag("security")
     void customerReceivesOnlyCustomerCapabilities() {
         User customer = account("customer", AccountRole.CUSTOMER);
 
@@ -31,7 +31,7 @@ class RoleAuthorizationServiceTest {
     }
 
     @Test
-    @Tag("SECURITY")
+    @Tag("security")
     void employeeCanManageDealershipOperationsButNotAdministration() {
         User employee = account("employee", AccountRole.EMPLOYEE);
 
@@ -43,7 +43,7 @@ class RoleAuthorizationServiceTest {
     }
 
     @Test
-    @Tag("SECURITY")
+    @Tag("security")
     void administratorReceivesEveryDefinedPermission() {
         User administrator = account("admin", AccountRole.ADMINISTRATOR);
 
@@ -65,11 +65,11 @@ class RoleAuthorizationServiceTest {
     }
 
     @Test
-    @Tag("TARGET-BEHAVIOR")
+    @Tag("target-behavior")
     void authenticationReturnsVerifiedAccountWithPersistedRole() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
+        provisionEmployee(repository);
         EmployeeLoginService service = new EmployeeLoginService(repository);
-        service.registerUser("employee", "secret");
 
         Optional<User> authenticated = service.authenticate(credentials("employee", "secret"));
 
@@ -79,13 +79,75 @@ class RoleAuthorizationServiceTest {
     }
 
     @Test
-    void roleSpecificRegistrationAssignsExpectedRoles() {
+    @Tag("security")
+    void unauthenticatedRegistrationCannotGrantElevatedRoles() {
         assertEquals(AccountRole.CUSTOMER,
                 new CustomerLoginService().registerUser("customer", "secret").getRole());
-        assertEquals(AccountRole.EMPLOYEE,
-                new EmployeeLoginService().registerUser("employee", "secret").getRole());
-        assertEquals(AccountRole.ADMINISTRATOR,
-                new AdminLoginService().registerUser("admin", "secret").getRole());
+        assertThrows(SecurityException.class,
+                () -> new EmployeeLoginService().registerUser("employee", "secret"));
+        assertThrows(SecurityException.class,
+                () -> new AdminLoginService().registerUser("admin", "secret"));
+    }
+
+    @Test
+    @Tag("security")
+    void forgedCustomerRoleAndInvalidAdministratorPasswordCannotProvisionStaff() {
+        InMemoryUserAccountRepository repository = new InMemoryUserAccountRepository();
+        seedAdministrator(repository);
+        UserLoginService service = new UserLoginService(repository);
+        User customer = service.registerUser("customer", "pw");
+        customer.setRole(AccountRole.ADMINISTRATOR);
+
+        User forgedCredentials = credentials("customer", "pw");
+        forgedCredentials.setRole(AccountRole.ADMINISTRATOR);
+        assertThrows(SecurityException.class,
+                () -> service.provisionUser(forgedCredentials, "employee", "pw", AccountRole.EMPLOYEE));
+        assertThrows(SecurityException.class,
+                () -> service.provisionUser(credentials("bootstrap-admin", "wrong"),
+                        "employee", "pw", AccountRole.EMPLOYEE));
+    }
+
+    @Test
+    @Tag("security")
+    void callerMutationCannotPromoteStoredAccount() {
+        InMemoryUserAccountRepository repository = new InMemoryUserAccountRepository();
+        UserLoginService service = new UserLoginService(repository);
+        User returned = service.registerUser("customer", "pw");
+        returned.setRole(AccountRole.ADMINISTRATOR);
+        User queried = repository.findByUsername("customer").orElseThrow();
+        queried.setRole(AccountRole.ADMINISTRATOR);
+
+        User authenticated = service.authenticate(credentials("customer", "pw")).orElseThrow();
+        assertEquals(AccountRole.CUSTOMER, authenticated.getRole());
+        assertFalse(authorization.isAuthorized(authenticated, Permission.MANAGE_USERS));
+    }
+
+    @Test
+    @Tag("security")
+    void verifiedAdministratorCanProvisionOnlyThroughAuthenticatedPath() {
+        InMemoryUserAccountRepository repository = new InMemoryUserAccountRepository();
+        seedAdministrator(repository);
+        UserLoginService service = new UserLoginService(repository);
+
+        User employee = service.provisionUser(credentials("bootstrap-admin", "bootstrap-secret"),
+                "employee", "secret", AccountRole.EMPLOYEE);
+        assertEquals(AccountRole.EMPLOYEE, employee.getRole());
+        User admin = service.provisionUser(credentials("bootstrap-admin", "bootstrap-secret"),
+                "other-admin", "secret", AccountRole.ADMINISTRATOR);
+        assertEquals(AccountRole.ADMINISTRATOR, admin.getRole());
+    }
+
+    private static void provisionEmployee(UserAccountRepository repository) {
+        seedAdministrator(repository);
+        new UserLoginService(repository).provisionUser(
+                credentials("bootstrap-admin", "bootstrap-secret"),
+                "employee", "secret", AccountRole.EMPLOYEE);
+    }
+
+    private static void seedAdministrator(UserAccountRepository repository) {
+        User administrator = account("bootstrap-admin", AccountRole.ADMINISTRATOR);
+        administrator.setPassword(new Pbkdf2PasswordHasher().hash("bootstrap-secret"));
+        repository.save(administrator);
     }
 
     private static User account(String username, AccountRole role) {

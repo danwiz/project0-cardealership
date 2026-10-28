@@ -83,25 +83,18 @@ public class CarDealership {
     private static void registerAccount() {
         System.out.println("Welcome: Car Dealership!!\n");
         System.out.println("[1] Register Customer");
-        System.out.println("[2] Register Employee");
-        System.out.println("[3] Register Administrator");
+        System.out.println("Employee and administrator accounts require verified provisioning.");
         System.out.println("Select an option:  ");
         String option = scan.nextLine();
-        User credentials = getUserInfo();
+        if (!"1".equals(option)) {
+            System.out.println("access denied: privileged registration requires administrator");
+            return;
+        }
 
+        User credentials = getUserInfo();
         try {
-            if ("1".equals(option)) {
-                customer = cls.registerUser(credentials.getUsername(), credentials.getPassword());
-                System.out.println("Customer registered");
-            } else if ("2".equals(option)) {
-                employee = els.registerUser(credentials.getUsername(), credentials.getPassword());
-                System.out.println("Employee registered");
-            } else if ("3".equals(option)) {
-                als.registerUser(credentials.getUsername(), credentials.getPassword());
-                System.out.println("Administrator registered");
-            } else {
-                System.out.println("did not understand input");
-            }
+            customer = cls.registerUser(credentials.getUsername(), credentials.getPassword());
+            System.out.println("Customer registered");
         } catch (IllegalArgumentException exception) {
             System.out.println("Registration failed: " + exception.getMessage());
         }
