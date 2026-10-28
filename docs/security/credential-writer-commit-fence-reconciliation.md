@@ -62,6 +62,11 @@ reviewer-signed reconciliation table. Include both a commit-before-fence and
 an unknown-commit-result network-failure case. A discrepancy **fails closed**
 until an independent reviewer reconciles the source and archive.
 
+The next [reconciled writer activation barrier](reconciled-writer-reopen-barrier.md)
+requires independently verified, matching source and external archive
+checkpoint evidence before any newer credential generation can activate;
+its current verifier is a fixture seam, not an external service.
+
 Official references: PostgreSQL 16 [transaction isolation](https://www.postgresql.org/docs/16/transaction-iso.html)
 and [trigger behavior](https://www.postgresql.org/docs/16/trigger-definition.html).
 
