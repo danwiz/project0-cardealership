@@ -47,7 +47,7 @@ This is a **configuration safeguard**, not a claim that an operator selected a s
 2. Execute migration with a separate operator principal; verify schema version 4, single-use marker and repeat-attempt denial; restore a backup in a separate test environment.
 3. Verify the real target database dialect, uniqueness/concurrency, transaction rollback and failure during bootstrap; H2 compatibility mode is insufficient proof.
 4. Assert that missing/blank persistent JDBC credentials fail **before any connection**; verify test-only H2 memory mode remains available on Java 11 and 17.
-5. PRs #35–#37 test read-only views, insert-only creation, authenticated updates, and no administrative mutation channel in ordinary JDBC composition; additionally exercise direct infrastructure capabilities from the deployed entrypoint and real database grants.
+5. PRs #35–#38 test read-only views, insert-only creation, authenticated updates, no administrative mutation channel in ordinary JDBC composition, and a transactional last-admin safeguard in the JDBC repository. Additionally exercise direct infrastructure capabilities from the deployed entrypoint, serializable transaction conflicts on the actual PostgreSQL target, and real database grants.
 6. Ensure secrets are redacted from CI/job logs, command lines, exception reports and documentation; store only approved evidence metadata.
 7. Record infrastructure owner, risk approval, recovery procedure and gate evidence before merging or deploying.
 

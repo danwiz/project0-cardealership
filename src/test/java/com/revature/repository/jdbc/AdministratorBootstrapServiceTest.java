@@ -69,7 +69,16 @@ class AdministratorBootstrapServiceTest {
         AdministratorBootstrapService service = new AdministratorBootstrapService(database);
         service.bootstrap("first", "very-strong-password".toCharArray());
         JdbcUserAccountRepository accounts = new JdbcUserAccountRepository(database);
-        assertTrue(accounts.removeByUsername("first"));
+        // Supported repository APIs now preserve the final administrator.
+        assertThrows(SecurityException.class, () -> accounts.removeByUsername("first"));
+
+        // Model an out-of-band privileged DBA action or damaged recovery state.
+        // The single-use bootstrap marker must still block reinitialization.
+        try (Connection connection = database.openConnection();
+                Statement statement = connection.createStatement()) {
+            assertEquals(1, statement.executeUpdate(
+                    "DELETE FROM accounts WHERE username = 'first'"));
+        }
 
         assertThrows(SecurityException.class,
                 () -> service.bootstrap("replacement", "another-strong-password".toCharArray()));
