@@ -43,3 +43,7 @@ Official references:
 - GitHub Actions [PostgreSQL service containers](https://docs.github.com/en/actions/tutorials/use-containerized-services/create-postgresql-service-containers).
 
 **Release status:** Keep PR #40 draft and security issue #29 open until PostgreSQL tests pass, independent security review completes and the broader runtime/operator authorization gaps are resolved.
+
+## Follow-up: ordinary account runtime policy fixture
+
+Draft PR #41 adds a **separate**, CI-only PostgreSQL test of column-scoped account privileges and a customer-only INSERT row-security policy. Its documentation is `docs/security/postgresql-runtime-account-policy.md`. It does not grant the broader runtime least privilege or restrict operator SQL bypass.

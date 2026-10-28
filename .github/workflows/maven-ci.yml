@@ -41,6 +41,7 @@ on:
       - security/jdbc-last-admin-guard-20261028
       - security/offline-account-operator-20261028
       - security/postgresql-account-role-validation-20261028
+      - security/postgresql-runtime-account-policy-20261028
   pull_request:
     branches:
       - master
@@ -81,6 +82,7 @@ on:
       - security/separate-account-administration-20261028
       - security/jdbc-last-admin-guard-20261028
       - security/offline-account-operator-20261028
+      - security/postgresql-account-role-validation-20261028
   workflow_dispatch:
 
 permissions:
