@@ -43,14 +43,18 @@ public final class CredentialAuditForwarder {
      * Synchronization covers one JVM only; production needs an external lease.
      */
     public synchronized int forwardNextBatch() {
-        long cursor;
+        AuditCheckpoint acknowledged;
         try {
-            cursor = checkpoint.lastAcknowledgedCursor();
-            if (cursor < 0) throw new SecurityException("invalid audit checkpoint");
+            acknowledged = checkpoint.load();
+            if (acknowledged == null || !streamId.equals(acknowledged.streamId())) {
+                throw new SecurityException("audit checkpoint stream mismatch or missing");
+            }
         } catch (RuntimeException failure) {
-            alert("checkpoint-read", 0, failure);
+            alert("checkpoint-read", 0, 0, failure);
             throw failure;
         }
+
+        long cursor = acknowledged.sourceCursor();
 
         List<CredentialAuditEvent> events;
         try {
@@ -68,7 +72,8 @@ public final class CredentialAuditForwarder {
                 previous = event.sourceCursor();
             }
         } catch (RuntimeException failure) {
-            alert("source-read-or-order", cursor, failure);
+            alert(failure instanceof AuditHistoryUnavailableException
+                    ? "source-history-unavailable" : "source-read-or-order", cursor, 0, failure);
             throw failure;
         }
 
@@ -78,14 +83,17 @@ public final class CredentialAuditForwarder {
                 // Must return only after durable idempotent acknowledgement.
                 sink.appendIfAbsent(event);
             } catch (RuntimeException failure) {
-                alert("append", event.auditId(), failure);
+                alert("append", event.sourceCursor(), event.auditId(), failure);
                 throw failure;
             }
             try {
-                checkpoint.markAcknowledged(event.sourceCursor());
+                if (!checkpoint.advanceIfCurrent(acknowledged, event.sourceCursor())) {
+                    throw new SecurityException("audit checkpoint advanced by another worker");
+                }
+                acknowledged = new AuditCheckpoint(streamId, event.sourceCursor());
             } catch (RuntimeException failure) {
                 // If append succeeded, retries MUST be deduplicated by eventKey.
-                alert("checkpoint-write", event.auditId(), failure);
+                alert("checkpoint-write", event.sourceCursor(), event.auditId(), failure);
                 throw failure;
             }
             delivered++;
@@ -93,10 +101,11 @@ public final class CredentialAuditForwarder {
         return delivered;
     }
 
-    private void alert(String phase, long auditId, RuntimeException original) {
+    private void alert(String phase, long sourceCursor, long auditId,
+            RuntimeException original) {
         try {
             // No password, hash, username or exception message crosses this API.
-            alerts.forwardingFailed(phase, streamId, auditId);
+            alerts.forwardingFailed(phase, streamId, sourceCursor, auditId);
         } catch (RuntimeException alertFailure) {
             original.addSuppressed(alertFailure);
         }
@@ -104,8 +113,19 @@ public final class CredentialAuditForwarder {
 
     @FunctionalInterface
     public interface AuditSource {
-        /** Must return events in stable commit-cursor order, not audit-ID order. */
+        /**
+         * Must return events in stable commit-cursor order, not audit-ID order.
+         * MUST throw AuditHistoryUnavailableException if the requested cursor
+         * cannot be resumed completely; never disguise missing history as EOF.
+         */
         List<CredentialAuditEvent> readAfter(long lastAcknowledgedCursor, int limit);
+    }
+
+    /** Source cannot establish complete replay from the requested cursor. */
+    public static final class AuditHistoryUnavailableException extends IllegalStateException {
+        public AuditHistoryUnavailableException() {
+            super("complete audit replay history unavailable");
+        }
     }
 
     @FunctionalInterface
@@ -115,13 +135,21 @@ public final class CredentialAuditForwarder {
     }
 
     public interface CheckpointStore {
-        long lastAcknowledgedCursor();
-        void markAcknowledged(long sourceCursor);
+        /** Missing checkpoints fail closed; bootstrap must explicitly provision one. */
+        AuditCheckpoint load();
+
+        /**
+         * Atomic cross-process compare-and-set of stream ID and cursor VALUES,
+         * not Java object identity (deserialized checkpoints are equivalent).
+         * False means a competing worker or source generation changed the state.
+         * This operation must be durable on success; leader fencing is separate.
+         */
+        boolean advanceIfCurrent(AuditCheckpoint expected, long nextSourceCursor);
     }
 
     @FunctionalInterface
     public interface AlertSink {
         /** Alert metadata only; real adapter must reliably deliver/retry alerts. */
-        void forwardingFailed(String phase, String streamId, long auditId);
+        void forwardingFailed(String phase, String streamId, long sourceCursor, long auditId);
     }
 }

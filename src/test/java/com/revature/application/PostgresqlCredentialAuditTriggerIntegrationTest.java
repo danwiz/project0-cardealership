@@ -12,7 +12,7 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
@@ -25,6 +25,7 @@ import com.revature.repository.jdbc.JdbcDatabase;
 import com.revature.repository.jdbc.JdbcCredentialAuditSource;
 import com.revature.repository.jdbc.JdbcUserAccountRepository;
 import com.revature.service.CredentialAuditEvent;
+import com.revature.service.AuditCheckpoint;
 import com.revature.service.CredentialAuditForwarder;
 import com.revature.service.TrustedCredentialRotationService;
 import com.revature.support.TestAccounts;
@@ -189,17 +190,26 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
 
         // Provider-neutral export proof with a fake external sink/checkpoint.
         // The SELECT-only auditor account, not the credential writer, polls.
-        AtomicLong acknowledged = new AtomicLong();
+        String auditStream = "disposable-schema-" + suffix;
+        AtomicReference<AuditCheckpoint> acknowledged =
+                new AtomicReference<>(new AuditCheckpoint(auditStream, 0));
         List<CredentialAuditEvent> exported = new ArrayList<>();
         CredentialAuditForwarder exporter = new CredentialAuditForwarder(
-                "disposable-schema-" + suffix,
-                new JdbcCredentialAuditSource(auditorDatabase, "disposable-schema-" + suffix),
+                auditStream,
+                new JdbcCredentialAuditSource(auditorDatabase, auditStream),
                 exported::add,
                 new CredentialAuditForwarder.CheckpointStore() {
-                    @Override public long lastAcknowledgedCursor() { return acknowledged.get(); }
-                    @Override public void markAcknowledged(long id) { acknowledged.set(id); }
+                    @Override public AuditCheckpoint load() { return acknowledged.get(); }
+                    @Override public boolean advanceIfCurrent(AuditCheckpoint expected, long next) {
+                        AuditCheckpoint current = acknowledged.get();
+                        return next > expected.sourceCursor() && current != null
+                                && current.equals(expected) && acknowledged.compareAndSet(
+                                current, new AuditCheckpoint(auditStream, next));
+                    }
                 },
-                (phase, stream, id) -> { throw new AssertionError("unexpected audit failure"); },
+                (phase, stream, cursor, id) -> {
+                    throw new AssertionError("unexpected audit failure");
+                },
                 10);
         assertEquals(2, exporter.forwardNextBatch());
         assertEquals(0, exporter.forwardNextBatch());
@@ -207,7 +217,7 @@ class PostgresqlCredentialAuditTriggerIntegrationTest {
         assertEquals(alice, exported.get(0).accountUsername());
         assertEquals(bob, exported.get(1).accountUsername());
         assertEquals(writerRole, exported.get(0).databaseActor());
-        assertTrue(acknowledged.get() > 0);
+        assertTrue(acknowledged.get().sourceCursor() > 0);
     }
 
     private static List<AuditRow> auditRows(JdbcDatabase database, String schema)

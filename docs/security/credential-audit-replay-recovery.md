@@ -1,0 +1,33 @@
+# Credential audit replay and recovery contract — provider-neutral draft
+
+**Status:** Non-deployed design and test seam, **not** a verified production CDC pipeline. Builds on the audit-forwarding contract in PR #49. No new database privileges, replication slots, external network destinations, paid services, credentials or deployment are configured.
+
+## Correctness requirements for any production source adapter
+
+1. **Stable commit order.** Every committed credential-audit change must be emitted once or more in the *same* globally consistent order after restarts. The adapter must expose a **strictly increasing cursor per event** that the checkpoint can resume after. Raw PostgreSQL `audit_id` is unsafe: sequences allocate before commit. A raw transaction-level commit position may identify several rows; the adapter must also distinguish every row in that transaction with a stable sub-position. Numeric cursor gaps do **not** prove data loss by themselves.
+2. **Durable retention and replay.** A source requested to resume after cursor C must either return *every* later event in order, or signal `AuditHistoryUnavailableException`. It must never return an empty batch when it cannot distinguish an idle source from a lost replication slot, pruned log, stale snapshot, source reset or unknown cursor. This includes detecting source-generation changes before using a checkpoint.
+3. **Stream generation binding.** An independently provisioned `AuditCheckpoint(streamId, sourceCursor)` ties the cursor to one source generation. Missing/mismatched checkpoints fail closed. After source restore or replay reset, an operator must create a reviewed **new** stream ID and archive namespace; resetting only the number can silently skip or overwrite evidence.
+4. **Durable append before checkpoint.** The sink must atomically append or deduplicate `streamId:auditId` before acknowledging. The external checkpoint's `advanceIfCurrent(expected, next)` must be a **durable atomic compare-and-set** of stream identity and cursor across all forwarder instances. CAS rejection halts and alerts; retry may resend the same event, so sink deduplication is mandatory.
+5. **Independent control and recovery.** Source/stream metadata and archive/checkpoint credentials need separation from the dealership service and credential writer. Distributed workers still need fencing/leader control; CAS alone is not a distributed lease. Monitor replication-slot health/retention, lag and replay failures, and alert failures. Manual reconciliation and independent review are required before resetting state.
+
+PostgreSQL's [logical decoding concepts](https://www.postgresql.org/docs/current/logicaldecoding-explanation.html) describe possible retransmission after server restart; consumers must be idempotent. [Replication configuration](https://www.postgresql.org/docs/current/runtime-config-replication.html) documents WAL retention limits that can make a slot unable to continue. These are **implementation considerations**, not proof that this draft includes a PostgreSQL CDC adapter.
+
+## Expected recovery behavior
+
+| Fault or event | Checkpoint | Append-only archive | Required response |
+| --- | --- | --- | --- |
+| Append fails before durable acknowledgement | Unchanged | May be absent | Alert; retry from last checkpoint |
+| Process stops after append, before checkpoint | Unchanged | Event present | Replay event; sink deduplicates; then checkpoint |
+| Checkpoint store unavailable | Unchanged | Event may already be present | Alert; do not report delivery complete |
+| CAS rejects a stale expected checkpoint | Unchanged from this worker's view | Event may be present | Alert and stop; re-read/reconcile before continuing |
+| Source unavailable temporarily | Unchanged | No new events | Alert; retry only when source is trustworthy |
+| Source replay history lost or unverifiable | Unchanged | Incomplete/unknown | Critical alert; **halt and reconcile**, never skip to latest |
+| Checkpoint stream ID mismatches source generation | Unchanged | No new events | Fail closed; review source restore/reinitialization |
+
+## Current automated evidence and release gates
+
+- Unit tests simulate restart/replay, stale CAS, stream mismatch, lost history and transient source outage. A disposable PostgreSQL schema still tests auditor access only; its test-scope SQL ID poller is explicitly *not* a production source.
+- The contract cannot **verify source completeness** until a real adapter is independently tested against concurrent PostgreSQL transactions, out-of-order sequence IDs, same-transaction multiple events, crash recovery, WAL retention loss, source reset, promotion/failover, and deliberate database-owner tampering.
+- Production additionally requires a WORM/append-only destination, cryptographically authenticated source or attestations as appropriate, durable audited checkpoints, delivery/alert SLOs, access and retention review, and an independent security approval. None of these external integrations exists here.
+
+This draft deliberately keeps the provider and audit destination unspecified. Do **not** merge or deploy as a production audit-completeness control.
