@@ -22,7 +22,7 @@ class OwnershipLinkedPaymentTransactionTest {
     void migrationAddsOwnershipReferenceAndNewPaymentsPersistIt() throws Exception {
         JdbcDatabase database = JdbcDatabase.inMemory("ownership_link_" + System.nanoTime());
         database.migrate();
-        assertEquals(3, database.schemaVersion());
+        assertEquals(JdbcDatabase.CURRENT_SCHEMA_VERSION, database.schemaVersion());
 
         long ownershipId;
         try (Connection connection = database.openConnection()) {
