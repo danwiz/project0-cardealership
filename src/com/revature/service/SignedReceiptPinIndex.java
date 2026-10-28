@@ -54,6 +54,28 @@ public final class SignedReceiptPinIndex implements TrustedReceiptIndex {
                     kind, proof);
             if (!requiredKey.equals(canonicalKey)) throw blocked();
             SignedPinDocument document = documents.fetch(proof, requiredKey);
+            verifyDocument(proof, requiredKey, document);
+            // The floor is independently authenticated and monotonic. A
+            // missing/unknown floor (<=0) is a hard denial, never zero-default.
+            long minimum = revisions.minimumRevision(proof, requiredKey);
+            if (minimum <= 0 || document.revision < minimum) throw blocked();
+            return document.pin;
+        } catch (Exception unavailable) {
+            throw blocked();
+        }
+    }
+
+    /**
+     * Authenticate a candidate pin document before publication, without
+     * reading the old revision floor. Publication separately requires an
+     * authorized publisher and a guarded monotonic floor CAS.
+     */
+    public void verifyDocument(ReopenProof proof, String canonicalKey,
+            SignedPinDocument document) {
+        try {
+            String requiredKey = CanonicalSignedReceiptTransport.receiptKey(namespace,
+                    kind, proof);
+            if (!requiredKey.equals(canonicalKey)) throw blocked();
             if (document == null || document.kind != kind
                     || !expectedIssuer.equals(document.issuer)
                     || !requiredKey.equals(document.canonicalKey)
@@ -70,12 +92,6 @@ public final class SignedReceiptPinIndex implements TrustedReceiptIndex {
             verifier.initVerify(pinnedKey);
             verifier.update(signingPayload(document));
             if (!verifier.verify(document.signature)) throw blocked();
-
-            // The floor is independently authenticated and monotonic. A
-            // missing/unknown floor (<=0) is a hard denial, never zero-default.
-            long minimum = revisions.minimumRevision(proof, requiredKey);
-            if (minimum <= 0 || document.revision < minimum) throw blocked();
-            return document.pin;
         } catch (Exception unavailable) {
             throw blocked();
         }

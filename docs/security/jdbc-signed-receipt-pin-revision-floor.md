@@ -25,6 +25,11 @@ restricted `UPDATE` of the minimum revision, and must **first authenticate a
 new signed pin record**. No runtime process should hold a table-owner, INSERT,
 DELETE or DDL-capable principal.
 
+The [authenticated signed-pin publisher](authenticated-signed-pin-publisher.md)
+provides a two-signature authorization gate before this adapter's publisher
+method. The JDBC `advance` method itself has no identity verification; it
+must only be exposed as a privileged capability within that trusted service.
+
 ## Why SQL alone is insufficient
 
 An atomic SQL compare-and-swap (CAS) prevents ordinary concurrent clients
