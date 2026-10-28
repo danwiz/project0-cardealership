@@ -8,6 +8,11 @@ paid services, real credentials or production writes.
 signed evidence providers, and durable JDBC epoch-claim ledger. It adds a
 necessary *read-consistency* check before signature verification.
 
+The subsequent [independently signed pin index](independently-signed-receipt-pin-index.md)
+implements the injected trusted pin lookup with domain-separated signatures,
+bounded validity and an independent minimum-revision interface. Both remain
+CI-only; the floor and signer custody must be independently secured in staging.
+
 For each source/archive `ReopenProof`:
 
 1. Derive the authorization-scoped, canonical receipt key using the fixed
