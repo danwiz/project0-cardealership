@@ -53,6 +53,12 @@ primary-keyed singleton row. The JDBC bootstrap service:
 - Refuses a second bootstrap after restart **even if the original
   administrator account was subsequently removed**.
 
+PR #38 adds a JDBC repository safeguard against deleting or demoting the last
+administrator through supported repository APIs. Its regression test also
+models a privileged raw-SQL deletion and confirms that the bootstrap marker
+continues to prohibit a second bootstrap. This safeguard does not constrain
+a DBA, SQL executed outside the repository, or a different data adapter.
+
 If the last administrator becomes unavailable, follow a separately approved
 database recovery/change-control procedure. Do **not** delete the audit marker,
 invent default credentials or expose an online "reset admin" route.

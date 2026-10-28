@@ -75,6 +75,7 @@ on:
       - security/ddl-free-jdbc-runtime-20261028
       - security/read-only-account-views-20261028
       - security/explicit-account-mutation-20261028
+      - security/separate-account-administration-20261028
   workflow_dispatch:
 
 permissions:

@@ -67,16 +67,22 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         requireText(username, "username");
         Objects.requireNonNull(expectedRole, "expectedRole");
         Objects.requireNonNull(replacementRole, "replacementRole");
-        String sql = "UPDATE accounts SET role = ? WHERE username = ? AND role = ?";
-        try (Connection connection = database.openConnection();
-                PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, replacementRole.name());
-            statement.setString(2, username);
-            statement.setString(3, expectedRole.name());
-            return statement.executeUpdate() == 1;
-        } catch (SQLException exception) {
-            throw new IllegalStateException("could not change account role", exception);
-        }
+        return inGuardedAccountTransaction(connection -> {
+            if (expectedRole == AccountRole.ADMINISTRATOR
+                    && replacementRole != AccountRole.ADMINISTRATOR) {
+                List<String> administrators = lockAdministratorAccounts(connection);
+                if (administrators.size() == 1 && administrators.contains(username)) {
+                    throw new SecurityException("cannot demote the last administrator");
+                }
+            }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE accounts SET role = ? WHERE username = ? AND role = ?")) {
+                statement.setString(1, replacementRole.name());
+                statement.setString(2, username);
+                statement.setString(3, expectedRole.name());
+                return statement.executeUpdate() == 1;
+            }
+        });
     }
 
     private static void requireText(String value, String name) {
@@ -103,14 +109,17 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public boolean removeByUsername(String username) {
         if (username == null) return false;
-        try (Connection connection = database.openConnection();
-                PreparedStatement statement = connection.prepareStatement(
-                        "DELETE FROM accounts WHERE username = ?")) {
-            statement.setString(1, username);
-            return statement.executeUpdate() > 0;
-        } catch (SQLException exception) {
-            throw new IllegalStateException("could not remove account", exception);
-        }
+        return inGuardedAccountTransaction(connection -> {
+            List<String> administrators = lockAdministratorAccounts(connection);
+            if (administrators.size() == 1 && administrators.contains(username)) {
+                throw new SecurityException("cannot delete the last administrator");
+            }
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "DELETE FROM accounts WHERE username = ?")) {
+                statement.setString(1, username);
+                return statement.executeUpdate() > 0;
+            }
+        });
     }
 
     @Override
@@ -125,6 +134,45 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         } catch (SQLException exception) {
             throw new IllegalStateException("could not list accounts", exception);
         }
+    }
+
+    /**
+     * Serializes supported JDBC administrator reductions by locking administrator
+     * rows before checking the final-account invariant. SERIALIZABLE transactions
+     * also reject conflicting changes rather than permitting write skew.
+     * Raw DBA SQL and other repository implementations remain external boundaries.
+     */
+    private static List<String> lockAdministratorAccounts(Connection connection) throws SQLException {
+        List<String> administrators = new ArrayList<>();
+        try (PreparedStatement statement = connection.prepareStatement(
+                "SELECT username FROM accounts WHERE role = ? ORDER BY username FOR UPDATE")) {
+            statement.setString(1, AccountRole.ADMINISTRATOR.name());
+            try (ResultSet result = statement.executeQuery()) {
+                while (result.next()) administrators.add(result.getString(1));
+            }
+        }
+        return administrators;
+    }
+
+    private <T> T inGuardedAccountTransaction(SqlWork<T> operation) {
+        try (Connection connection = database.openConnection()) {
+            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
+            connection.setAutoCommit(false);
+            try {
+                T result = operation.execute(connection);
+                connection.commit();
+                return result;
+            } catch (SQLException | RuntimeException failure) {
+                connection.rollback();
+                throw failure;
+            }
+        } catch (SQLException failure) {
+            throw new IllegalStateException("guarded account mutation failed", failure);
+        }
+    }
+
+    private interface SqlWork<T> {
+        T execute(Connection connection) throws SQLException;
     }
 
     private static User map(ResultSet result) throws SQLException {

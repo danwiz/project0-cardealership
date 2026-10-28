@@ -92,6 +92,9 @@ class JdbcRepositoryTest {
                 .orElseThrow(AssertionError::new).getPassword());
 
         assertFalse(repository.updateRoleIfCurrent("root", AccountRole.CUSTOMER, AccountRole.EMPLOYEE));
+        assertThrows(SecurityException.class,
+                () -> repository.updateRoleIfCurrent("root", AccountRole.ADMINISTRATOR, AccountRole.EMPLOYEE));
+        repository.save(account("backup", "encoded-backup", AccountRole.ADMINISTRATOR));
         assertTrue(repository.updateRoleIfCurrent("root", AccountRole.ADMINISTRATOR, AccountRole.EMPLOYEE));
         assertEquals(AccountRole.EMPLOYEE, repository.findByUsername("root")
                 .orElseThrow(AssertionError::new).getRole());

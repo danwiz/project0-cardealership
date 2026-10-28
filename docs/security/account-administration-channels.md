@@ -28,7 +28,7 @@ The normal JDBC application path (`DealershipCompositionRoot.createJdbc`) intent
 - Validate separate migration principal, ordinary runtime principal, and account-administration principal with actual target-database grants.
 - Prevent ordinary runtime credentials from updating account `role`, deleting administrator accounts or altering the bootstrap marker; decide how customer INSERT and password rotation should be constrained at database level (e.g., dedicated audited database routines).
 - Design a privileged operator CLI/service, credentials custody, audit trail, approval workflow and emergency access/rotation.
-- Prove the first-admin/last-admin recovery rule under concurrent actions, lost credentials, partial outages and backup restores. Self-delete/self-demotion prevention does **not** guarantee safety against another privileged operator or raw database mutation.
+- Verify the JDBC repository's last-admin transaction guard against **real PostgreSQL concurrency and grants**, then rehearse lost-credential, partial-outage and backup/restore recovery. PR #38's H2 tests and row locks do **not** guarantee safety against privileged raw SQL, direct table writes, or alternate repository implementations.
 - Test real PostgreSQL dialect, rollback behavior, restricted SQL errors and backup/restore; H2 compatibility mode is not sufficient.
 - Rehearse merge order of stacked drafts, post-merge master CI and release rollback before any production change.
 
