@@ -14,6 +14,7 @@ public final class JdbcDatabase {
     private final String url;
     private final String username;
     private final String password;
+    private final JdbcCredentialSource credentialSource;
 
     public JdbcDatabase(String url) { this(url, "sa", ""); }
 
@@ -21,6 +22,18 @@ public final class JdbcDatabase {
         this.url = requireText(url, "url");
         this.username = Objects.requireNonNull(username, "username");
         this.password = Objects.requireNonNull(password, "password");
+        this.credentialSource = null;
+    }
+
+    /**
+     * For an isolated writer with externally delivered and rotated credentials.
+     * No secret is retained by this database object or used as a fallback.
+     */
+    public JdbcDatabase(String url, JdbcCredentialSource credentialSource) {
+        this.url = requireText(url, "url");
+        this.username = null;
+        this.password = null;
+        this.credentialSource = Objects.requireNonNull(credentialSource, "credentialSource");
     }
 
     public static JdbcDatabase inMemory(String name) {
@@ -28,7 +41,18 @@ public final class JdbcDatabase {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
     }
 
-    public Connection openConnection() throws SQLException { return DriverManager.getConnection(url, username, password); }
+    public Connection openConnection() throws SQLException {
+        if (credentialSource == null) {
+            return DriverManager.getConnection(url, username, password);
+        }
+        JdbcCredentialSource.CredentialLease supplied = credentialSource.acquire();
+        if (supplied == null) {
+            throw new SecurityException("database credential source unavailable");
+        }
+        try (JdbcCredentialSource.CredentialLease lease = supplied) {
+            return DriverManager.getConnection(url, lease.username(), lease.passwordForDriver());
+        }
+    }
 
     public void migrate() {
         try (Connection connection = openConnection()) {
