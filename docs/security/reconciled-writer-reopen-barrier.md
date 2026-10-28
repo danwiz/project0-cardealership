@@ -20,6 +20,9 @@ The [disposable SQL rotation claim rehearsal](jdbc-rotation-claim-ledger.md)
 demonstrates a cross-process, monotonic epoch claim and restart floor. A
 fixture wiring `ledger::claim` directly into this wrapper is not independent
 source/archive verification and does not fence old replicas' DB transactions.
+The [two-signer verification seam](signed-rotation-reconciliation-evidence.md)
+adds cryptographic binding of source and archive assertions before claiming,
+but its signers remain synthetic and cannot establish real CDC/WORM coverage.
 
 ## Reopen proof fields and local validation
 
