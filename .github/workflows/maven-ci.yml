@@ -30,6 +30,7 @@ on:
       - refactor/stable-ownership-identifiers
       - refactor/acquisition-contract-lifecycle
       - refactor/acquisition-lifecycle-query
+      - security/role-escalation-regression-20261028
   pull_request:
     branches:
       - master
@@ -59,6 +60,7 @@ on:
       - refactor/ownership-linked-payment-transactions
       - refactor/stable-ownership-identifiers
       - refactor/acquisition-contract-lifecycle
+      - refactor/acquisition-lifecycle-query
   workflow_dispatch:
 
 permissions:

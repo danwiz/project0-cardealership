@@ -2,6 +2,7 @@ package com.revature.application;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -29,7 +30,9 @@ class ApplicationPortsContractTest {
         SeedDefaultInventoryCommand seed = new SeedDefaultInventoryCommand(ports);
 
         User customer = registration.execute(AccountRole.CUSTOMER, "buyer", "secret");
-        User employee = registration.execute(AccountRole.EMPLOYEE, "staff", "secret");
+        assertThrows(SecurityException.class,
+                () -> registration.execute(AccountRole.ADMINISTRATOR, "forged", "secret"));
+        User employee = ports.register(AccountRole.EMPLOYEE, "staff", "secret");
 
         assertTrue(authentication.execute(AccountRole.CUSTOMER, login("buyer", "secret"),
                 Permission.VIEW_INVENTORY).isAuthenticated());

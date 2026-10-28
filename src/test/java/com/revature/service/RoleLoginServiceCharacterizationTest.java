@@ -63,12 +63,14 @@ class RoleLoginServiceCharacterizationTest {
         customerService.registerUser("customer", "secret");
         assertTrue(customerService.authenticateUser(user("customer", "secret")));
 
-        EmployeeLoginService employeeService = new EmployeeLoginService();
-        employeeService.registerUser("employee", "secret");
+        UserAccountRepository employeeRepo = new InMemoryUserAccountRepository();
+        com.revature.support.TestAccounts.seed(employeeRepo, com.revature.cardealer.AccountRole.EMPLOYEE, "employee", "secret");
+        EmployeeLoginService employeeService = new EmployeeLoginService(employeeRepo);
         assertTrue(employeeService.authenticateUser(user("employee", "secret")));
 
-        AdminLoginService adminService = new AdminLoginService();
-        adminService.registerUser("admin", "secret");
+        UserAccountRepository adminRepo = new InMemoryUserAccountRepository();
+        com.revature.support.TestAccounts.seed(adminRepo, com.revature.cardealer.AccountRole.ADMINISTRATOR, "admin", "secret");
+        AdminLoginService adminService = new AdminLoginService(adminRepo);
         assertTrue(adminService.authenticateUser(user("admin", "secret")));
     }
 

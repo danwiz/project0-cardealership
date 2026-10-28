@@ -63,7 +63,7 @@ class JdbcRepositoryTest {
         JdbcDatabase database = JdbcDatabase.inMemory("auth_" + System.nanoTime());
         JdbcUserAccountRepository repository = new JdbcUserAccountRepository(database);
         EmployeeLoginService employees = new EmployeeLoginService(repository);
-        User registered = employees.registerUser("operator", "valid-password");
+        User registered = com.revature.support.TestAccounts.seed(repository, AccountRole.EMPLOYEE, "operator", "valid-password");
 
         User credentials = account("operator", "valid-password", AccountRole.EMPLOYEE);
         User invalid = account("operator", "wrong-password", AccountRole.EMPLOYEE);

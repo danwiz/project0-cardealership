@@ -69,8 +69,9 @@ class CarDealershipCharacterizationTest {
     void registeredEmployeeReachesOnlyAuthorizedEmployeeMenu() throws Throwable {
         String username = uniqueUsername("employee");
         ByteArrayOutputStream output = captureOutput();
-        replaceScanner("2\n" + username + "\nsecret\n");
-        invokePerformUserAction("1");
+        com.revature.support.TestAccounts.seed(
+                CarDealership.getApplicationContext().getAccountRepository(),
+                AccountRole.EMPLOYEE, username, "secret");
         replaceScanner(username + "\nsecret\n3\n");
         invokePerformUserAction("3");
         assertTrue(output.toString(StandardCharsets.UTF_8).contains("Employee View"));
@@ -84,8 +85,9 @@ class CarDealershipCharacterizationTest {
     void administratorFeaturesRequireAuthenticatedAdministratorRole() throws Throwable {
         String username = uniqueUsername("administrator");
         ByteArrayOutputStream output = captureOutput();
-        replaceScanner("3\n" + username + "\nsecret\n");
-        invokePerformUserAction("1");
+        com.revature.support.TestAccounts.seed(
+                CarDealership.getApplicationContext().getAccountRepository(),
+                AccountRole.ADMINISTRATOR, username, "secret");
         replaceScanner(username + "\nsecret\n9\n");
         invokePerformUserAction("5");
         assertTrue(output.toString(StandardCharsets.UTF_8).contains("You are now an Admin"));

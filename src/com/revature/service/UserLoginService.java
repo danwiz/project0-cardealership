@@ -25,28 +25,49 @@ public class UserLoginService {
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
     }
 
+    /** Public self-registration always creates a CUSTOMER. */
     public User registerUser(String username, String password) {
-        return registerUser(username, password, AccountRole.CUSTOMER);
+        return registerWithRole(username, password, AccountRole.CUSTOMER);
     }
 
-    public User registerUser(String username, String password, AccountRole role) {
+    /**
+     * Privileged role assignment is available only to a previously authenticated
+     * administrator. First-admin bootstrap requires a separate trusted process.
+     */
+    public User provisionUser(User operatorCredentials, String username,
+            String password, AccountRole role) {
+        User operator = authenticate(operatorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(operator, Permission.MANAGE_USERS);
+        return registerWithRole(username, password, role);
+    }
+
+    private User registerWithRole(String username, String password, AccountRole role) {
         validateCredential("username", username);
         validateCredential("password", password);
         Objects.requireNonNull(role, "role");
         if (userRepository.findByUsername(username).isPresent()) {
             throw new IllegalArgumentException("username is already registered");
         }
-        User newUser = new User();
-        newUser.setUsername(username);
-        newUser.setPassword(passwordHasher.hash(password));
-        newUser.setRole(role);
-        return userRepository.save(newUser);
+        User account = new User();
+        account.setUsername(username);
+        account.setPassword(passwordHasher.hash(password));
+        account.setRole(role);
+        return userRepository.save(account);
     }
 
+    public boolean removeUser(User operatorCredentials, String targetUsername) {
+        validateCredential("targetUsername", targetUsername);
+        User operator = authenticate(operatorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(operator, Permission.MANAGE_USERS);
+        return userRepository.removeByUsername(targetUsername);
+    }
+
+    /** The legacy unauthenticated deletion API fails closed. */
+    @Deprecated
     public void removeUser(User user) {
-        if (user != null && user.getUsername() != null) {
-            userRepository.removeByUsername(user.getUsername());
-        }
+        throw new SecurityException("administrator authentication required for account deletion");
     }
 
     public Optional<User> authenticate(User credentials) {

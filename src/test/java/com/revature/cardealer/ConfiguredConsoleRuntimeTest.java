@@ -25,7 +25,8 @@ class ConfiguredConsoleRuntimeTest {
         ConfiguredDealershipApplication first = DealershipCompositionRoot.create(configuration);
 
         execute(first, "1", "1", "alice", "StrongPass1!");
-        execute(first, "1", "2", "employee", "StrongPass2!");
+        com.revature.support.TestAccounts.seed(
+                first.getAccounts(), AccountRole.EMPLOYEE, "employee", "StrongPass2!");
         execute(first, "3", "employee", "StrongPass2!", "1", "1",
                 "Honda,Accord,2020,10000,1");
         execute(first, "2", "alice", "StrongPass1!", "1", "0");
@@ -49,7 +50,8 @@ class ConfiguredConsoleRuntimeTest {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE";
         ConfiguredDealershipApplication application = DealershipCompositionRoot.create(
                 InfrastructureConfiguration.jdbc(url));
-        execute(application, "1", "3", "admin", "StrongPass3!");
+        com.revature.support.TestAccounts.seed(
+                application.getAccounts(), AccountRole.ADMINISTRATOR, "admin", "StrongPass3!");
         CapturingIO io = execute(application, "5", "admin", "StrongPass3!");
         assertTrue(io.output.stream().anyMatch(value -> value.contains("JDBC persistence is active")));
     }

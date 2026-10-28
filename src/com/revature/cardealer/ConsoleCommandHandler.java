@@ -99,17 +99,20 @@ public final class ConsoleCommandHandler {
     }
 
     private void registerAccount() {
-        io.writeLine("Welcome: Car Dealership!!\n");
+        io.writeLine("Welcome: Car Dealership!!\\n");
         io.writeLine("[1] Register Customer");
-        io.writeLine("[2] Register Employee");
-        io.writeLine("[3] Register Administrator");
+        io.writeLine("Employee and administrator registration requires verified provisioning.");
         String option = io.readLine();
+        if (!"1".equals(option)) {
+            io.writeLine("access denied: privileged registration requires administrator");
+            return;
+        }
         User credentials = readCredentials();
         try {
-            AccountRole role = roleForOption(option);
-            User account = registerAccount.execute(role, credentials.getUsername(), credentials.getPassword());
+            User account = registerAccount.execute(AccountRole.CUSTOMER,
+                    credentials.getUsername(), credentials.getPassword());
             renderer.account(queries.account(account));
-            io.writeLine(roleLabel(role) + " registered");
+            io.writeLine("Customer registered");
         } catch (IllegalArgumentException exception) {
             io.writeLine("Registration failed: " + exception.getMessage());
         }
@@ -233,19 +236,6 @@ public final class ConsoleCommandHandler {
         io.writeLine("Enter password");
         user.setPassword(io.readLine());
         return user;
-    }
-
-    private static AccountRole roleForOption(String option) {
-        if ("1".equals(option)) return AccountRole.CUSTOMER;
-        if ("2".equals(option)) return AccountRole.EMPLOYEE;
-        if ("3".equals(option)) return AccountRole.ADMINISTRATOR;
-        throw new IllegalArgumentException("did not understand input");
-    }
-
-    private static String roleLabel(AccountRole role) {
-        if (role == AccountRole.CUSTOMER) return "Customer";
-        if (role == AccountRole.EMPLOYEE) return "Employee";
-        return "Administrator";
     }
 
     private interface AccountConsumer { void accept(User account); }

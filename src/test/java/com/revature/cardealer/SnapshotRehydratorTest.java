@@ -22,7 +22,7 @@ class SnapshotRehydratorTest {
     void rebuildsSharedServicesAndAllDurableAggregates() {
         InMemoryUserAccountRepository sourceRepository = new InMemoryUserAccountRepository();
         UserLoginService sourceUsers = new UserLoginService(sourceRepository);
-        sourceUsers.registerUser("customer-one", "secret", AccountRole.CUSTOMER);
+        sourceUsers.registerUser("customer-one", "secret");
 
         Offer sourceInventory = new Offer();
         sourceInventory.registerOffer("Honda", "Accord", 2020, 20_000, "yes", 2);
