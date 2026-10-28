@@ -42,6 +42,33 @@ public class UserLoginService {
         return registerWithRole(username, password, role);
     }
 
+    /**
+     * A user may change their own password only by supplying their current
+     * plaintext credentials. Compare-and-swap prevents stale updates.
+     */
+    public boolean changePassword(User currentCredentials, String replacementPassword) {
+        validateCredential("replacementPassword", replacementPassword);
+        User existing = authenticate(currentCredentials)
+                .orElseThrow(() -> new SecurityException("current account authentication required"));
+        return userRepository.updateCredentialIfCurrent(existing.getUsername(),
+                existing.getPassword(), passwordHasher.hash(replacementPassword));
+    }
+
+    /**
+     * Only a currently authenticated persisted administrator may reassign roles.
+     * The expected role is checked atomically against the repository.
+     */
+    public boolean changeRole(User administratorCredentials, String targetUsername,
+            AccountRole expectedRole, AccountRole replacementRole) {
+        validateCredential("targetUsername", targetUsername);
+        Objects.requireNonNull(expectedRole, "expectedRole");
+        Objects.requireNonNull(replacementRole, "replacementRole");
+        User administrator = authenticate(administratorCredentials)
+                .orElseThrow(() -> new SecurityException("administrator authentication required"));
+        new RoleAuthorizationService().requireAuthorized(administrator, Permission.MANAGE_USERS);
+        return userRepository.updateRoleIfCurrent(targetUsername, expectedRole, replacementRole);
+    }
+
     private User registerWithRole(String username, String password, AccountRole role) {
         validateCredential("username", username);
         validateCredential("password", password);

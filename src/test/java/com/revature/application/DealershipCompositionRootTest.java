@@ -155,6 +155,11 @@ class DealershipCompositionRootTest {
         assertThrows(SecurityException.class, () ->
                 application.getContext().getAccountRepository().save(inventedAdmin));
 
+        assertThrows(SecurityException.class, () -> application.getAccounts()
+                .updateCredentialIfCurrent("alice", "old-hash", "forged-hash"));
+        assertThrows(SecurityException.class, () -> application.getAccounts()
+                .updateRoleIfCurrent("alice", AccountRole.CUSTOMER, AccountRole.ADMINISTRATOR));
+
         User reloaded = application.getAccounts().findByUsername("alice")
                 .orElseThrow(AssertionError::new);
         assertEquals(AccountRole.CUSTOMER, reloaded.getRole());

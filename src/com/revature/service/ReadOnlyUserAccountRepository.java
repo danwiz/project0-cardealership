@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 /**
@@ -26,6 +27,18 @@ public final class ReadOnlyUserAccountRepository implements UserAccountRepositor
     @Override
     public User save(User user) {
         throw new SecurityException("account mutation requires an authenticated application service");
+    }
+
+    @Override
+    public boolean updateCredentialIfCurrent(String username, String expectedEncoded,
+            String replacementEncoded) {
+        throw new SecurityException("credential rotation requires an authenticated application service");
+    }
+
+    @Override
+    public boolean updateRoleIfCurrent(String username, AccountRole expectedRole,
+            AccountRole replacementRole) {
+        throw new SecurityException("role changes require an authenticated administrator");
     }
 
     @Override

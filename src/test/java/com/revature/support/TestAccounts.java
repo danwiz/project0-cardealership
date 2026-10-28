@@ -38,6 +38,19 @@ public final class TestAccounts {
         }
     }
 
+    /** Simulates an out-of-band password rotation in controlled security tests. */
+    public static User rotateCredential(UserAccountRepository repository,
+            String username, String replacementPlaintext) {
+        User original = repository.findByUsername(username)
+                .orElseThrow(() -> new IllegalArgumentException("missing fixture account"));
+        PasswordHasher hasher = new Pbkdf2PasswordHasher();
+        if (!repository.updateCredentialIfCurrent(username, original.getPassword(),
+                hasher.hash(replacementPlaintext))) {
+            throw new IllegalStateException("fixture credential rotation lost the compare-and-swap");
+        }
+        return repository.findByUsername(username).orElseThrow(AssertionError::new);
+    }
+
     public static User seed(UserAccountRepository repository, AccountRole role,
             String username, String plaintext) {
         PasswordHasher hasher = new Pbkdf2PasswordHasher();

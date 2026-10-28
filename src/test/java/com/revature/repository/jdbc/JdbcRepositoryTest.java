@@ -75,14 +75,27 @@ class JdbcRepositoryTest {
     }
 
     @Test
-    void accountRepositorySupportsUpsertRemovalAndValidation() {
+    void accountRepositoryRejectsUpsertsAndSupportsExplicitComparedMutations() {
         JdbcUserAccountRepository repository = new JdbcUserAccountRepository(JdbcDatabase.inMemory("mutations_" + System.nanoTime()));
         repository.save(account("root", "encoded-one", AccountRole.ADMINISTRATOR));
-        repository.save(account("root", "encoded-two", AccountRole.ADMINISTRATOR));
+        assertThrows(IllegalArgumentException.class,
+                () -> repository.save(account("root", "forged-credential", AccountRole.CUSTOMER)));
 
         List<User> accounts = repository.findAll();
         assertEquals(1, accounts.size());
-        assertEquals("encoded-two", accounts.get(0).getPassword());
+        assertEquals(AccountRole.ADMINISTRATOR, accounts.get(0).getRole());
+        assertEquals("encoded-one", accounts.get(0).getPassword());
+
+        assertFalse(repository.updateCredentialIfCurrent("root", "wrong-expected", "encoded-two"));
+        assertTrue(repository.updateCredentialIfCurrent("root", "encoded-one", "encoded-two"));
+        assertEquals("encoded-two", repository.findByUsername("root")
+                .orElseThrow(AssertionError::new).getPassword());
+
+        assertFalse(repository.updateRoleIfCurrent("root", AccountRole.CUSTOMER, AccountRole.EMPLOYEE));
+        assertTrue(repository.updateRoleIfCurrent("root", AccountRole.ADMINISTRATOR, AccountRole.EMPLOYEE));
+        assertEquals(AccountRole.EMPLOYEE, repository.findByUsername("root")
+                .orElseThrow(AssertionError::new).getRole());
+
         assertTrue(repository.removeByUsername("root"));
         assertFalse(repository.removeByUsername("root"));
         assertFalse(repository.findByUsername("root").isPresent());

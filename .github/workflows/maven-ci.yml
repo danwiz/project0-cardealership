@@ -36,6 +36,7 @@ on:
       - security/jdbc-credential-and-db-boundary-20261028
       - security/ddl-free-jdbc-runtime-20261028
       - security/read-only-account-views-20261028
+      - security/explicit-account-mutation-20261028
   pull_request:
     branches:
       - master
@@ -71,6 +72,7 @@ on:
       - security/verified-principal-boundary-20261028
       - security/jdbc-credential-and-db-boundary-20261028
       - security/ddl-free-jdbc-runtime-20261028
+      - security/read-only-account-views-20261028
   workflow_dispatch:
 
 permissions:

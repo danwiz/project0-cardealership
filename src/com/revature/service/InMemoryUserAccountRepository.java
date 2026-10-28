@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
 
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 /**
@@ -18,10 +19,45 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
     private final Map<String, User> usersByUsername = new LinkedHashMap<>();
 
     @Override
-    public User save(User user) {
+    public synchronized User save(User user) {
         User snapshot = copy(Objects.requireNonNull(user, "user"));
+        if (usersByUsername.containsKey(snapshot.getUsername())) {
+            throw new IllegalArgumentException("username is already registered");
+        }
         usersByUsername.put(snapshot.getUsername(), snapshot);
         return copy(snapshot);
+    }
+
+    @Override
+    public synchronized boolean updateCredentialIfCurrent(String username,
+            String expectedEncoded, String replacementEncoded) {
+        requireText(replacementEncoded, "replacement encoded credential");
+        User current = usersByUsername.get(username);
+        if (current == null || !Objects.equals(current.getPassword(), expectedEncoded)) return false;
+        User updated = copy(current);
+        updated.setPassword(replacementEncoded);
+        usersByUsername.put(username, updated);
+        return true;
+    }
+
+    @Override
+    public synchronized boolean updateRoleIfCurrent(String username,
+            AccountRole expectedRole, AccountRole replacementRole) {
+        Objects.requireNonNull(expectedRole, "expectedRole");
+        Objects.requireNonNull(replacementRole, "replacementRole");
+        User current = usersByUsername.get(username);
+        if (current == null || current.getRole() != expectedRole) return false;
+        User updated = copy(current);
+        updated.setRole(replacementRole);
+        usersByUsername.put(username, updated);
+        return true;
+    }
+
+    private static String requireText(String value, String name) {
+        if (value == null || value.trim().isEmpty()) {
+            throw new IllegalArgumentException(name + " must not be blank");
+        }
+        return value;
     }
 
     @Override

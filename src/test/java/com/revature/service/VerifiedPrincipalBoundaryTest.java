@@ -72,7 +72,7 @@ class VerifiedPrincipalBoundaryTest {
         ConfiguredDomainAdapter adapter = new ConfiguredDomainAdapter(application);
         assertTrue(adapter.isAuthorized(verified, Permission.MANAGE_INVENTORY));
 
-        TestAccounts.seed(com.revature.support.TestAccounts.trustedRepository(application), AccountRole.EMPLOYEE, "staff", "ChangedPass123!");
+        TestAccounts.rotateCredential(com.revature.support.TestAccounts.trustedRepository(application), "staff", "ChangedPass123!");
         assertFalse(adapter.isAuthorized(verified, Permission.MANAGE_INVENTORY));
         TestAccounts.trustedRepository(application).removeByUsername("staff");
         assertFalse(adapter.isAuthorized(verified, Permission.MANAGE_INVENTORY));
