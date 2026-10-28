@@ -76,6 +76,7 @@ class AuthenticatedSignedPinPublisherTest {
                 NOW - 61000, NOW - 1);
         f.assertDenied(signed, expired);
 
+        f.storedDocument = signed;
         PublishCommand staleExpected = f.command(signed, 3, f.publisherKey);
         assertFalse(f.publisher.publish(f.proof, signed, staleExpected));
         assertEquals(4, f.rawSql());
