@@ -35,20 +35,20 @@ public final class AuthorizedPurchaseReviewService {
             throw new IllegalArgumentException("payment term must be positive");
         }
         synchronized (offers) {
-        String buyer = offers.getPendingBuyer(offerNumber);
-        User account = loginAccount(buyer);
-        if (account.getRole() != AccountRole.CUSTOMER) {
-            throw new SecurityException("pending buyer must be a registered customer");
-        }
-        int price = offers.getListingPrice(offerNumber);
-        Car vehicle = Objects.requireNonNull(offers.getCarDB(offerNumber), "listed vehicle");
-        if (offers.getListingStock(offerNumber) <= 0) {
-            throw new IllegalStateException("No inventory available for approval");
-        }
-        // Prepare a complete ownership record before consuming the pending request.
-        OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
-        offers.setAccept(offerNumber, months, true);
-        customers.addPreparedPurchaseForCustomer(buyer, ownership);
+            String buyer = offers.getPendingBuyer(offerNumber);
+            User account = loginAccount(buyer);
+            if (account.getRole() != AccountRole.CUSTOMER) {
+                throw new SecurityException("pending buyer must be a registered customer");
+            }
+            int price = offers.getListingPrice(offerNumber);
+            Car vehicle = Objects.requireNonNull(offers.getCarDB(offerNumber), "listed vehicle");
+            if (offers.getListingStock(offerNumber) <= 0) {
+                throw new IllegalStateException("No inventory available for approval");
+            }
+            // Prepare a complete ownership record before consuming the pending request.
+            OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
+            offers.setAccept(offerNumber, months, true);
+            customers.addPreparedPurchaseForCustomer(buyer, ownership);
         }
     }
 
