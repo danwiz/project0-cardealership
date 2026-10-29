@@ -76,7 +76,7 @@ public class Offer {
 		//oDetails = "["+onum+"]"+ offerDB[onum] + " Pending Offer: " + cName[onum];
 		//2cpOffer[onum] =""+oDetails+ "   Pending Offer: " + cName[onum];
 		
-		System.out.println("["+onum+"]"+ offerDB[onum] + "     Pending Offer for : " + cName[onum]);
+		System.out.println("["+onum+"]"+ offerDB[onum] + "     Pending Offer for : " + cName[opIndex]);
 		oPending=true;
 		oOfferDB[oIndex]=this;
 		oIndex++;
@@ -259,21 +259,15 @@ public class Offer {
 	}
 
 	public void rejectAllOffers() {
-		
-		opIndex = 0;// could just do this 
-		for(int i=0; i<=cpOffer.length-1; i++)
-		{
-			cpOffer[0] = 0;
-			cpPrice[0] = 0;
-			cName[0]=" ";
-			
-			//offer ObjectDB Object.pending=false;
+		for (int i = 0; i < opIndex; i++) {
+			cpOffer[i] = 0;
+			cName[i] = null;
 		}
-	
-		System.out.println("\nMessage: All Pending Offers REJECTED!! ");
-	
+		opIndex = 0;
+		oPending = false;
+		System.out.println("\\nMessage: All Pending Offers REJECTED!! ");
 	}
-	
+
 	public void removeOffer(int onum) {
 		
 		System.out.println(offerDB[onum]+"\nMessage: Car Listing Removed!! ");
