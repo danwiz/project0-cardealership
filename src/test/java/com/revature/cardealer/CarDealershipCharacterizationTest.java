@@ -150,11 +150,11 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("known-defect")
-    void loadDataAddsASecondDatExtensionThenDereferencesNull() {
+    @Tag("security")
+    void loadDataDeniesUnauthenticatedCallsBeforeLegacyFileHandling() {
         CarDealership application = new CarDealership();
 
-        assertThrows(NullPointerException.class, application::loadData);
+        assertThrows(SecurityException.class, application::loadData);
     }
 
     private static ByteArrayOutputStream captureOutput() throws Exception {
