@@ -68,6 +68,7 @@ class JdbcPurchaseRetryPolicyTest {
     void neverRetriesConstraintViolationOrConnectionOutcomeUncertainty() {
         verifyNotRetried("23505", false);
         verifyNotRetried("08006", true);
+        verifyNotRetried("40003", true);
     }
 
     private static void verifyNotRetried(String state, boolean uncertain) {
