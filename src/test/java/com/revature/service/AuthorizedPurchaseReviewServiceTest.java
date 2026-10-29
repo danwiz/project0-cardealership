@@ -120,6 +120,30 @@ class AuthorizedPurchaseReviewServiceTest {
 
     @Test
     @Tag("security")
+    void inventoryCommitFailureRemovesOnlyStagedOwnership() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        store(repository, "buyer", "secret", AccountRole.CUSTOMER);
+        Offer offers = new Offer() {
+            @Override
+            public synchronized int setAccept(int listing, int months, boolean accept) {
+                throw new IllegalStateException("simulated inventory commit failure");
+            }
+        };
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("buyer", 0);
+        CustomerLoginService customers = new CustomerLoginService(repository);
+        customers.recordPurchaseForCustomer("buyer", new com.revature.cardealer.Car("Ford", "Focus", 2017), 9000, 12);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        assertThrows(IllegalStateException.class,
+                () -> service.approveForCustomer(user("staff", "secret"), 0, 12, customers));
+        org.junit.jupiter.api.Assertions.assertEquals(1, offers.getListingStock(0));
+        org.junit.jupiter.api.Assertions.assertEquals("buyer", offers.getPendingBuyer(0));
+        org.junit.jupiter.api.Assertions.assertEquals(1, customers.getOwnedVehicleRecords("buyer").size());
+    }
+
+    @Test
+    @Tag("security")
     void ownershipWriteFailureDoesNotConsumeInventoryOrPendingRequest() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
