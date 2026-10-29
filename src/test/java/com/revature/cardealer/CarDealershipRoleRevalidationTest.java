@@ -70,6 +70,16 @@ class CarDealershipRoleRevalidationTest {
 
     @Test
     @Tag("security")
+    void directPersistenceCallsRequireAdministratorAuthorization() {
+        CarDealership application = new CarDealership();
+        org.junit.jupiter.api.Assertions.assertThrows(SecurityException.class,
+                application::saveData);
+        org.junit.jupiter.api.Assertions.assertThrows(SecurityException.class,
+                application::loadData);
+    }
+
+    @Test
+    @Tag("security")
     void rejectsMissingUsername() {
         User user = new User();
         user.setRole(AccountRole.ADMINISTRATOR);
