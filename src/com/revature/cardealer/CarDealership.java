@@ -234,7 +234,7 @@ public class CarDealership {
         int months = Integer.parseInt(scan.nextLine());
 
         if (months > 0 && offerNumber > 0) {
-            int price = Carlot.setAccept(offerNumber, months, true);
+            int price = purchaseReviewService.approve(getUserInfo(), offerNumber, months);
             cls.setCarsOwned(Carlot.getCarDB(offerNumber), price, months);
         } else {
             System.out.println("\nMessage: Can Not Accept The Payment terms ");
