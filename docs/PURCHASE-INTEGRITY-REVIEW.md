@@ -35,3 +35,11 @@ Status: draft PR #82; not merged into master.
 - `AuthorizedPurchaseReviewService` is the coordinated purchase call site for `Offer.setAccept(int,int,boolean)` in the inspected production files.
 - `Offer` still exposes public `setAccept()` and `setAccept(int,int,boolean)` methods. Their visibility allows external code to bypass the coordinated ownership ledger; a full-repository search and API migration are required before claiming enforcement across all consumers.
 - This review is scoped to the three inspected production files; it does not certify every repository path or external caller.
+
+## Legacy API migration decision
+
+The existing `OfferCharacterizationTest` directly exercises `Offer.setAccept(int,int,boolean)` for baseline acceptance, per-listing stock, sold-out behavior and rejected requests. Removing or making this method private inside the integration PR would break those characterization contracts and complicate the legacy preservation review.
+
+**Decision for PR #82:** retain the public legacy method for compatibility, but treat it as a documented bypass rather than an authorized purchase endpoint. Do not claim full authorization enforcement while it remains public. A separate modernization change should introduce a transaction-oriented inventory interface, migrate production consumers, and then deprecate/restrict the old method with an explicit compatibility decision. The no-argument `setAccept()` is also a legacy state setter, not a coordinated purchase operation.
+
+**Additional test needed before a production guarantee:** fault injection that throws *after* an Offer mutation, to verify either an Offer rollback mechanism or an atomic inventory commit implementation. The current compensation protects staged ownership when inventory approval throws before mutation, not when it throws after changing stock or the pending queue.
