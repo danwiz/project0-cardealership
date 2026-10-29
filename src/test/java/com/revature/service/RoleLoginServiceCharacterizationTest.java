@@ -156,6 +156,20 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
+    void customerOwnershipRecordsAreIsolatedByBuyerUsername() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.recordPurchaseForCustomer("buyer-a", new Car("Honda", "Accord", 2018), 12000, 12);
+        service.recordPurchaseForCustomer("buyer-b", new Car("Toyota", "Corolla", 2020), 9000, 12);
+        org.junit.jupiter.api.Assertions.assertEquals(1, service.getOwnedVehicleRecords("buyer-a").size());
+        org.junit.jupiter.api.Assertions.assertEquals(1, service.getOwnedVehicleRecords("buyer-b").size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, service.getOwnedVehicleRecords("reviewer").size());
+        org.junit.jupiter.api.Assertions.assertEquals(12000,
+                service.getOwnedVehicleRecords("buyer-a").get(0).getPaymentPlan().getPurchasePrice());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.recordPurchaseForCustomer("", new Car("Honda", "Civic", 2021), 10000, 12));
+    }
+
+    @Test
     void administratorDeleteAllUsersOnlyEmitsWarningText() {
         AdminLoginService service = new AdminLoginService();
         ByteArrayOutputStream output = new ByteArrayOutputStream();
