@@ -92,25 +92,23 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    @Tag("known-defect")
-    void customerOwnedCarStorageFailsAtFixedArrayBoundary() {
+    void customerOwnedCarStorageRejectsFixedArrayOverflow() {
         CustomerLoginService service = new CustomerLoginService();
         for (int i = 0; i < 20; i++) {
             service.setCarsOwned(new Car("Make" + i, "Model" + i, 2000 + i), 10000 + i, 12);
         }
 
-        assertThrows(ArrayIndexOutOfBoundsException.class,
+        assertThrows(IllegalArgumentException.class,
                 () -> service.setCarsOwned(new Car("Overflow", "Vehicle", 2020), 20000, 12));
     }
 
     @Test
-    @Tag("known-defect")
-    void viewingOwnedCarsFailsOnFirstNullSlot() {
+    void viewingOwnedCarsHandlesUnpopulatedSlots() {
         CustomerLoginService service = new CustomerLoginService();
         service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);
         System.setOut(new PrintStream(new ByteArrayOutputStream()));
 
-        assertThrows(NullPointerException.class, service::getCarsOwned);
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
     }
 
     @Test
