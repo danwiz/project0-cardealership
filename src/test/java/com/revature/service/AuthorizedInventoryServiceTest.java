@@ -26,6 +26,17 @@ class AuthorizedInventoryServiceTest {
 
     @Test
     @Tag("security")
+    void authenticatedEmployeeCanAddVehicle() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        saveAccount(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        AuthorizedInventoryService service = new AuthorizedInventoryService(repository, new Offer());
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> service.addVehicle(credentials("staff", "secret"),
+                        "Honda", "Accord", 2017, 15000, "Yes", 1));
+    }
+
+    @Test
+    @Tag("security")
     void customerCannotModifyInventory() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         saveAccount(repository, "customer", "secret", AccountRole.CUSTOMER);
