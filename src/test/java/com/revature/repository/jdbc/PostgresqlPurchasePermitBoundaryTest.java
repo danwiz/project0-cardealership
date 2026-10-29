@@ -110,6 +110,101 @@ class PostgresqlPurchasePermitBoundaryTest {
         assertEquals(1, f.rows("owned_vehicles"));
     }
 
+    @Test
+    void readOnlyReceiptDifferentiatesUnconfirmedCommitAndInconsistentState() throws Exception {
+        Fixture f = fixture("receipt");
+        UUID permit = f.issue(0, "buyer", "reviewer", 12, 600, false);
+
+        Receipt before = f.receipt(permit, 0, 12);
+        assertEquals("NOT_CONFIRMED", before.outcome);
+        assertEquals(null, before.contract);
+        assertEquals(null, before.price);
+        assertDenied(() -> f.receipt(UUID.randomUUID(), 0, 12));
+        assertDenied(() -> f.receipt(permit, 1, 12));
+        assertDenied(() -> f.receipt(permit, 0, 24));
+        assertDenied(() -> f.receiptAs(f.reader, permit, 0, 12));
+        assertDenied(() -> f.receiptAs(f.writer, permit, 0, 12));
+        assertDenied(() -> f.execute(f.reconciler,
+                "SELECT * FROM purchase_approval_permits"));
+        assertDenied(() -> f.execute(f.reconciler,
+                "UPDATE purchase_requests SET status = 'ACCEPTED' WHERE request_id = 0"));
+
+        assertEquals(24000, f.approve(permit, 0, 12));
+        Receipt after = f.receipt(permit, 0, 12);
+        assertEquals("COMMITTED", after.outcome);
+        assertEquals("ACQ-000000", after.contract);
+        assertEquals(Integer.valueOf(24000), after.price);
+        assertEquals(1, f.rows("owned_vehicles"));
+        assertEquals(1, f.rows("payment_plans"));
+
+        // Owner-side corruption is detected, not reported as a valid receipt.
+        f.execute(f.owner, "UPDATE payment_plans SET purchase_price = 1");
+        Receipt inconsistent = f.receipt(permit, 0, 12);
+        assertEquals("INCONSISTENT", inconsistent.outcome);
+        assertEquals(null, inconsistent.contract);
+        assertEquals(null, inconsistent.price);
+        assertEquals(1, f.rows("owned_vehicles"));
+    }
+
+    @Test
+    void simulatedLostReplyAfterCommittedWriteIsReconciledWithoutReapproval() throws Exception {
+        Fixture f = fixture("lost_reply");
+        UUID permit = f.issue(0, "buyer", "reviewer", 12, 600, false);
+
+        // Simulates only the caller losing an acknowledgement AFTER PostgreSQL
+        // completed COMMIT. It is NOT a real network fault / failover test.
+        SQLException lostReply = assertThrows(SQLException.class, () -> {
+            assertEquals(24000, f.approve(permit, 0, 12));
+            throw new SQLException("simulated lost response after committed purchase", "08006");
+        });
+        assertEquals("08006", lostReply.getSQLState());
+
+        Receipt receipt = f.receipt(permit, 0, 12);
+        assertEquals("COMMITTED", receipt.outcome);
+        assertEquals("ACQ-000000", receipt.contract);
+        assertEquals(Integer.valueOf(24000), receipt.price);
+        assertTrue(f.consumed(permit));
+        assertEquals(0, f.inventory.listings().get(0).getStockQuantity());
+        assertEquals(1, f.rows("owned_vehicles"));
+        assertEquals(1, f.rows("payment_plans"));
+        // Reconciliation must NEVER invoke the purchase a second time.
+        assertDenied(() -> f.approve(permit, 0, 12));
+        assertEquals(1, f.rows("owned_vehicles"));
+    }
+
+    @Test
+    void failedPurchaseRemainsNotConfirmedAndCannotBeMistakenForCommitted() throws Exception {
+        Fixture f = fixture("receipt_rollback");
+        UUID permit = f.issue(0, "buyer", "reviewer", 12, 600, false);
+        f.execute(f.owner, "CREATE FUNCTION " + f.schema
+                + ".deny_receipt_ownership() RETURNS trigger LANGUAGE plpgsql AS "
+                + "$fault$ BEGIN RAISE EXCEPTION 'test-only failure' "
+                + "USING ERRCODE = '23514'; END; $fault$");
+        f.execute(f.owner, "CREATE TRIGGER deny_receipt_ownership BEFORE INSERT ON "
+                + f.schema + ".owned_vehicles FOR EACH ROW EXECUTE FUNCTION "
+                + f.schema + ".deny_receipt_ownership()");
+        try {
+            assertEquals("23514",
+                    assertThrows(SQLException.class, () -> f.approve(permit, 0, 12)).getSQLState());
+            Receipt receipt = f.receipt(permit, 0, 12);
+            assertEquals("NOT_CONFIRMED", receipt.outcome);
+            assertEquals(null, receipt.contract);
+            assertEquals(null, receipt.price);
+            assertFalse(f.consumed(permit));
+            assertTrue(f.inventory.purchaseRequests().get(0).isPending());
+            assertEquals(1, f.inventory.listings().get(0).getStockQuantity());
+            assertEquals(0, f.rows("owned_vehicles"));
+            assertEquals(0, f.rows("payment_plans"));
+        } finally {
+            f.execute(f.owner, "DROP TRIGGER deny_receipt_ownership ON " + f.schema
+                    + ".owned_vehicles");
+        }
+        // A fresh, explicitly authorized call can still complete the
+        // unconsumed permit, but the receipt itself never submits that call.
+        assertEquals(24000, f.approve(permit, 0, 12));
+        assertEquals("COMMITTED", f.receipt(permit, 0, 12).outcome);
+    }
+
     private static Fixture fixture(String scenario) throws Exception {
         String url = System.getenv("DEALERSHIP_PG_TEST_URL");
         String user = System.getenv("DEALERSHIP_PG_TEST_USER");
@@ -124,13 +219,17 @@ class PostgresqlPurchasePermitBoundaryTest {
         String schema = "apermit_" + scenario + "_" + id;
         String writerRole = "apwriter_" + id;
         String readerRole = "apreader_" + id;
+        String reconcilerRole = "apreceipt_" + id;
         String writerPassword = "disposable-ci-only-writer";
         String readerPassword = "disposable-ci-only-reader";
+        String reconcilerPassword = "disposable-ci-only-reconciler";
         JdbcDatabase admin = new JdbcDatabase(url, user, password);
         try (Connection conn = admin.openConnection(); Statement ddl = conn.createStatement()) {
             ddl.execute("CREATE SCHEMA " + schema);
             ddl.execute("CREATE ROLE " + writerRole + " LOGIN PASSWORD '" + writerPassword + "'");
             ddl.execute("CREATE ROLE " + readerRole + " LOGIN PASSWORD '" + readerPassword + "'");
+            ddl.execute("CREATE ROLE " + reconcilerRole
+                    + " LOGIN PASSWORD '" + reconcilerPassword + "'");
         }
 
         String scopedUrl = url + "?currentSchema=" + schema;
@@ -149,6 +248,8 @@ class PostgresqlPurchasePermitBoundaryTest {
 
         String function = loadFunction()
                 .replace("__SCHEMA__", schema).replace("__WRITER__", writerRole);
+        String receiptFunction = loadReceiptFunction()
+                .replace("__SCHEMA__", schema).replace("__RECONCILER__", reconcilerRole);
         // No PUBLIC EXECUTE exposure, including between CREATE and REVOKE.
         try (Connection conn = admin.openConnection(); Statement ddl = conn.createStatement()) {
             conn.setAutoCommit(false);
@@ -160,10 +261,15 @@ class PostgresqlPurchasePermitBoundaryTest {
                         + "revoked boolean NOT NULL DEFAULT false, consumed_at timestamptz, "
                         + "contract_id varchar(20), purchase_price integer)");
                 ddl.execute(function);
+                ddl.execute(receiptFunction);
                 ddl.execute("REVOKE ALL ON FUNCTION " + schema
                         + ".approve_purchase_with_permit(uuid, integer, integer) FROM PUBLIC");
+                ddl.execute("REVOKE ALL ON FUNCTION " + schema
+                        + ".reconcile_purchase_permit(uuid, integer, integer) FROM PUBLIC");
                 ddl.execute("GRANT USAGE ON SCHEMA " + schema + " TO "
-                        + writerRole + ", " + readerRole);
+                        + writerRole + ", " + readerRole + ", " + reconcilerRole);
+                ddl.execute("GRANT EXECUTE ON FUNCTION " + schema
+                        + ".reconcile_purchase_permit(uuid, integer, integer) TO " + reconcilerRole);
                 ddl.execute("GRANT EXECUTE ON FUNCTION " + schema
                         + ".approve_purchase_with_permit(uuid, integer, integer) TO " + writerRole);
                 ddl.execute("GRANT SELECT ON " + schema + ".schema_history, "
@@ -176,7 +282,8 @@ class PostgresqlPurchasePermitBoundaryTest {
         }
         return new Fixture(schema, owner,
                 new JdbcDatabase(scopedUrl, writerRole, writerPassword),
-                new JdbcDatabase(scopedUrl, readerRole, readerPassword), inventory);
+                new JdbcDatabase(scopedUrl, readerRole, readerPassword),
+                new JdbcDatabase(scopedUrl, reconcilerRole, reconcilerPassword), inventory);
     }
 
     private static String loadFunction() throws Exception {
@@ -187,9 +294,28 @@ class PostgresqlPurchasePermitBoundaryTest {
         }
     }
 
+    private static String loadReceiptFunction() throws Exception {
+        try (InputStream stream = PostgresqlPurchasePermitBoundaryTest.class
+                .getResourceAsStream("/postgresql/trusted_purchase_receipt_ci.sql")) {
+            if (stream == null) throw new IllegalStateException("CI receipt function not present");
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
     private static void assertDenied(org.junit.jupiter.api.function.Executable call) {
         SQLException error = assertThrows(SQLException.class, call);
         assertEquals("42501", error.getSQLState());
+    }
+
+    private static final class Receipt {
+        final String outcome;
+        final String contract;
+        final Integer price;
+        Receipt(String outcome, String contract, Integer price) {
+            this.outcome = outcome;
+            this.contract = contract;
+            this.price = price;
+        }
     }
 
     private static final class Fixture {
@@ -197,14 +323,16 @@ class PostgresqlPurchasePermitBoundaryTest {
         final JdbcDatabase owner;
         final JdbcDatabase writer;
         final JdbcDatabase reader;
+        final JdbcDatabase reconciler;
         final JdbcInventoryRepository inventory;
 
         Fixture(String schema, JdbcDatabase owner, JdbcDatabase writer,
-                JdbcDatabase reader, JdbcInventoryRepository inventory) {
+                JdbcDatabase reader, JdbcDatabase reconciler, JdbcInventoryRepository inventory) {
             this.schema = schema;
             this.owner = owner;
             this.writer = writer;
             this.reader = reader;
+            this.reconciler = reconciler;
             this.inventory = inventory;
         }
 
@@ -262,6 +390,29 @@ class PostgresqlPurchasePermitBoundaryTest {
                 try (ResultSet result = call.executeQuery()) {
                     if (!result.next()) throw new IllegalStateException("missing SQL response");
                     return result.getInt(1);
+                }
+            }
+        }
+
+        Receipt receipt(UUID permit, int requestId, int months) throws SQLException {
+            return receiptAs(reconciler, permit, requestId, months);
+        }
+
+        Receipt receiptAs(JdbcDatabase db, UUID permit, int requestId, int months)
+                throws SQLException {
+            try (Connection conn = db.openConnection();
+                    PreparedStatement query = conn.prepareStatement("SELECT * FROM " + schema
+                            + ".reconcile_purchase_permit(?, ?, ?)")) {
+                query.setObject(1, permit);
+                query.setInt(2, requestId);
+                query.setInt(3, months);
+                try (ResultSet result = query.executeQuery()) {
+                    if (!result.next()) throw new IllegalStateException("receipt result missing");
+                    Receipt receipt = new Receipt(result.getString("outcome"),
+                            result.getString("acquisition_contract"),
+                            (Integer) result.getObject("authorized_price"));
+                    if (result.next()) throw new IllegalStateException("receipt must be single-row");
+                    return receipt;
                 }
             }
         }
