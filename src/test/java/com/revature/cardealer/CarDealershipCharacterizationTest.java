@@ -125,7 +125,7 @@ class CarDealershipCharacterizationTest {
         pendingIndex.setAccessible(true);
         int before = pendingIndex.getInt(inventory);
 
-        replaceScanner(username + "\nsecret\n1\n19\n");
+        replaceScanner(username + "\nsecret\n4\n19\n");
         invokePerformUserAction("2");
 
         assertEquals(before, pendingIndex.getInt(inventory));
@@ -145,7 +145,7 @@ class CarDealershipCharacterizationTest {
         indexField.setAccessible(true);
         int before = indexField.getInt(inventory);
 
-        replaceScanner(username + "\nsecret\n3\n");
+        replaceScanner(username + "\nsecret\n1\n");
         invokePerformUserAction("2");
 
         assertEquals(before, indexField.getInt(inventory));
