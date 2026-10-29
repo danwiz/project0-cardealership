@@ -217,7 +217,7 @@ public class CarDealership {
                     Integer.parseInt(input[3]), "Yes", Integer.parseInt(input[4]));
         } else if ("2".equals(option)) {
             System.out.println("\n Enter CarLot Number  --> [ ] <--: ");
-            Carlot.removeOffer(Integer.parseInt(scan.nextLine()));
+            inventoryService.removeVehicle(getUserInfo(), Integer.parseInt(scan.nextLine()));
         }
     }
 
