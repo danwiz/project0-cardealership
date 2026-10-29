@@ -80,6 +80,44 @@ class AuthorizedPurchaseReviewServiceTest {
 
     @Test
     @Tag("security")
+    void missingBuyerCannotConsumeInventoryOrPendingRequest() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        Offer offers = new Offer();
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("missing-buyer", 0);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        CustomerLoginService customers = new CustomerLoginService(repository);
+        assertThrows(SecurityException.class,
+                () -> service.approveForCustomer(user("staff", "secret"), 0, 12, customers));
+        org.junit.jupiter.api.Assertions.assertEquals(1, offers.getListingStock(0));
+        org.junit.jupiter.api.Assertions.assertEquals("missing-buyer", offers.getPendingBuyer(0));
+        org.junit.jupiter.api.Assertions.assertEquals(0, customers.getOwnedVehicleRecords("missing-buyer").size());
+    }
+
+    @Test
+    @Tag("security")
+    void purchaseApprovalAssignsRegisteredBuyerAndConsumesInventoryOnce() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        store(repository, "buyer", "secret", AccountRole.CUSTOMER);
+        Offer offers = new Offer();
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("buyer", 0);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        CustomerLoginService customers = new CustomerLoginService(repository);
+        service.approveForCustomer(user("staff", "secret"), 0, 12, customers);
+        org.junit.jupiter.api.Assertions.assertEquals(0, offers.getListingStock(0));
+        org.junit.jupiter.api.Assertions.assertEquals(1, customers.getOwnedVehicleRecords("buyer").size());
+        org.junit.jupiter.api.Assertions.assertEquals(15000,
+                customers.getOwnedVehicleRecords("buyer").get(0).getPaymentPlan().getPurchasePrice());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.approveForCustomer(user("staff", "secret"), 0, 12, customers));
+        org.junit.jupiter.api.Assertions.assertEquals(1, customers.getOwnedVehicleRecords("buyer").size());
+    }
+
+    @Test
+    @Tag("security")
     void authorizedEmployeeReceivesInputValidation() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
