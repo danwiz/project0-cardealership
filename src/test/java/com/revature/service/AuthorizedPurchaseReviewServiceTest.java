@@ -102,6 +102,58 @@ class AuthorizedPurchaseReviewServiceTest {
 
     @Test
     @Tag("security")
+    void concurrentApprovalsCannotSellOneVehicleTwice() throws Exception {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        store(repository, "buyer-a", "secret", AccountRole.CUSTOMER);
+        store(repository, "buyer-b", "secret", AccountRole.CUSTOMER);
+        Offer offers = new Offer();
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("buyer-a", 0);
+        offers.setpOffer("buyer-b", 0);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        CustomerLoginService customers = new CustomerLoginService(repository);
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.atomic.AtomicInteger successes = new java.util.concurrent.atomic.AtomicInteger();
+        java.util.concurrent.atomic.AtomicInteger soldOut = new java.util.concurrent.atomic.AtomicInteger();
+        Runnable purchase = () -> {
+            ready.countDown();
+            try {
+                if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new AssertionError("start latch timed out");
+                }
+                service.approveForCustomer(user("staff", "secret"), 0, 12, customers);
+                successes.incrementAndGet();
+            } catch (IllegalStateException expected) {
+                soldOut.incrementAndGet();
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError(interrupted);
+            }
+        };
+        java.util.concurrent.ExecutorService pool = java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<?> first = pool.submit(purchase);
+            java.util.concurrent.Future<?> second = pool.submit(purchase);
+            org.junit.jupiter.api.Assertions.assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            start.countDown();
+            first.get(10, java.util.concurrent.TimeUnit.SECONDS);
+            second.get(10, java.util.concurrent.TimeUnit.SECONDS);
+        } finally {
+            start.countDown();
+            pool.shutdownNow();
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(1, successes.get());
+        org.junit.jupiter.api.Assertions.assertEquals(1, soldOut.get());
+        org.junit.jupiter.api.Assertions.assertEquals(0, offers.getListingStock(0));
+        org.junit.jupiter.api.Assertions.assertEquals(1,
+                customers.getOwnedVehicleRecords("buyer-a").size()
+                + customers.getOwnedVehicleRecords("buyer-b").size());
+    }
+
+    @Test
+    @Tag("security")
     void authorizedEmployeeReceivesInputValidation() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
