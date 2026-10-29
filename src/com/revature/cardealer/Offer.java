@@ -20,6 +20,7 @@ public class Offer {
 	private String cName[] = new String[20];
 	private int cpOffer[] = new int[20];
 	private int cpPrice[] = new int[20];
+	private int[] listingStock = new int[20];
 	private int opIndex = 0;
 	private String oCName;
 
@@ -107,6 +108,7 @@ public class Offer {
 		setOffer(cDetails, price, avail, amt);
 		carDB[oIndex] = cDetails;
 		cpPrice[oIndex]=price;
+		listingStock[oIndex] = amt;
 		//offerDB[oIndex]=oDetails;
 		offerDB[oIndex] = getOffer();
 		
@@ -180,6 +182,14 @@ public class Offer {
 	}
 
 	/** Returns the full purchase price for a registered listing, not its monthly installment. */
+	/** Remaining inventory for an individual registered listing. */
+	public int getListingStock(int listing) {
+		if (listing < 0 || listing >= offerDB.length || offerDB[listing] == null) {
+			throw new IllegalArgumentException("Invalid listing");
+		}
+		return listingStock[listing];
+	}
+
 	public int getListingPrice(int listing) {
 		if (listing < 0 || listing >= offerDB.length
 				|| offerDB[listing] == null || offerDB[listing].isEmpty()
@@ -249,12 +259,13 @@ public class Offer {
 		}
 		for (int i = 0; i < opIndex; i++) {
 			if (cpOffer[i] == onum && cName[i] != null) {
-				if (oAmt <= 0) {
+				if (listingStock[onum] <= 0) {
 					throw new IllegalStateException("No inventory available for approval");
 				}
 				String buyer = cName[i];
 				int monthlyPayment = cpPrice[onum] / mth;
-				oAmt--;
+				listingStock[onum]--;
+				oAmt = listingStock[onum];
 				oAccept = true;
 				oMpay = monthlyPayment;
 				oCName = buyer;
