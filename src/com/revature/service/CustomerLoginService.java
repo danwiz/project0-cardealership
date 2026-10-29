@@ -35,7 +35,7 @@ public class CustomerLoginService extends UserLoginService {
     }
 
     /** Records a vehicle against the verified buyer username, not the reviewer. */
-    public void recordPurchaseForCustomer(String username, Car vehicle, int purchasePrice, int termMonths) {
+    public synchronized void recordPurchaseForCustomer(String username, Car vehicle, int purchasePrice, int termMonths) {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("buyer username must not be blank");
         }
@@ -44,7 +44,7 @@ public class CustomerLoginService extends UserLoginService {
     }
 
     /** Accepts a fully validated, preconstructed ownership record. */
-    public void addPreparedPurchaseForCustomer(String username, OwnedVehicle record) {
+    public synchronized void addPreparedPurchaseForCustomer(String username, OwnedVehicle record) {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("buyer username must not be blank");
         }
@@ -52,7 +52,7 @@ public class CustomerLoginService extends UserLoginService {
         vehiclesByCustomer.computeIfAbsent(username, ignored -> new ArrayList<>()).add(record);
     }
 
-    public List<OwnedVehicle> getOwnedVehicleRecords(String username) {
+    public synchronized List<OwnedVehicle> getOwnedVehicleRecords(String username) {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("buyer username must not be blank");
         }
