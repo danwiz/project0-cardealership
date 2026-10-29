@@ -3,6 +3,10 @@ package com.revature.service;
 import java.util.Objects;
 
 import com.revature.cardealer.Offer;
+import com.revature.cardealer.Car;
+import com.revature.cardealer.OwnedVehicle;
+import com.revature.cardealer.PaymentPlan;
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 /** Credential-verified boundary for legacy purchase-request decisions. */
@@ -10,18 +14,69 @@ public final class AuthorizedPurchaseReviewService {
     private final UserLoginService login;
     private final RoleAuthorizationService authorization = new RoleAuthorizationService();
     private final Offer offers;
+    private final PurchaseInventoryPort inventory;
+    private final UserAccountRepository accounts;
 
     public AuthorizedPurchaseReviewService(UserAccountRepository accounts, Offer offers) {
-        login = new UserLoginService(Objects.requireNonNull(accounts, "accounts"));
+        this.accounts = Objects.requireNonNull(accounts, "accounts");
+        login = new UserLoginService(this.accounts);
         this.offers = Objects.requireNonNull(offers, "offers");
+        this.inventory = new LegacyOfferPurchaseInventoryAdapter(this.offers);
     }
 
-    public int approve(User credentials, int offerNumber, int months) {
-        requireReviewer(credentials);
-        if (offerNumber < 0 || offerNumber >= 20 || months <= 0) {
-            throw new IllegalArgumentException("invalid offer number or payment term");
+    /**
+     * Prepares ownership before consuming a pending offer. Validation failures
+     * leave inventory and the pending request unchanged.
+     * This is an in-memory boundary, not yet a durable database transaction.
+     */
+    public void approveForCustomer(User reviewer, int offerNumber, int months,
+            CustomerLoginService customers) {
+        requireReviewer(reviewer);
+        Objects.requireNonNull(customers, "customers");
+        if (months <= 0) {
+            throw new IllegalArgumentException("payment term must be positive");
         }
-        return offers.setAccept(offerNumber, months, true);
+        synchronized (offers) {
+            String buyer = offers.getPendingBuyer(offerNumber);
+            User account = loginAccount(buyer);
+            if (account.getRole() != AccountRole.CUSTOMER) {
+                throw new SecurityException("pending buyer must be a registered customer");
+            }
+            int price = offers.getListingPrice(offerNumber);
+            Car vehicle = Objects.requireNonNull(offers.getCarDB(offerNumber), "listed vehicle");
+            if (offers.getListingStock(offerNumber) <= 0) {
+                throw new IllegalStateException("No inventory available for approval");
+            }
+            // Prepare a complete ownership record before consuming the pending request.
+            OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
+            // Stage ownership first, then consume the offer. If offer approval
+            // fails, remove only the exact staged record before propagating.
+            customers.addPreparedPurchaseForCustomer(buyer, ownership);
+            try {
+                inventory.approvePendingPurchase(offerNumber, months);
+            } catch (RuntimeException | Error failure) {
+                try {
+                    customers.removePreparedPurchaseForCustomer(buyer, ownership);
+                } catch (RuntimeException | Error rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+                throw failure;
+            }
+        }
+    }
+
+    private User loginAccount(String username) {
+        return accounts.findByUsername(username)
+                .orElseThrow(() -> new SecurityException("pending buyer account no longer exists"));
+    }
+
+    /**
+     * Identifies the customer whose pending request would be approved.
+     * The caller must not assign the vehicle to the employee reviewing it.
+     */
+    public String pendingBuyer(User credentials, int offerNumber) {
+        requireReviewer(credentials);
+        return offers.getPendingBuyer(offerNumber);
     }
 
     public void rejectAll(User credentials) {

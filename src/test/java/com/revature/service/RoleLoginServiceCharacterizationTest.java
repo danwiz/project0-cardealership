@@ -92,14 +92,15 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    void customerOwnedCarStorageRejectsFixedArrayOverflow() {
+    void customerOwnedCarStorageSupportsMoreThanLegacyFixedArrayCapacity() {
         CustomerLoginService service = new CustomerLoginService();
         for (int i = 0; i < 20; i++) {
             service.setCarsOwned(new Car("Make" + i, "Model" + i, 2000 + i), 10000 + i, 12);
         }
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.setCarsOwned(new Car("Overflow", "Vehicle", 2020), 20000, 12));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> service.setCarsOwned(new Car("Additional", "Vehicle", 2020), 20000, 12));
+        org.junit.jupiter.api.Assertions.assertEquals(21, service.getOwnedVehicleRecords().size());
     }
 
     @Test
@@ -108,7 +109,7 @@ class RoleLoginServiceCharacterizationTest {
         service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);
         System.setOut(new PrintStream(new ByteArrayOutputStream()));
 
-        org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> service.getCarsOwned());
     }
 
     @Test
@@ -117,8 +118,8 @@ class RoleLoginServiceCharacterizationTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         System.setOut(new PrintStream(output));
 
-        org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
-        assertTrue(output.toString().contains("No owned vehicles found."));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> service.getCarsOwned());
+        assertTrue(output.toString().contains("No vehicles owned."));
     }
 
     @Test
@@ -126,8 +127,46 @@ class RoleLoginServiceCharacterizationTest {
         CustomerLoginService service = new CustomerLoginService();
         assertThrows(IllegalArgumentException.class,
                 () -> service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 0));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(NullPointerException.class,
                 () -> service.setCarsOwned(null, 10000, 12));
+    }
+
+    @Test
+    void customerPaymentsUpdateTheCorrectVehicleAndRejectOverpayment() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.setCarsOwned(new Car("Honda", "Accord", 2018), 12000, 12);
+        service.setCarsOwned(new Car("Toyota", "Corolla", 2020), 6000, 6);
+        service.recordPayment(0, 1000);
+        service.setPayments(500);
+        org.junit.jupiter.api.Assertions.assertEquals(11000,
+                service.getOwnedVehicle(0).getPaymentPlan().getRemainingBalance());
+        org.junit.jupiter.api.Assertions.assertEquals(5500,
+                service.getOwnedVehicle(1).getPaymentPlan().getRemainingBalance());
+        assertThrows(IllegalArgumentException.class, () -> service.recordPayment(1, 6000));
+        org.junit.jupiter.api.Assertions.assertEquals(5500,
+                service.getOwnedVehicle(1).getPaymentPlan().getRemainingBalance());
+    }
+
+    @Test
+    void paymentsWithoutAnOwnedVehicleFailClosed() {
+        CustomerLoginService service = new CustomerLoginService();
+        assertThrows(IllegalStateException.class, () -> service.setPayments(100));
+        assertThrows(IndexOutOfBoundsException.class, () -> service.recordPayment(0, 100));
+        assertThrows(IllegalArgumentException.class, () -> service.setPayments((String[]) null));
+    }
+
+    @Test
+    void customerOwnershipRecordsAreIsolatedByBuyerUsername() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.recordPurchaseForCustomer("buyer-a", new Car("Honda", "Accord", 2018), 12000, 12);
+        service.recordPurchaseForCustomer("buyer-b", new Car("Toyota", "Corolla", 2020), 9000, 12);
+        org.junit.jupiter.api.Assertions.assertEquals(1, service.getOwnedVehicleRecords("buyer-a").size());
+        org.junit.jupiter.api.Assertions.assertEquals(1, service.getOwnedVehicleRecords("buyer-b").size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, service.getOwnedVehicleRecords("reviewer").size());
+        org.junit.jupiter.api.Assertions.assertEquals(12000,
+                service.getOwnedVehicleRecords("buyer-a").get(0).getPaymentPlan().getPurchasePrice());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.recordPurchaseForCustomer("", new Car("Honda", "Civic", 2021), 10000, 12));
     }
 
     @Test

@@ -175,7 +175,7 @@ public class CarDealership {
         } else if ("2".equals(option)) {
             requireCurrentRole(account, Permission.VIEW_OWNED_VEHICLES);
             System.out.println(" Cars Owned:-  \n\n");
-            cls.getCarsOwned();
+            cls.getCarsOwned(account.getUsername());
         } else if ("3".equals(option)) {
             requireCurrentRole(account, Permission.VIEW_OWN_PAYMENTS);
             System.out.println(" View Car Payments\n\n");
@@ -239,9 +239,8 @@ public class CarDealership {
         System.out.println("\nEnter Number of Months Customer has to pay: ");
         int months = Integer.parseInt(scan.nextLine());
 
-        if (months > 0 && offerNumber > 0) {
-            int price = purchaseReviewService.approve(getUserInfo(), offerNumber, months);
-            cls.setCarsOwned(Carlot.getCarDB(offerNumber), price, months);
+        if (months > 0 && offerNumber >= 0) {
+            purchaseReviewService.approveForCustomer(getUserInfo(), offerNumber, months, cls);
         } else {
             System.out.println("\nMessage: Can Not Accept The Payment terms ");
         }

@@ -20,6 +20,7 @@ public class Offer {
 	private String cName[] = new String[20];
 	private int cpOffer[] = new int[20];
 	private int cpPrice[] = new int[20];
+	private int[] listingStock = new int[20];
 	private int opIndex = 0;
 	private String oCName;
 
@@ -62,11 +63,12 @@ public class Offer {
 	 * }
 	 */
 
-	public void setpOffer(String cname, int onum) {
+	public synchronized void setpOffer(String cname, int onum) {
 
 		if (cname == null || cname.trim().isEmpty()
 				|| onum < 0 || onum >= offerDB.length
 				|| offerDB[onum] == null || offerDB[onum].isEmpty()
+				|| listingStock[onum] <= 0
 				|| opIndex >= cpOffer.length || oIndex >= oOfferDB.length) {
 			throw new IllegalArgumentException("Invalid purchase request or request capacity exhausted");
 		}
@@ -101,12 +103,18 @@ public class Offer {
 		}
 	}
 
-	public void registerOffer(String make, String model, int year, int price, String avail, int amt) {
+	public synchronized void registerOffer(String make, String model, int year, int price, String avail, int amt) {
+		if (oIndex >= offerDB.length || price < 0 || amt < 0
+				|| make == null || make.trim().isEmpty()
+				|| model == null || model.trim().isEmpty()) {
+			throw new IllegalArgumentException("Invalid vehicle listing or listing capacity exhausted");
+		}
 
 		cDetails = new Car(make, model, year);
 		setOffer(cDetails, price, avail, amt);
 		carDB[oIndex] = cDetails;
 		cpPrice[oIndex]=price;
+		listingStock[oIndex] = amt;
 		//offerDB[oIndex]=oDetails;
 		offerDB[oIndex] = getOffer();
 		
@@ -179,6 +187,38 @@ public class Offer {
 		return oPrice;
 	}
 
+	/** Returns the full purchase price for a registered listing, not its monthly installment. */
+	/** Returns the buyer of the oldest matching pending request, without consuming it. */
+	public String getPendingBuyer(int listing) {
+		if (listing < 0 || listing >= offerDB.length || offerDB[listing] == null
+				|| offerDB[listing].isEmpty()) {
+			throw new IllegalArgumentException("Invalid listing");
+		}
+		for (int i = 0; i < opIndex; i++) {
+			if (cpOffer[i] == listing && cName[i] != null && !cName[i].isEmpty()) {
+				return cName[i];
+			}
+		}
+		throw new IllegalArgumentException("No matching pending purchase request");
+	}
+
+	/** Remaining inventory for an individual registered listing. */
+	public int getListingStock(int listing) {
+		if (listing < 0 || listing >= offerDB.length || offerDB[listing] == null) {
+			throw new IllegalArgumentException("Invalid listing");
+		}
+		return listingStock[listing];
+	}
+
+	public int getListingPrice(int listing) {
+		if (listing < 0 || listing >= offerDB.length
+				|| offerDB[listing] == null || offerDB[listing].isEmpty()
+				|| carDB[listing] == null || cpPrice[listing] < 0) {
+			throw new IllegalArgumentException("Invalid listing");
+		}
+		return cpPrice[listing];
+	}
+
 	public void setMpay(int mpay) {
 		
 		oMpay = mpay;
@@ -232,19 +272,49 @@ public class Offer {
 		oAccept=true;	
 	}
 	// serches
-	public int setAccept(int onum, int mth, boolean accept) {
+	/**
+	 * Performs a reversible approval when called under the shared Offer monitor.
+	 * A failure after any inventory or request mutation restores the captured
+	 * fields before propagating the original exception.
+	 */
+	public synchronized int acceptWithRollback(int onum, int mth) {
+		int[] stockBefore = listingStock.clone();
+		int[] requestsBefore = cpOffer.clone();
+		String[] buyersBefore = cName.clone();
+		int amountBefore = oAmt;
+		int monthlyBefore = oMpay;
+		boolean acceptedBefore = oAccept;
+		String buyerBefore = oCName;
+		String detailsBefore = oDetails;
+		try {
+			return setAccept(onum, mth, true);
+		} catch (RuntimeException | Error failure) {
+			System.arraycopy(stockBefore, 0, listingStock, 0, listingStock.length);
+			System.arraycopy(requestsBefore, 0, cpOffer, 0, cpOffer.length);
+			System.arraycopy(buyersBefore, 0, cName, 0, cName.length);
+			oAmt = amountBefore;
+			oMpay = monthlyBefore;
+			oAccept = acceptedBefore;
+			oCName = buyerBefore;
+			oDetails = detailsBefore;
+			throw failure;
+		}
+	}
+
+	public synchronized int setAccept(int onum, int mth, boolean accept) {
 		if (!accept || onum < 0 || onum >= offerDB.length || mth <= 0
 				|| offerDB[onum] == null || offerDB[onum].isEmpty()) {
 			throw new IllegalArgumentException("Invalid approval request");
 		}
 		for (int i = 0; i < opIndex; i++) {
 			if (cpOffer[i] == onum && cName[i] != null) {
-				if (oAmt <= 0) {
+				if (listingStock[onum] <= 0) {
 					throw new IllegalStateException("No inventory available for approval");
 				}
 				String buyer = cName[i];
 				int monthlyPayment = cpPrice[onum] / mth;
-				oAmt--;
+				listingStock[onum]--;
+				oAmt = listingStock[onum];
 				oAccept = true;
 				oMpay = monthlyPayment;
 				oCName = buyer;
@@ -259,7 +329,7 @@ public class Offer {
 		throw new IllegalArgumentException("No matching pending purchase request");
 	}
 
-	public void rejectAllOffers() {
+	public synchronized void rejectAllOffers() {
 		for (int i = 0; i < opIndex; i++) {
 			cpOffer[i] = 0;
 			cName[i] = null;
@@ -269,7 +339,7 @@ public class Offer {
 		System.out.println("\\nMessage: All Pending Offers REJECTED!! ");
 	}
 
-	public void removeOffer(int onum) {
+	public synchronized void removeOffer(int onum) {
 		
 		System.out.println(offerDB[onum]+"\nMessage: Car Listing Removed!! ");
 		if(offerDB[onum]!=null)

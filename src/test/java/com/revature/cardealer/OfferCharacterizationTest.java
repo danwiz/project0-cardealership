@@ -41,6 +41,62 @@ class OfferCharacterizationTest {
     }
 
     @Test
+    void approvalsConsumeOnlyTheSelectedListingInventory() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offer.registerOffer("Toyota", "Corolla", 2020, 9000, "yes", 3);
+        offer.setpOffer("buyer-honda", 0);
+        offer.setpOffer("buyer-toyota", 1);
+        assertEquals(1, offer.getListingStock(0));
+        assertEquals(3, offer.getListingStock(1));
+        assertEquals(1250, offer.setAccept(0, 12, true));
+        assertEquals(0, offer.getListingStock(0));
+        assertEquals(3, offer.getListingStock(1));
+        assertEquals(750, offer.setAccept(1, 12, true));
+        assertEquals(2, offer.getListingStock(1));
+    }
+
+    @Test
+    void exhaustedListingDoesNotConsumePendingRequestOrOtherListingStock() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offer.registerOffer("Toyota", "Corolla", 2020, 9000, "yes", 2);
+        offer.setpOffer("first", 0);
+        offer.setpOffer("second", 0);
+        offer.setpOffer("other", 1);
+        offer.setAccept(0, 12, true);
+        assertThrows(IllegalStateException.class, () -> offer.setAccept(0, 12, true));
+        assertEquals(0, offer.getListingStock(0));
+        assertEquals(2, offer.getListingStock(1));
+        assertEquals(750, offer.setAccept(1, 12, true));
+    }
+
+    @Test
+    void registrationRejectsInvalidStockPriceAndFullListingCapacity() {
+        Offer offer = new Offer();
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("Honda", "Accord", 2018, -1, "yes", 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("", "Accord", 2018, 15000, "yes", 1));
+        for (int i = 0; i < 20; i++) {
+            offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        }
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("Toyota", "Corolla", 2020, 9000, "yes", 1));
+    }
+
+    @Test
+    void soldOutListingCannotReceiveNewPurchaseRequest() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offer.setpOffer("first", 0);
+        offer.setAccept(0, 12, true);
+        assertThrows(IllegalArgumentException.class, () -> offer.setpOffer("second", 0));
+    }
+
+    @Test
     @Tag("KNOWN-DEFECT")
     @DisplayName("getAccept uses an inverted loop condition and leaves state unchanged")
     void getAcceptDoesNotInspectProvidedOffers() {
