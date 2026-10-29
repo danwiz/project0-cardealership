@@ -7,6 +7,8 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import com.revature.service.Permission;
+import com.revature.service.InMemoryUserAccountRepository;
+import com.revature.service.UserAccountRepository;
 
 class CarDealershipRoleRevalidationTest {
 
@@ -29,6 +31,41 @@ class CarDealershipRoleRevalidationTest {
         forged.setRole(AccountRole.ADMINISTRATOR);
         assertFalse(CarDealership.isCurrentRoleAuthorized(forged, Permission.MANAGE_USERS));
         assertFalse(CarDealership.isCurrentRoleAuthorized(forged, Permission.MANAGE_PERSISTENCE));
+    }
+
+    @Test
+    @Tag("security")
+    void revocationRejectsPreviouslyAuthorizedAdministrator() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        User administrator = new User();
+        administrator.setUsername("trusted-admin");
+        administrator.setRole(AccountRole.ADMINISTRATOR);
+        repository.save(administrator);
+        assertTrue(CarDealership.isCurrentRoleAuthorized(repository, administrator,
+                Permission.MANAGE_PERSISTENCE));
+
+        User demoted = new User();
+        demoted.setUsername("trusted-admin");
+        demoted.setRole(AccountRole.CUSTOMER);
+        repository.save(demoted);
+        assertFalse(CarDealership.isCurrentRoleAuthorized(repository, administrator,
+                Permission.MANAGE_PERSISTENCE));
+    }
+
+    @Test
+    @Tag("security")
+    void deletedAccountCannotReusePrivilegedSessionObject() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        User administrator = new User();
+        administrator.setUsername("temporary-admin");
+        administrator.setRole(AccountRole.ADMINISTRATOR);
+        repository.save(administrator);
+        assertTrue(CarDealership.isCurrentRoleAuthorized(repository, administrator,
+                Permission.MANAGE_USERS));
+
+        repository.removeByUsername("temporary-admin");
+        assertFalse(CarDealership.isCurrentRoleAuthorized(repository, administrator,
+                Permission.MANAGE_USERS));
     }
 
     @Test
