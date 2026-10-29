@@ -112,6 +112,25 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
+    void viewingEmptyOwnedCarsPrintsEmptyState() {
+        CustomerLoginService service = new CustomerLoginService();
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        System.setOut(new PrintStream(output));
+
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
+        assertTrue(output.toString().contains("No owned vehicles found."));
+    }
+
+    @Test
+    void ownedCarStorageRejectsInvalidPaymentTermsAndNullVehicles() {
+        CustomerLoginService service = new CustomerLoginService();
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 0));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.setCarsOwned(null, 10000, 12));
+    }
+
+    @Test
     void administratorDeleteAllUsersOnlyEmitsWarningText() {
         AdminLoginService service = new AdminLoginService();
         ByteArrayOutputStream output = new ByteArrayOutputStream();
