@@ -3,6 +3,8 @@ package com.revature.service;
 import java.util.Objects;
 
 import com.revature.cardealer.Offer;
+import com.revature.cardealer.Car;
+import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
 /** Credential-verified boundary for legacy purchase-request decisions. */
@@ -10,9 +12,11 @@ public final class AuthorizedPurchaseReviewService {
     private final UserLoginService login;
     private final RoleAuthorizationService authorization = new RoleAuthorizationService();
     private final Offer offers;
+    private final UserAccountRepository accounts;
 
     public AuthorizedPurchaseReviewService(UserAccountRepository accounts, Offer offers) {
-        login = new UserLoginService(Objects.requireNonNull(accounts, "accounts"));
+        this.accounts = Objects.requireNonNull(accounts, "accounts");
+        login = new UserLoginService(this.accounts);
         this.offers = Objects.requireNonNull(offers, "offers");
     }
 
@@ -24,6 +28,40 @@ public final class AuthorizedPurchaseReviewService {
         int purchasePrice = offers.getListingPrice(offerNumber);
         offers.setAccept(offerNumber, months, true);
         return purchasePrice;
+    }
+
+    /**
+     * Prepares ownership before consuming a pending offer. Validation failures
+     * leave inventory and the pending request unchanged.
+     * This is an in-memory boundary, not yet a durable database transaction.
+     */
+    public synchronized void approveForCustomer(User reviewer, int offerNumber, int months,
+            CustomerLoginService customers) {
+        requireReviewer(reviewer);
+        Objects.requireNonNull(customers, "customers");
+        if (months <= 0) {
+            throw new IllegalArgumentException("payment term must be positive");
+        }
+        String buyer = offers.getPendingBuyer(offerNumber);
+        User account = loginAccount(buyer);
+        if (account.getRole() != AccountRole.CUSTOMER) {
+            throw new SecurityException("pending buyer must be a registered customer");
+        }
+        int price = offers.getListingPrice(offerNumber);
+        Car vehicle = Objects.requireNonNull(offers.getCarDB(offerNumber), "listed vehicle");
+        if (offers.getListingStock(offerNumber) <= 0) {
+            throw new IllegalStateException("No inventory available for approval");
+        }
+        // Construct and validate the ownership record before mutating the offer.
+        new com.revature.cardealer.OwnedVehicle(vehicle,
+                new com.revature.cardealer.PaymentPlan(price, months));
+        offers.setAccept(offerNumber, months, true);
+        customers.recordPurchaseForCustomer(buyer, vehicle, price, months);
+    }
+
+    private User loginAccount(String username) {
+        return accounts.findByUsername(username)
+                .orElseThrow(() -> new SecurityException("pending buyer account no longer exists"));
     }
 
     /**
