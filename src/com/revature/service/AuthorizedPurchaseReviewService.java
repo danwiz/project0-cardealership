@@ -26,6 +26,15 @@ public final class AuthorizedPurchaseReviewService {
         return purchasePrice;
     }
 
+    /**
+     * Identifies the customer whose pending request would be approved.
+     * The caller must not assign the vehicle to the employee reviewing it.
+     */
+    public String pendingBuyer(User credentials, int offerNumber) {
+        requireReviewer(credentials);
+        return offers.getPendingBuyer(offerNumber);
+    }
+
     public void rejectAll(User credentials) {
         requireReviewer(credentials);
         offers.rejectAllOffers();
