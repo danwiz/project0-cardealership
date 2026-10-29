@@ -120,6 +120,30 @@ class AuthorizedPurchaseReviewServiceTest {
 
     @Test
     @Tag("security")
+    void ownershipWriteFailureDoesNotConsumeInventoryOrPendingRequest() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        store(repository, "buyer", "secret", AccountRole.CUSTOMER);
+        Offer offers = new Offer();
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("buyer", 0);
+        CustomerLoginService failingLedger = new CustomerLoginService(repository) {
+            @Override
+            public synchronized void addPreparedPurchaseForCustomer(String buyer,
+                    com.revature.cardealer.OwnedVehicle record) {
+                throw new IllegalStateException("simulated ownership write failure");
+            }
+        };
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        assertThrows(IllegalStateException.class,
+                () -> service.approveForCustomer(user("staff", "secret"), 0, 12, failingLedger));
+        org.junit.jupiter.api.Assertions.assertEquals(1, offers.getListingStock(0));
+        org.junit.jupiter.api.Assertions.assertEquals("buyer", offers.getPendingBuyer(0));
+        org.junit.jupiter.api.Assertions.assertTrue(failingLedger.getOwnedVehicleRecords("buyer").isEmpty());
+    }
+
+    @Test
+    @Tag("security")
     void concurrentApprovalsCannotSellOneVehicleTwice() throws Exception {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
