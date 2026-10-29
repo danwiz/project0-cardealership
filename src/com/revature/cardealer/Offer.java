@@ -188,6 +188,20 @@ public class Offer {
 	}
 
 	/** Returns the full purchase price for a registered listing, not its monthly installment. */
+	/** Returns the buyer of the oldest matching pending request, without consuming it. */
+	public String getPendingBuyer(int listing) {
+		if (listing < 0 || listing >= offerDB.length || offerDB[listing] == null
+				|| offerDB[listing].isEmpty()) {
+			throw new IllegalArgumentException("Invalid listing");
+		}
+		for (int i = 0; i < opIndex; i++) {
+			if (cpOffer[i] == listing && cName[i] != null && !cName[i].isEmpty()) {
+				return cName[i];
+			}
+		}
+		throw new IllegalArgumentException("No matching pending purchase request");
+	}
+
 	/** Remaining inventory for an individual registered listing. */
 	public int getListingStock(int listing) {
 		if (listing < 0 || listing >= offerDB.length || offerDB[listing] == null) {
