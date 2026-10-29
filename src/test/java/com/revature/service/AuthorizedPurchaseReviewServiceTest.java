@@ -102,6 +102,24 @@ class AuthorizedPurchaseReviewServiceTest {
 
     @Test
     @Tag("security")
+    void soldOutApprovalLeavesBuyerOwnershipUnchanged() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        store(repository, "buyer", "secret", AccountRole.CUSTOMER);
+        Offer offers = new Offer();
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("buyer", 0);
+        CustomerLoginService customers = new CustomerLoginService(repository);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        service.approveForCustomer(user("staff", "secret"), 0, 12, customers);
+        assertThrows(IllegalArgumentException.class,
+                () -> service.approveForCustomer(user("staff", "secret"), 0, 12, customers));
+        org.junit.jupiter.api.Assertions.assertEquals(1, customers.getOwnedVehicleRecords("buyer").size());
+        org.junit.jupiter.api.Assertions.assertEquals(0, offers.getListingStock(0));
+    }
+
+    @Test
+    @Tag("security")
     void concurrentApprovalsCannotSellOneVehicleTwice() throws Exception {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
