@@ -11,6 +11,8 @@ import com.revature.application.ApplicationPorts;
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.PurchaseRequest;
 import com.revature.cardealer.User;
+import com.revature.service.Permission;
+import com.revature.service.RoleAuthorizationService;
 
 /**
  * A single serializable JDBC transaction for purchase decision, stock,
@@ -20,24 +22,30 @@ import com.revature.cardealer.User;
  */
 public final class JdbcPurchaseApprovalService implements ApplicationPorts.PurchaseApproval {
     private final JdbcDatabase database;
+    private final RoleAuthorizationService authorization;
     private final FailureHook failureHook;
 
     enum Stage { AFTER_STOCK, AFTER_REQUEST, AFTER_OWNERSHIP, AFTER_PLAN, AFTER_REJECTIONS }
     @FunctionalInterface interface FailureHook { void after(Stage stage); }
 
-    public JdbcPurchaseApprovalService(JdbcDatabase database) {
-        this(database, stage -> { });
+    public JdbcPurchaseApprovalService(JdbcDatabase database, RoleAuthorizationService authorization) {
+        this(database, authorization, stage -> { });
     }
 
     /** Test-only fault injection contract; never expose to the console. */
-    JdbcPurchaseApprovalService(JdbcDatabase database, FailureHook failureHook) {
+    JdbcPurchaseApprovalService(JdbcDatabase database,
+            RoleAuthorizationService authorization, FailureHook failureHook) {
         this.database = Objects.requireNonNull(database, "database");
+        this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.failureHook = Objects.requireNonNull(failureHook, "failureHook");
         database.ensureSchemaReady();
     }
 
     @Override
     public int approve(User reviewer, int requestId, int paymentMonths, boolean rejectOtherPending) {
+        // The application-port reference is public: do not trust command-layer authorization alone.
+        // Production composition supplies the verified-session policy from its application context.
+        authorization.requireAuthorized(reviewer, Permission.REVIEW_PURCHASE_REQUESTS);
         if (requestId < 0) throw new IllegalArgumentException("request id must not be negative");
         if (paymentMonths <= 0) throw new IllegalArgumentException("payment months must be positive");
         if (reviewer == null || reviewer.getUsername() == null

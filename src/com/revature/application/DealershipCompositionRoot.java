@@ -58,7 +58,8 @@ public final class DealershipCompositionRoot {
         return new ConfiguredDealershipApplication(configuration, context, accounts, inventory,
                 customer -> new JdbcOwnershipRepository(database, customer),
                 customer -> new JdbcPaymentTransactionRepository(database, customer),
-                customer -> paymentProcessor, new JdbcPurchaseApprovalService(database));
+                customer -> paymentProcessor,
+                new JdbcPurchaseApprovalService(database, context.getAuthorizationService()));
     }
 
     private static DealershipApplicationContext newContext(UserAccountRepository accounts,
