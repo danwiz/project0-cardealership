@@ -169,6 +169,8 @@ public class CarDealership {
                     && Carlot.offerDB[offerNumber] != null
                     && !Carlot.offerDB[offerNumber].isEmpty()) {
                 Carlot.setpOffer(account.getUsername(), offerNumber);
+            } else {
+                System.out.println("Purchase request rejected: listing not found");
             }
         } else if ("2".equals(option)) {
             requireCurrentRole(account, Permission.VIEW_OWNED_VEHICLES);
