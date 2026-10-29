@@ -158,10 +158,6 @@ public class CarDealership {
 
         if ("1".equals(option)) {
             requireCurrentRole(account, Permission.VIEW_INVENTORY);
-            Carlot.registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
-            Carlot.registerOffer("Chevy ", "Malibu ", 2020, 17456, "Yes", 4);
-            Carlot.registerOffer("BMW   ", "4Series", 2016, 10456, "Yes", 6);
-            Carlot.registerOffer("Toyota", "Corolla", 2014, 13456, "Yes", 3);
             System.out.println("\n\n Enter Offer Number to Request Purchase:");
             int offerNumber = Integer.parseInt(scan.nextLine());
             requireCurrentRole(account, Permission.REQUEST_PURCHASE);
