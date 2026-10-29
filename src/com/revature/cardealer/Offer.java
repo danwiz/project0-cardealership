@@ -63,7 +63,7 @@ public class Offer {
 	 * }
 	 */
 
-	public void setpOffer(String cname, int onum) {
+	public synchronized void setpOffer(String cname, int onum) {
 
 		if (cname == null || cname.trim().isEmpty()
 				|| onum < 0 || onum >= offerDB.length
@@ -103,7 +103,7 @@ public class Offer {
 		}
 	}
 
-	public void registerOffer(String make, String model, int year, int price, String avail, int amt) {
+	public synchronized void registerOffer(String make, String model, int year, int price, String avail, int amt) {
 		if (oIndex >= offerDB.length || price < 0 || amt < 0
 				|| make == null || make.trim().isEmpty()
 				|| model == null || model.trim().isEmpty()) {
@@ -272,7 +272,7 @@ public class Offer {
 		oAccept=true;	
 	}
 	// serches
-	public int setAccept(int onum, int mth, boolean accept) {
+	public synchronized int setAccept(int onum, int mth, boolean accept) {
 		if (!accept || onum < 0 || onum >= offerDB.length || mth <= 0
 				|| offerDB[onum] == null || offerDB[onum].isEmpty()) {
 			throw new IllegalArgumentException("Invalid approval request");
@@ -300,7 +300,7 @@ public class Offer {
 		throw new IllegalArgumentException("No matching pending purchase request");
 	}
 
-	public void rejectAllOffers() {
+	public synchronized void rejectAllOffers() {
 		for (int i = 0; i < opIndex; i++) {
 			cpOffer[i] = 0;
 			cName[i] = null;
@@ -310,7 +310,7 @@ public class Offer {
 		System.out.println("\\nMessage: All Pending Offers REJECTED!! ");
 	}
 
-	public void removeOffer(int onum) {
+	public synchronized void removeOffer(int onum) {
 		
 		System.out.println(offerDB[onum]+"\nMessage: Car Listing Removed!! ");
 		if(offerDB[onum]!=null)
