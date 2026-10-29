@@ -6,7 +6,6 @@ import com.revature.cardealer.Offer;
 import com.revature.cardealer.Car;
 import com.revature.cardealer.OwnedVehicle;
 import com.revature.cardealer.PaymentPlan;
-import com.revature.cardealer.Car;
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
@@ -15,7 +14,6 @@ public final class AuthorizedPurchaseReviewService {
     private final UserLoginService login;
     private final RoleAuthorizationService authorization = new RoleAuthorizationService();
     private final Offer offers;
-    private final UserAccountRepository accounts;
     private final UserAccountRepository accounts;
 
     public AuthorizedPurchaseReviewService(UserAccountRepository accounts, Offer offers) {
@@ -94,11 +92,6 @@ public final class AuthorizedPurchaseReviewService {
         offers.setAccept(offerNumber, months, true);
         customers.addPreparedPurchaseForCustomer(buyer, ownership);
         return ownership;
-    }
-
-    private User loginAccount(String username) {
-        return accounts.findByUsername(username)
-                .orElseThrow(() -> new SecurityException("pending buyer account no longer exists"));
     }
 
     /**
