@@ -1,5 +1,6 @@
 package com.revature.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -75,6 +76,77 @@ class RoleLoginServiceCharacterizationTest {
 
         assertTrue(new EmployeeLoginService(repository).authenticateUser(user("employee", "secret")));
         assertTrue(new AdminLoginService(repository).authenticateUser(user("admin", "secret")));
+    }
+
+    @Test
+    @Tag("target-behavior")
+    @Tag("security")
+    void repositoryCannotReplaceAnExistingPrivilegedAccount() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        User existing = user("administrator", new Pbkdf2PasswordHasher().hash("original-password"));
+        existing.setRole(com.revature.cardealer.AccountRole.ADMINISTRATOR);
+        repository.save(existing);
+
+        User replacement = user("administrator", new Pbkdf2PasswordHasher().hash("attacker-password"));
+        replacement.setRole(com.revature.cardealer.AccountRole.CUSTOMER);
+        assertThrows(IllegalArgumentException.class, () -> repository.save(replacement));
+
+        UserLoginService login = new UserLoginService(repository);
+        assertTrue(login.authenticate(user("administrator", "original-password")).isPresent());
+        assertFalse(login.authenticate(user("administrator", "attacker-password")).isPresent());
+        assertEquals(com.revature.cardealer.AccountRole.ADMINISTRATOR,
+                repository.findByUsername("administrator").orElseThrow().getRole());
+    }
+
+    @Test
+    @Tag("target-behavior")
+    @Tag("security")
+    void simultaneousRegistrationsForSameUsernameCreateExactlyOneAccount() throws Exception {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        java.util.concurrent.CountDownLatch ready = new java.util.concurrent.CountDownLatch(2);
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.ExecutorService executor =
+                java.util.concurrent.Executors.newFixedThreadPool(2);
+        try {
+            java.util.concurrent.Future<Boolean> first = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new AssertionError("timed out waiting to start");
+                }
+                try {
+                    new UserLoginService(repository).registerUser("shared", "first-password");
+                    return true;
+                } catch (IllegalArgumentException duplicate) {
+                    return false;
+                }
+            });
+            java.util.concurrent.Future<Boolean> second = executor.submit(() -> {
+                ready.countDown();
+                if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                    throw new AssertionError("timed out waiting to start");
+                }
+                try {
+                    new UserLoginService(repository).registerUser("shared", "second-password");
+                    return true;
+                } catch (IllegalArgumentException duplicate) {
+                    return false;
+                }
+            });
+            assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            start.countDown();
+
+            boolean firstSucceeded = first.get(20, java.util.concurrent.TimeUnit.SECONDS);
+            boolean secondSucceeded = second.get(20, java.util.concurrent.TimeUnit.SECONDS);
+            assertTrue(firstSucceeded != secondSucceeded);
+            assertEquals(1, repository.findAll().size());
+
+            UserLoginService login = new UserLoginService(repository);
+            assertEquals(firstSucceeded, login.authenticate(user("shared", "first-password")).isPresent());
+            assertEquals(secondSucceeded, login.authenticate(user("shared", "second-password")).isPresent());
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+        }
     }
 
     @Test
