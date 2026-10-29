@@ -109,7 +109,7 @@ class RoleLoginServiceCharacterizationTest {
         service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 12);
         System.setOut(new PrintStream(new ByteArrayOutputStream()));
 
-        org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> service.getCarsOwned());
     }
 
     @Test
@@ -118,7 +118,7 @@ class RoleLoginServiceCharacterizationTest {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
         System.setOut(new PrintStream(output));
 
-        org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(() -> service.getCarsOwned());
         assertTrue(output.toString().contains("No vehicles owned."));
     }
 
