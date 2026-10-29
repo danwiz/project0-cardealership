@@ -11,16 +11,9 @@ on:
       - refactor/console-authorization-boundary
       - security/authenticated-role-check-20261029
       - integration/ownership-payment-security-20261029
+  # Run read-only verification on every PR base, including stacked integration PRs.
+  # A narrow branch allowlist previously skipped important draft branches.
   pull_request:
-    branches:
-      - master
-      - refactor/baseline-and-characterization
-      - refactor/authentication-remediation
-      - refactor/account-repository
-      - refactor/credential-hardening
-      - refactor/role-authorization
-      - refactor/console-authorization-boundary
-      - security/authenticated-role-check-20261029
   workflow_dispatch:
 
 permissions:
