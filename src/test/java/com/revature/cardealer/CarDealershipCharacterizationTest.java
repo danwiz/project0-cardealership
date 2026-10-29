@@ -113,6 +113,20 @@ class CarDealershipCharacterizationTest {
 
     @Test
     @Tag("security")
+    void switchingToPublicActionClearsPreviousPrivilegedSession() throws Throwable {
+        String username = uniqueUsername("session-admin");
+        provisionStaff(username, "secret", AccountRole.ADMINISTRATOR);
+        replaceScanner(username + "\\nsecret\\n9\\n");
+        invokePerformUserAction("5");
+        assertEquals(AccountRole.ADMINISTRATOR, CarDealership.getCurrentAccount().getRole());
+
+        replaceScanner("9\\n");
+        invokePerformUserAction("1");
+        org.junit.jupiter.api.Assertions.assertNull(CarDealership.getCurrentAccount());
+    }
+
+    @Test
+    @Tag("security")
     void publicRegistrationRefusesEmployeeAndAdministratorCreation() throws Throwable {
         ByteArrayOutputStream output = captureOutput();
         replaceScanner("2\n");
