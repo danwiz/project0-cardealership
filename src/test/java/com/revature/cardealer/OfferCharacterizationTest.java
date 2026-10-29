@@ -133,6 +133,42 @@ class OfferCharacterizationTest {
     }
 
     @Test
+    @Tag("TARGET-BEHAVIOR")
+    void postCompactionFailureRestoresOldestBuyerAndPendingCount() {
+        Offer offer = new Offer() {
+            private boolean failFirstApproval = true;
+
+            @Override
+            public synchronized int setAccept(int listing, int months, boolean accept) {
+                int payment = super.setAccept(listing, months, accept);
+                if (failFirstApproval) {
+                    failFirstApproval = false;
+                    throw new IllegalStateException("injected failure after queue compaction");
+                }
+                return payment;
+            }
+        };
+        offer.registerOffer("Honda", "Accord", 2018, 12000, "yes", 3);
+        offer.setpOffer("first", 0);
+        offer.setpOffer("second", 0);
+
+        assertThrows(IllegalStateException.class,
+                () -> offer.acceptWithRollback(0, 12));
+        assertEquals(3, offer.getListingStock(0));
+        assertEquals("first", offer.getPendingBuyer(0));
+
+        offer.setpOffer("third", 0);
+        assertEquals(1000, offer.acceptWithRollback(0, 12));
+        assertEquals("second", offer.getPendingBuyer(0));
+        assertEquals(1000, offer.acceptWithRollback(0, 12));
+        assertEquals("third", offer.getPendingBuyer(0));
+        assertEquals(1000, offer.acceptWithRollback(0, 12));
+        assertEquals(0, offer.getListingStock(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.getPendingBuyer(0));
+    }
+
+    @Test
     void soldOutListingCannotReceiveNewPurchaseRequest() {
         Offer offer = new Offer();
         offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
