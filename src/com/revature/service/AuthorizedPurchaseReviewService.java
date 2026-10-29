@@ -21,7 +21,9 @@ public final class AuthorizedPurchaseReviewService {
         if (offerNumber < 0 || offerNumber >= 20 || months <= 0) {
             throw new IllegalArgumentException("invalid offer number or payment term");
         }
-        return offers.setAccept(offerNumber, months, true);
+        int purchasePrice = offers.getListingPrice(offerNumber);
+        offers.setAccept(offerNumber, months, true);
+        return purchasePrice;
     }
 
     public void rejectAll(User credentials) {
