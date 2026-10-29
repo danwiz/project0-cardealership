@@ -213,8 +213,9 @@ public class CarDealership {
                 System.out.println("Invalid vehicle input");
                 return;
             }
-            Carlot.registerOffer(input[0], input[1], Integer.parseInt(input[2]),
-                    Integer.parseInt(input[3]), "Yes", Integer.parseInt(input[4]));
+            inventoryService.addVehicle(getUserInfo(), input[0], input[1],
+                    Integer.parseInt(input[2]), Integer.parseInt(input[3]),
+                    "Yes", Integer.parseInt(input[4]));
         } else if ("2".equals(option)) {
             System.out.println("\n Enter CarLot Number  --> [ ] <--: ");
             inventoryService.removeVehicle(getUserInfo(), Integer.parseInt(scan.nextLine()));
