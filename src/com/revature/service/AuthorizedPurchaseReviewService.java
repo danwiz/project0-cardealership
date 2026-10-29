@@ -14,12 +14,14 @@ public final class AuthorizedPurchaseReviewService {
     private final UserLoginService login;
     private final RoleAuthorizationService authorization = new RoleAuthorizationService();
     private final Offer offers;
+    private final PurchaseInventoryPort inventory;
     private final UserAccountRepository accounts;
 
     public AuthorizedPurchaseReviewService(UserAccountRepository accounts, Offer offers) {
         this.accounts = Objects.requireNonNull(accounts, "accounts");
         login = new UserLoginService(this.accounts);
         this.offers = Objects.requireNonNull(offers, "offers");
+        this.inventory = new LegacyOfferPurchaseInventoryAdapter(this.offers);
     }
 
     /**
@@ -51,7 +53,7 @@ public final class AuthorizedPurchaseReviewService {
             // fails, remove only the exact staged record before propagating.
             customers.addPreparedPurchaseForCustomer(buyer, ownership);
             try {
-                offers.acceptWithRollback(offerNumber, months);
+                inventory.approvePendingPurchase(offerNumber, months);
             } catch (RuntimeException | Error failure) {
                 try {
                     customers.removePreparedPurchaseForCustomer(buyer, ownership);
