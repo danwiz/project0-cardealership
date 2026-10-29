@@ -80,6 +80,14 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
                 // transactions. Reexecute the *whole* unit of work, with the
                 // exact same durable request ID and terms, at most twice more.
                 if (isRetryableTransactionConflict(failure)) {
+                    // A failed rollback or connection close makes the result
+                    // ambiguous even if the *original* SQLSTATE was retryable.
+                    // Never start a second attempt on an uncertain connection.
+                    if (failure.getSuppressed().length != 0) {
+                        throw new IllegalStateException(
+                                "JDBC transaction rollback or close uncertain; reconcile same request ID",
+                                failure);
+                    }
                     if (attempt < MAX_TRANSACTION_ATTEMPTS) continue;
                     throw new IllegalStateException(
                             "atomic JDBC purchase conflict after bounded retries", failure);
