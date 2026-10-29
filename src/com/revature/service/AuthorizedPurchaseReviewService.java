@@ -22,16 +22,6 @@ public final class AuthorizedPurchaseReviewService {
         this.offers = Objects.requireNonNull(offers, "offers");
     }
 
-    public int approve(User credentials, int offerNumber, int months) {
-        requireReviewer(credentials);
-        if (offerNumber < 0 || offerNumber >= 20 || months <= 0) {
-            throw new IllegalArgumentException("invalid offer number or payment term");
-        }
-        int purchasePrice = offers.getListingPrice(offerNumber);
-        offers.setAccept(offerNumber, months, true);
-        return purchasePrice;
-    }
-
     /**
      * Prepares ownership before consuming a pending offer. Validation failures
      * leave inventory and the pending request unchanged.
