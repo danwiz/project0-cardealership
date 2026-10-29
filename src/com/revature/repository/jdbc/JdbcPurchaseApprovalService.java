@@ -37,6 +37,9 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
             RoleAuthorizationService authorization, FailureHook failureHook) {
         this.database = Objects.requireNonNull(database, "database");
         this.authorization = Objects.requireNonNull(authorization, "authorization");
+        if (!this.authorization.enforcesVerifiedSessions()) {
+            throw new SecurityException("JDBC purchase approval requires a verified-session policy");
+        }
         this.failureHook = Objects.requireNonNull(failureHook, "failureHook");
         database.ensureSchemaReady();
     }
