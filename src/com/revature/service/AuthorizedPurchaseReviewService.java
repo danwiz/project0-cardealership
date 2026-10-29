@@ -27,13 +27,14 @@ public final class AuthorizedPurchaseReviewService {
      * leave inventory and the pending request unchanged.
      * This is an in-memory boundary, not yet a durable database transaction.
      */
-    public synchronized void approveForCustomer(User reviewer, int offerNumber, int months,
+    public void approveForCustomer(User reviewer, int offerNumber, int months,
             CustomerLoginService customers) {
         requireReviewer(reviewer);
         Objects.requireNonNull(customers, "customers");
         if (months <= 0) {
             throw new IllegalArgumentException("payment term must be positive");
         }
+        synchronized (offers) {
         String buyer = offers.getPendingBuyer(offerNumber);
         User account = loginAccount(buyer);
         if (account.getRole() != AccountRole.CUSTOMER) {
@@ -48,6 +49,7 @@ public final class AuthorizedPurchaseReviewService {
         OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
         offers.setAccept(offerNumber, months, true);
         customers.addPreparedPurchaseForCustomer(buyer, ownership);
+        }
     }
 
     private User loginAccount(String username) {
