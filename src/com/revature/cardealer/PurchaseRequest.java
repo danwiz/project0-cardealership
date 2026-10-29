@@ -33,6 +33,16 @@ public class PurchaseRequest implements Serializable {
     public Optional<String> getContractId() { return Optional.ofNullable(contractId); }
     public boolean isPending() { return status == PurchaseRequestStatus.PENDING; }
 
+    /** Independent read snapshot. Never return an authoritative mutable request. */
+    PurchaseRequest snapshot() {
+        PurchaseRequest copy = new PurchaseRequest(id, listingId, customerName);
+        copy.status = status;
+        copy.paymentMonths = paymentMonths;
+        copy.monthlyPayment = monthlyPayment;
+        copy.contractId = contractId;
+        return copy;
+    }
+
     public void accept(int price, int months) {
         accept(price, months, contractIdFor(id));
     }
