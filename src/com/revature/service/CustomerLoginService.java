@@ -52,6 +52,21 @@ public class CustomerLoginService extends UserLoginService {
         vehiclesByCustomer.computeIfAbsent(username, ignored -> new ArrayList<>()).add(record);
     }
 
+    /** Compensation for a failed offer commit; removes only the staged instance. */
+    public synchronized void removePreparedPurchaseForCustomer(String username, OwnedVehicle record) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("buyer username must not be blank");
+        }
+        java.util.Objects.requireNonNull(record, "ownership record");
+        List<OwnedVehicle> records = vehiclesByCustomer.get(username);
+        if (records == null || !records.remove(record)) {
+            throw new IllegalStateException("staged ownership record missing during rollback");
+        }
+        if (records.isEmpty()) {
+            vehiclesByCustomer.remove(username);
+        }
+    }
+
     public synchronized List<OwnedVehicle> getOwnedVehicleRecords(String username) {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("buyer username must not be blank");
