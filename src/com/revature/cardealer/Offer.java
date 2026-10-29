@@ -179,6 +179,16 @@ public class Offer {
 		return oPrice;
 	}
 
+	/** Returns the full purchase price for a registered listing, not its monthly installment. */
+	public int getListingPrice(int listing) {
+		if (listing < 0 || listing >= offerDB.length
+				|| offerDB[listing] == null || offerDB[listing].isEmpty()
+				|| carDB[listing] == null || cpPrice[listing] < 0) {
+			throw new IllegalArgumentException("Invalid listing");
+		}
+		return cpPrice[listing];
+	}
+
 	public void setMpay(int mpay) {
 		
 		oMpay = mpay;
