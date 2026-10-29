@@ -6,6 +6,8 @@ import java.util.Scanner;
 import com.revature.DAOService.DAOService;
 import com.revature.DAOService.DataDAO;
 import com.revature.service.AdminLoginService;
+import com.revature.service.AuthorizedInventoryService;
+import com.revature.service.AuthorizedPurchaseReviewService;
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
 import com.revature.service.InMemoryUserAccountRepository;
@@ -33,7 +35,11 @@ public class CarDealership {
     private static User currentAccount;
 
     static Offer Carlot = new Offer();
+    private static final AuthorizedInventoryService inventoryService =
+            new AuthorizedInventoryService(USER_REPOSITORY, Carlot);
     static Payments PaymentsDB = new Payments();
+    private static final AuthorizedPurchaseReviewService purchaseReviewService =
+            new AuthorizedPurchaseReviewService(USER_REPOSITORY, Carlot);
 
     DataDAO cDao = new DAOService();
 
@@ -55,6 +61,7 @@ public class CarDealership {
     }
 
     private static void performUserAction(String option) {
+        currentAccount = null;
         switch (option) {
         case "1":
             registerAccount();
@@ -110,7 +117,7 @@ public class CarDealership {
         }
 
         User account = authenticated.get();
-        if (!authorization.isAuthorized(account, permission)) {
+        if (!isCurrentRoleAuthorized(account, permission)) {
             currentAccount = null;
             System.out.println("access denied");
             return Optional.empty();
@@ -120,32 +127,57 @@ public class CarDealership {
         return authenticated;
     }
 
+    static boolean isCurrentRoleAuthorized(User account, Permission permission) {
+        return isCurrentRoleAuthorized(USER_REPOSITORY, account, permission);
+    }
+
+    static boolean isCurrentRoleAuthorized(UserAccountRepository repository, User account,
+            Permission permission) {
+        if (repository == null || account == null || account.getUsername() == null) {
+            return false;
+        }
+        return repository.findByUsername(account.getUsername())
+                .filter(stored -> stored.getRole() == account.getRole())
+                .filter(stored -> authorization.isAuthorized(stored, permission))
+                .isPresent();
+    }
+
+    private static void requireCurrentRole(User account, Permission permission) {
+        if (!isCurrentRoleAuthorized(account, permission)) {
+            throw new SecurityException("account authorization is no longer valid");
+        }
+    }
+
     private static void showCustomerMenu(User account) {
         System.out.println("Welcome To The Dealership: \n");
         System.out.println("[1] View Car Lot");
+        System.out.println("[4] Request Purchase");
         System.out.println("[2] View Cars Owned");
         System.out.println("[3] View Payments");
         System.out.println("\nSelect an option: ");
         String option = scan.nextLine();
 
         if ("1".equals(option)) {
-            authorization.requireAuthorized(account, Permission.VIEW_INVENTORY);
-            Carlot.registerOffer("Honda ", "Accord ", 2017, 15000, "yes", 7);
-            Carlot.registerOffer("Chevy ", "Malibu ", 2020, 17456, "Yes", 4);
-            Carlot.registerOffer("BMW   ", "4Series", 2016, 10456, "Yes", 6);
-            Carlot.registerOffer("Toyota", "Corolla", 2014, 13456, "Yes", 3);
+            requireCurrentRole(account, Permission.VIEW_INVENTORY);
+            Carlot.getOfferAll();
+        } else if ("4".equals(option)) {
+            requireCurrentRole(account, Permission.REQUEST_PURCHASE);
             System.out.println("\n\n Enter Offer Number to Request Purchase:");
             int offerNumber = Integer.parseInt(scan.nextLine());
-            authorization.requireAuthorized(account, Permission.REQUEST_PURCHASE);
-            if (offerNumber >= 0 && offerNumber < Carlot.offerDB.length) {
+            requireCurrentRole(account, Permission.REQUEST_PURCHASE);
+            if (offerNumber >= 0 && offerNumber < Carlot.offerDB.length
+                    && Carlot.offerDB[offerNumber] != null
+                    && !Carlot.offerDB[offerNumber].isEmpty()) {
                 Carlot.setpOffer(account.getUsername(), offerNumber);
+            } else {
+                System.out.println("Purchase request rejected: listing not found");
             }
         } else if ("2".equals(option)) {
-            authorization.requireAuthorized(account, Permission.VIEW_OWNED_VEHICLES);
+            requireCurrentRole(account, Permission.VIEW_OWNED_VEHICLES);
             System.out.println(" Cars Owned:-  \n\n");
             cls.getCarsOwned();
         } else if ("3".equals(option)) {
-            authorization.requireAuthorized(account, Permission.VIEW_OWN_PAYMENTS);
+            requireCurrentRole(account, Permission.VIEW_OWN_PAYMENTS);
             System.out.println(" View Car Payments\n\n");
         } else {
             System.out.println("did not understand input");
@@ -161,20 +193,20 @@ public class CarDealership {
         String option = scan.nextLine();
 
         if ("1".equals(option)) {
-            authorization.requireAuthorized(account, Permission.MANAGE_INVENTORY);
-            manageInventory();
+            requireCurrentRole(account, Permission.MANAGE_INVENTORY);
+            manageInventory(account);
         } else if ("2".equals(option)) {
-            authorization.requireAuthorized(account, Permission.REVIEW_PURCHASE_REQUESTS);
-            reviewPurchaseRequests();
+            requireCurrentRole(account, Permission.REVIEW_PURCHASE_REQUESTS);
+            reviewPurchaseRequests(account);
         } else if ("3".equals(option)) {
-            authorization.requireAuthorized(account, Permission.VIEW_CUSTOMER_PAYMENTS);
+            requireCurrentRole(account, Permission.VIEW_CUSTOMER_PAYMENTS);
             System.out.println("[3] View Customer Payments");
         } else {
             System.out.println("did not understand input");
         }
     }
 
-    private static void manageInventory() {
+    private static void manageInventory(User account) {
         System.out.println("Welcome to The Car Dealership");
         Carlot.getOfferAll();
         System.out.println("\n[1] Add Car to Lot: ");
@@ -189,16 +221,18 @@ public class CarDealership {
                 System.out.println("Invalid vehicle input");
                 return;
             }
-            Carlot.registerOffer(input[0], input[1], Integer.parseInt(input[2]),
-                    Integer.parseInt(input[3]), "Yes", Integer.parseInt(input[4]));
+            inventoryService.addVehicle(getUserInfo(), input[0], input[1],
+                    Integer.parseInt(input[2]), Integer.parseInt(input[3]),
+                    "Yes", Integer.parseInt(input[4]));
         } else if ("2".equals(option)) {
             System.out.println("\n Enter CarLot Number  --> [ ] <--: ");
-            Carlot.removeOffer(Integer.parseInt(scan.nextLine()));
+            inventoryService.removeVehicle(getUserInfo(), Integer.parseInt(scan.nextLine()));
         }
     }
 
-    private static void reviewPurchaseRequests() {
+    private static void reviewPurchaseRequests(User account) {
         System.out.println("Pending Purchase Requests: \n");
+        requireCurrentRole(account, Permission.REVIEW_PURCHASE_REQUESTS);
         Carlot.getpOffers();
         System.out.println("\nSelect an Offer to Approve: ");
         int offerNumber = Integer.parseInt(scan.nextLine());
@@ -206,7 +240,7 @@ public class CarDealership {
         int months = Integer.parseInt(scan.nextLine());
 
         if (months > 0 && offerNumber > 0) {
-            int price = Carlot.setAccept(offerNumber, months, true);
+            int price = purchaseReviewService.approve(getUserInfo(), offerNumber, months);
             cls.setCarsOwned(Carlot.getCarDB(offerNumber), price, months);
         } else {
             System.out.println("\nMessage: Can Not Accept The Payment terms ");
@@ -215,12 +249,12 @@ public class CarDealership {
         System.out.println("\nMessage: Reject all other pending offers? [Yes] or [No]: ");
         String input = scan.nextLine();
         if ("yes".equalsIgnoreCase(input) || "y".equalsIgnoreCase(input)) {
-            Carlot.rejectAllOffers();
+            purchaseReviewService.rejectAll(getUserInfo());
         }
     }
 
     private static void showAdminMenu(User account) {
-        authorization.requireAuthorized(account, Permission.MANAGE_PERSISTENCE);
+        requireCurrentRole(account, Permission.MANAGE_PERSISTENCE);
         System.out.println("You are now an Admin");
         System.out.println("\n [1] Serialize and Save Data");
         System.out.println("\n [2] Deserialize and Load Data");
@@ -249,10 +283,12 @@ public class CarDealership {
     }
 
     public void loadData() {
+        requireCurrentRole(currentAccount, Permission.MANAGE_PERSISTENCE);
         cDao.readData("CarDealer" + ".dat").getCustomerLoginService();
     }
 
     public void saveData() {
+        requireCurrentRole(currentAccount, Permission.MANAGE_PERSISTENCE);
         Data myData = new Data(cls, els, customer, employee, Carlot, PaymentsDB);
         cDao.createData(myData);
     }

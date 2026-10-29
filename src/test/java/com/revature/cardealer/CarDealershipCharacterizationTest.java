@@ -113,6 +113,60 @@ class CarDealershipCharacterizationTest {
 
     @Test
     @Tag("security")
+    void customerCannotSubmitRequestForMissingInventory() throws Throwable {
+        String username = uniqueUsername("missing-listing");
+        replaceScanner("1\n" + username + "\nsecret\n");
+        invokePerformUserAction("1");
+
+        Field inventoryField = CarDealership.class.getDeclaredField("Carlot");
+        inventoryField.setAccessible(true);
+        Offer inventory = (Offer) inventoryField.get(null);
+        Field pendingIndex = Offer.class.getDeclaredField("opIndex");
+        pendingIndex.setAccessible(true);
+        int before = pendingIndex.getInt(inventory);
+
+        replaceScanner(username + "\nsecret\n4\n19\n");
+        invokePerformUserAction("2");
+
+        assertEquals(before, pendingIndex.getInt(inventory));
+    }
+
+    @Test
+    @Tag("security")
+    void viewingInventoryAsCustomerDoesNotAddVehicles() throws Throwable {
+        String username = uniqueUsername("viewer");
+        replaceScanner("1\n" + username + "\nsecret\n");
+        invokePerformUserAction("1");
+
+        Field inventoryField = CarDealership.class.getDeclaredField("Carlot");
+        inventoryField.setAccessible(true);
+        Offer inventory = (Offer) inventoryField.get(null);
+        Field indexField = Offer.class.getDeclaredField("oIndex");
+        indexField.setAccessible(true);
+        int before = indexField.getInt(inventory);
+
+        replaceScanner(username + "\nsecret\n1\n");
+        invokePerformUserAction("2");
+
+        assertEquals(before, indexField.getInt(inventory));
+    }
+
+    @Test
+    @Tag("security")
+    void switchingToPublicActionClearsPreviousPrivilegedSession() throws Throwable {
+        String username = uniqueUsername("session-admin");
+        provisionStaff(username, "secret", AccountRole.ADMINISTRATOR);
+        replaceScanner(username + "\nsecret\n9\n");
+        invokePerformUserAction("5");
+        assertEquals(AccountRole.ADMINISTRATOR, CarDealership.getCurrentAccount().getRole());
+
+        replaceScanner("9\n");
+        invokePerformUserAction("1");
+        org.junit.jupiter.api.Assertions.assertNull(CarDealership.getCurrentAccount());
+    }
+
+    @Test
+    @Tag("security")
     void publicRegistrationRefusesEmployeeAndAdministratorCreation() throws Throwable {
         ByteArrayOutputStream output = captureOutput();
         replaceScanner("2\n");
@@ -150,11 +204,11 @@ class CarDealershipCharacterizationTest {
     }
 
     @Test
-    @Tag("known-defect")
-    void loadDataAddsASecondDatExtensionThenDereferencesNull() {
+    @Tag("security")
+    void loadDataDeniesUnauthenticatedCallsBeforeLegacyFileHandling() {
         CarDealership application = new CarDealership();
 
-        assertThrows(NullPointerException.class, application::loadData);
+        assertThrows(SecurityException.class, application::loadData);
     }
 
     private static ByteArrayOutputStream captureOutput() throws Exception {

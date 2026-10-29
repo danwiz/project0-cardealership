@@ -1,0 +1,60 @@
+package com.revature.service;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import org.junit.jupiter.api.Tag;
+import org.junit.jupiter.api.Test;
+
+import com.revature.cardealer.AccountRole;
+import com.revature.cardealer.Offer;
+import com.revature.cardealer.User;
+
+class AuthorizedPurchaseReviewServiceTest {
+    private static User user(String name, String password) {
+        User user = new User();
+        user.setUsername(name);
+        user.setPassword(password);
+        return user;
+    }
+
+    private static void store(UserAccountRepository repository, String name,
+            String password, AccountRole role) {
+        User account = user(name, new Pbkdf2PasswordHasher().hash(password));
+        account.setRole(role);
+        repository.save(account);
+    }
+
+    @Test
+    @Tag("security")
+    void customerCannotApproveOrRejectRequestsEvenWithForgedRole() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "buyer", "secret", AccountRole.CUSTOMER);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, new Offer());
+        User forged = user("buyer", "secret");
+        forged.setRole(AccountRole.ADMINISTRATOR);
+        assertThrows(SecurityException.class, () -> service.approve(forged, 0, 12));
+        assertThrows(SecurityException.class, () -> service.rejectAll(forged));
+    }
+
+    @Test
+    @Tag("security")
+    void revokedEmployeeCannotReviewRequests() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, new Offer());
+        repository.removeByUsername("staff");
+        assertThrows(SecurityException.class, () -> service.approve(user("staff", "secret"), 0, 12));
+    }
+
+    @Test
+    @Tag("security")
+    void authorizedEmployeeReceivesInputValidation() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, new Offer());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.approve(user("staff", "secret"), -1, 12));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.approve(user("staff", "secret"), 0, 0));
+    }
+}

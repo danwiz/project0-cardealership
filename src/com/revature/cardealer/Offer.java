@@ -64,13 +64,19 @@ public class Offer {
 
 	public void setpOffer(String cname, int onum) {
 
+		if (cname == null || cname.trim().isEmpty()
+				|| onum < 0 || onum >= offerDB.length
+				|| offerDB[onum] == null || offerDB[onum].isEmpty()
+				|| opIndex >= cpOffer.length || oIndex >= oOfferDB.length) {
+			throw new IllegalArgumentException("Invalid purchase request or request capacity exhausted");
+		}
 		cpOffer[opIndex] = onum;
 		cName[opIndex] = cname;
 		//status= "   Pending Offer: " + cName[onum];
 		//oDetails = "["+onum+"]"+ offerDB[onum] + " Pending Offer: " + cName[onum];
 		//2cpOffer[onum] =""+oDetails+ "   Pending Offer: " + cName[onum];
 		
-		System.out.println("["+onum+"]"+ offerDB[onum] + "     Pending Offer for : " + cName[onum]);
+		System.out.println("["+onum+"]"+ offerDB[onum] + "     Pending Offer for : " + cName[opIndex]);
 		oPending=true;
 		oOfferDB[oIndex]=this;
 		oIndex++;
@@ -81,16 +87,18 @@ public class Offer {
 	
 	
 	public void getpOffers() {
-		
-		for (int i = 0; i <= cpOffer.length; i++) {
-			if(cpOffer[i]!=0 && cName[i] !=null)
-			{
-				int j = cpOffer[i];
-				System.out.println(offerDB[j] + "   |--->  Pending Offer:   " + cName[j]);
-			}
-		System.out.println("\nWe have no Cars to at this Time!");
+		if (opIndex == 0) {
+			System.out.println("No pending purchase requests.");
+			return;
 		}
-
+		for (int i = 0; i < opIndex; i++) {
+			if (cName[i] != null && !cName[i].isEmpty()) {
+				int listing = cpOffer[i];
+				if (listing >= 0 && listing < offerDB.length && offerDB[listing] != null) {
+					System.out.println(offerDB[listing] + "   |--->  Pending Offer:   " + cName[i]);
+				}
+			}
+		}
 	}
 
 	public void registerOffer(String make, String model, int year, int price, String avail, int amt) {
@@ -225,47 +233,42 @@ public class Offer {
 	}
 	// serches
 	public int setAccept(int onum, int mth, boolean accept) {
-		if (accept) {
-			
-			
-			for (int i = 0; i >= cpOffer.length; i++) {
-				if (cpOffer[i]==onum ) {//onum is offer number
-					oAmt = oAmt - 1;
-					oAccept = true;
-					//System.out.println("Please Enter Number of Monthly Payments: ");					
-					System.out.println(offerDB[onum] + "   Offer Accepted: " + cName[onum]);
-					oMpay = cpPrice[onum]/mth;
-					oDetails= offerDB[onum] + "   Offer Accepted: " + cName[onum]+"   Monthly Payment:  "+oMpay; //remember to update amt
-					oCName = cName[onum];
-					oOfferDB[oIndex]=this;   //stores this offer in offerDB
-					oIndex++;
-					return oMpay;
-					// Offer accept = offerDB[i];
-				} else
-					oAccept = false;
-			}
-
+		if (!accept || onum < 0 || onum >= offerDB.length || mth <= 0
+				|| offerDB[onum] == null || offerDB[onum].isEmpty()) {
+			throw new IllegalArgumentException("Invalid approval request");
 		}
-		return cpPrice[onum];
-
+		for (int i = 0; i < opIndex; i++) {
+			if (cpOffer[i] == onum && cName[i] != null) {
+				if (oAmt <= 0) {
+					throw new IllegalStateException("No inventory available for approval");
+				}
+				String buyer = cName[i];
+				int monthlyPayment = cpPrice[onum] / mth;
+				oAmt--;
+				oAccept = true;
+				oMpay = monthlyPayment;
+				oCName = buyer;
+				oDetails = offerDB[onum] + "   Offer Accepted: " + buyer
+						+ "   Monthly Payment:  " + monthlyPayment;
+				cName[i] = null;
+				cpOffer[i] = 0;
+				System.out.println(oDetails);
+				return monthlyPayment;
+			}
+		}
+		throw new IllegalArgumentException("No matching pending purchase request");
 	}
 
 	public void rejectAllOffers() {
-		
-		opIndex = 0;// could just do this 
-		for(int i=0; i<=cpOffer.length-1; i++)
-		{
-			cpOffer[0] = 0;
-			cpPrice[0] = 0;
-			cName[0]=" ";
-			
-			//offer ObjectDB Object.pending=false;
+		for (int i = 0; i < opIndex; i++) {
+			cpOffer[i] = 0;
+			cName[i] = null;
 		}
-	
-		System.out.println("\nMessage: All Pending Offers REJECTED!! ");
-	
+		opIndex = 0;
+		oPending = false;
+		System.out.println("\\nMessage: All Pending Offers REJECTED!! ");
 	}
-	
+
 	public void removeOffer(int onum) {
 		
 		System.out.println(offerDB[onum]+"\nMessage: Car Listing Removed!! ");
