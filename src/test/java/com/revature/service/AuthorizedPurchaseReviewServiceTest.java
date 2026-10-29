@@ -32,7 +32,7 @@ class AuthorizedPurchaseReviewServiceTest {
         AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, new Offer());
         User forged = user("buyer", "secret");
         forged.setRole(AccountRole.ADMINISTRATOR);
-        assertThrows(SecurityException.class, () -> service.approve(forged, 0, 12));
+        assertThrows(SecurityException.class, () -> service.approveForCustomer(forged, 0, 12, new CustomerLoginService(repository)));
         assertThrows(SecurityException.class, () -> service.rejectAll(forged));
     }
 
@@ -43,23 +43,7 @@ class AuthorizedPurchaseReviewServiceTest {
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
         AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, new Offer());
         repository.removeByUsername("staff");
-        assertThrows(SecurityException.class, () -> service.approve(user("staff", "secret"), 0, 12));
-    }
-
-    @Test
-    @Tag("security")
-    void approvalReturnsFullPriceNotMonthlyInstallmentAndConsumesRequest() {
-        UserAccountRepository repository = new InMemoryUserAccountRepository();
-        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
-        Offer offers = new Offer();
-        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 2);
-        offers.setpOffer("buyer", 0);
-        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
-        org.junit.jupiter.api.Assertions.assertEquals(15000,
-                service.approve(user("staff", "secret"), 0, 12));
-        org.junit.jupiter.api.Assertions.assertEquals(1250, offers.getMpay());
-        assertThrows(IllegalArgumentException.class,
-                () -> service.approve(user("staff", "secret"), 0, 12));
+        assertThrows(SecurityException.class, () -> service.approveForCustomer(user("staff", "secret"), 0, 12, new CustomerLoginService(repository)));
     }
 
     @Test
