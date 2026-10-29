@@ -64,6 +64,12 @@ public class Offer {
 
 	public void setpOffer(String cname, int onum) {
 
+		if (cname == null || cname.trim().isEmpty()
+				|| onum < 0 || onum >= offerDB.length
+				|| offerDB[onum] == null || offerDB[onum].isEmpty()
+				|| opIndex >= cpOffer.length || oIndex >= oOfferDB.length) {
+			throw new IllegalArgumentException("Invalid purchase request or request capacity exhausted");
+		}
 		cpOffer[opIndex] = onum;
 		cName[opIndex] = cname;
 		//status= "   Pending Offer: " + cName[onum];
