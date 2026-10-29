@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Test;
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.PurchaseRequestStatus;
 import com.revature.cardealer.User;
+import com.revature.service.Pbkdf2PasswordHasher;
+import com.revature.service.RoleAuthorizationService;
 
 @Tag("SECURITY")
 @Tag("TARGET-BEHAVIOR")
@@ -34,7 +36,7 @@ class JdbcPurchaseApprovalServiceTest {
         inventory.addListing("Honda", "Accord", 2020, 12000, 2);
         inventory.requestPurchase("buyer", 0);
 
-        assertEquals(12000, new JdbcPurchaseApprovalService(database).approve(reviewer, 0, 12, false));
+        assertEquals(12000, service(database, reviewer).approve(reviewer, 0, 12, false));
         assertEquals(PurchaseRequestStatus.ACCEPTED, inventory.purchaseRequests().get(0).getStatus());
         assertEquals(1, inventory.listings().get(0).getStockQuantity());
         assertEquals(1, count(database, "owned_vehicles"));
@@ -42,12 +44,12 @@ class JdbcPurchaseApprovalServiceTest {
         assertEquals("ACQ-000000", inventory.purchaseRequests().get(0).getContractId().orElseThrow());
 
         // Idempotency uses durable request/contract identity, not a static Java map.
-        assertEquals(12000, new JdbcPurchaseApprovalService(database).approve(reviewer, 0, 12, false));
+        assertEquals(12000, service(database, reviewer).approve(reviewer, 0, 12, false));
         assertEquals(1, count(database, "owned_vehicles"));
         assertEquals(1, count(database, "payment_plans"));
         assertEquals(1, inventory.listings().get(0).getStockQuantity());
         assertThrows(IllegalStateException.class,
-                () -> new JdbcPurchaseApprovalService(database).approve(reviewer, 0, 24, false));
+                () -> service(database, reviewer).approve(reviewer, 0, 24, false));
         assertEquals(1, inventory.listings().get(0).getStockQuantity());
     }
 
@@ -63,7 +65,7 @@ class JdbcPurchaseApprovalServiceTest {
             inventory.requestPurchase("buyer", 0);
 
             JdbcPurchaseApprovalService service = new JdbcPurchaseApprovalService(
-                    database, reached -> {
+                    database, verificationPolicy(database, reviewer), reached -> {
                         if (stage == reached) throw new IllegalStateException("fault " + stage);
                     });
             assertThrows(IllegalStateException.class,
@@ -74,7 +76,7 @@ class JdbcPurchaseApprovalServiceTest {
             assertEquals(0, count(database, "owned_vehicles"), stage.name());
             assertEquals(0, count(database, "payment_plans"), stage.name());
             // Retrying the same request after a rollback is safe.
-            assertEquals(18000, new JdbcPurchaseApprovalService(database)
+            assertEquals(18000, service(database, reviewer)
                     .approve(reviewer, 0, 18, true), stage.name());
             assertEquals(1, count(database, "owned_vehicles"), stage.name());
             assertEquals(PurchaseRequestStatus.REJECTED, inventory.purchaseRequests().get(1).getStatus());
@@ -92,7 +94,7 @@ class JdbcPurchaseApprovalServiceTest {
         inventory.addListing("Ford", "Focus", 2020, 10000, 1);
         inventory.requestPurchase("buyer", 0);
 
-        JdbcPurchaseApprovalService service = new JdbcPurchaseApprovalService(database);
+        JdbcPurchaseApprovalService service = service(database, employee);
         assertThrows(SecurityException.class, () -> service.approve(forged, 0, 12, false));
         User badHash = new User();
         badHash.setUsername(employee.getUsername());
@@ -125,9 +127,9 @@ class JdbcPurchaseApprovalServiceTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         CountDownLatch start = new CountDownLatch(1);
         try {
-            Future<Boolean> first = executor.submit(() -> attempt(new JdbcPurchaseApprovalService(database),
+            Future<Boolean> first = executor.submit(() -> attempt(service(database, reviewer),
                     reviewer, 0, start));
-            Future<Boolean> second = executor.submit(() -> attempt(new JdbcPurchaseApprovalService(database),
+            Future<Boolean> second = executor.submit(() -> attempt(service(database, reviewer),
                     reviewer, 1, start));
             start.countDown();
             boolean firstWon = first.get(20, TimeUnit.SECONDS);
@@ -162,6 +164,40 @@ class JdbcPurchaseApprovalServiceTest {
         }
     }
 
+    /** Session policy is required even when callers bypass the application command. */
+    private static JdbcPurchaseApprovalService service(JdbcDatabase database, User reviewer) {
+        return new JdbcPurchaseApprovalService(database, verificationPolicy(database, reviewer));
+    }
+
+    private static RoleAuthorizationService verificationPolicy(JdbcDatabase database, User reviewer) {
+        RoleAuthorizationService policy = new RoleAuthorizationService();
+        policy.requireVerifiedSessions(() -> new JdbcUserAccountRepository(database));
+        User credentials = new User();
+        credentials.setUsername(reviewer.getUsername());
+        credentials.setPassword("fixture-password-" + reviewer.getUsername());
+        policy.establishVerifiedSession(reviewer, credentials);
+        return policy;
+    }
+
+    @Test
+    void directExecutorRejectsCopiedStoredAccountWithoutVerifiedSession() {
+        JdbcDatabase database = newDatabase("purchase_public_api_boundary");
+        User reviewer = account(database, "reviewer", AccountRole.EMPLOYEE);
+        account(database, "buyer", AccountRole.CUSTOMER);
+        JdbcInventoryRepository inventory = new JdbcInventoryRepository(database);
+        inventory.addListing("Honda", "Civic", 2020, 22000, 1);
+        inventory.requestPurchase("buyer", 0);
+        JdbcPurchaseApprovalService executor = service(database, reviewer);
+
+        // The database exposes an account record, NOT an authenticated session.
+        User stolenRecord = new JdbcUserAccountRepository(database)
+                .findByUsername("reviewer").orElseThrow(AssertionError::new);
+        assertThrows(SecurityException.class, () -> executor.approve(stolenRecord, 0, 12, false));
+        assertEquals(0, count(database, "owned_vehicles"));
+        assertEquals(1, inventory.listings().get(0).getStockQuantity());
+        assertEquals(22000, executor.approve(reviewer, 0, 12, false));
+    }
+
     private static JdbcDatabase newDatabase(String suffix) {
         return JdbcDatabase.inMemory(suffix + "_" + System.nanoTime());
     }
@@ -169,7 +205,7 @@ class JdbcPurchaseApprovalServiceTest {
     private static User account(JdbcDatabase database, String username, AccountRole role) {
         User user = new User();
         user.setUsername(username);
-        user.setPassword("encoded-fixture-only-" + username);
+        user.setPassword(new Pbkdf2PasswordHasher().hash("fixture-password-" + username));
         user.setRole(role);
         return new JdbcUserAccountRepository(database).save(user);
     }
