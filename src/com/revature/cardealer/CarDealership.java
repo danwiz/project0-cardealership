@@ -7,6 +7,7 @@ import com.revature.DAOService.DAOService;
 import com.revature.DAOService.DataDAO;
 import com.revature.service.AdminLoginService;
 import com.revature.service.AuthorizedInventoryService;
+import com.revature.service.AuthorizedPurchaseReviewService;
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
 import com.revature.service.InMemoryUserAccountRepository;
@@ -37,6 +38,8 @@ public class CarDealership {
     private static final AuthorizedInventoryService inventoryService =
             new AuthorizedInventoryService(USER_REPOSITORY, Carlot);
     static Payments PaymentsDB = new Payments();
+    private static final AuthorizedPurchaseReviewService purchaseReviewService =
+            new AuthorizedPurchaseReviewService(USER_REPOSITORY, Carlot);
 
     DataDAO cDao = new DAOService();
 
@@ -189,7 +192,7 @@ public class CarDealership {
             manageInventory(account);
         } else if ("2".equals(option)) {
             requireCurrentRole(account, Permission.REVIEW_PURCHASE_REQUESTS);
-            reviewPurchaseRequests();
+            reviewPurchaseRequests(account);
         } else if ("3".equals(option)) {
             requireCurrentRole(account, Permission.VIEW_CUSTOMER_PAYMENTS);
             System.out.println("[3] View Customer Payments");
@@ -222,7 +225,7 @@ public class CarDealership {
         }
     }
 
-    private static void reviewPurchaseRequests() {
+    private static void reviewPurchaseRequests(User account) {
         System.out.println("Pending Purchase Requests: \n");
         Carlot.getpOffers();
         System.out.println("\nSelect an Offer to Approve: ");
