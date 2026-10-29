@@ -161,7 +161,9 @@ public class CarDealership {
             System.out.println("\n\n Enter Offer Number to Request Purchase:");
             int offerNumber = Integer.parseInt(scan.nextLine());
             requireCurrentRole(account, Permission.REQUEST_PURCHASE);
-            if (offerNumber >= 0 && offerNumber < Carlot.offerDB.length) {
+            if (offerNumber >= 0 && offerNumber < Carlot.offerDB.length
+                    && Carlot.offerDB[offerNumber] != null
+                    && !Carlot.offerDB[offerNumber].isEmpty()) {
                 Carlot.setpOffer(account.getUsername(), offerNumber);
             }
         } else if ("2".equals(option)) {
