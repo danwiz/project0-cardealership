@@ -26,11 +26,12 @@ public class CustomerLoginService extends UserLoginService {
     }
 
     public void setCarsOwned(Car owned, int cprice, int pmths) {
-        if (cOwnedIndex <= cOwnedDB.length)
-            cOwnedDB[cOwnedIndex] = owned;
-            cPrice[cOwnedIndex] = cprice;
-            pMths[cOwnedIndex] = pmths;
-
+        if (owned == null || pmths <= 0 || cOwnedIndex >= cOwnedDB.length) {
+            throw new IllegalArgumentException("Invalid vehicle, payment term, or full owned-vehicle inventory");
+        }
+        cOwnedDB[cOwnedIndex] = owned;
+        cPrice[cOwnedIndex] = cprice;
+        pMths[cOwnedIndex] = pmths;
         cOwnedIndex++;
     }
 
@@ -44,9 +45,15 @@ public class CustomerLoginService extends UserLoginService {
     }
 
     public void getCarsOwned() {
-        for (int i = 0; i <= cOwnedDB.length; i++) {
-            System.out.println(cOwnedDB[i].getCar() + "   Price: " + cPrice[i]
-                    + " Monthly Cost: " + (cPrice[i] / pMths[i]));
+        if (cOwnedIndex == 0) {
+            System.out.println("No owned vehicles found.");
+            return;
+        }
+        for (int i = 0; i < cOwnedIndex; i++) {
+            if (cOwnedDB[i] != null && pMths[i] > 0) {
+                System.out.println(cOwnedDB[i].getCar() + "   Price: " + cPrice[i]
+                        + " Monthly Cost: " + (cPrice[i] / pMths[i]));
+            }
         }
     }
 }
