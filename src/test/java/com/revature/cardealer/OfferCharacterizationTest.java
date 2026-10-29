@@ -72,6 +72,31 @@ class OfferCharacterizationTest {
     }
 
     @Test
+    void registrationRejectsInvalidStockPriceAndFullListingCapacity() {
+        Offer offer = new Offer();
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("Honda", "Accord", 2018, -1, "yes", 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", -1));
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("", "Accord", 2018, 15000, "yes", 1));
+        for (int i = 0; i < 20; i++) {
+            offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        }
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.registerOffer("Toyota", "Corolla", 2020, 9000, "yes", 1));
+    }
+
+    @Test
+    void soldOutListingCannotReceiveNewPurchaseRequest() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offer.setpOffer("first", 0);
+        offer.setAccept(0, 12, true);
+        assertThrows(IllegalArgumentException.class, () -> offer.setpOffer("second", 0));
+    }
+
+    @Test
     @Tag("KNOWN-DEFECT")
     @DisplayName("getAccept uses an inverted loop condition and leaves state unchanged")
     void getAcceptDoesNotInspectProvidedOffers() {
