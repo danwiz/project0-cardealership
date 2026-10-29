@@ -151,6 +151,7 @@ public class CarDealership {
     private static void showCustomerMenu(User account) {
         System.out.println("Welcome To The Dealership: \n");
         System.out.println("[1] View Car Lot");
+        System.out.println("[4] Request Purchase");
         System.out.println("[2] View Cars Owned");
         System.out.println("[3] View Payments");
         System.out.println("\nSelect an option: ");
@@ -158,6 +159,9 @@ public class CarDealership {
 
         if ("1".equals(option)) {
             requireCurrentRole(account, Permission.VIEW_INVENTORY);
+            Carlot.getOfferAll();
+        } else if ("4".equals(option)) {
+            requireCurrentRole(account, Permission.REQUEST_PURCHASE);
             System.out.println("\n\n Enter Offer Number to Request Purchase:");
             int offerNumber = Integer.parseInt(scan.nextLine());
             requireCurrentRole(account, Permission.REQUEST_PURCHASE);
