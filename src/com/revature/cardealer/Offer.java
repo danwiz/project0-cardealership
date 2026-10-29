@@ -33,7 +33,7 @@ public class Offer {
         return offer;
     }
 
-    public void setpOffer(String customerName, int listingNumber) {
+    public synchronized void setpOffer(String customerName, int listingNumber) {
         InventoryListing listing = requireListing(listingNumber);
         if (!listing.isAvailable()) {
             throw new IllegalStateException("listing is not available");
@@ -45,7 +45,7 @@ public class Offer {
                 + "     Pending Offer for: " + request.getCustomerName());
     }
 
-    public void getpOffers() {
+    public synchronized void getpOffers() {
         boolean found = false;
         for (PurchaseRequest request : purchaseRequests) {
             if (request.isPending()) {
@@ -60,7 +60,7 @@ public class Offer {
         }
     }
 
-    public void registerOffer(String make, String model, int year, int price, String avail, int amount) {
+    public synchronized void registerOffer(String make, String model, int year, int price, String avail, int amount) {
         Car car = new Car(make, model, year);
         boolean active = parseAvailability(avail);
         InventoryListing listing = new InventoryListing(listings.size(), car, price, amount, active);
@@ -89,7 +89,7 @@ public class Offer {
         oPending = false;
     }
 
-    public void getOfferAll() {
+    public synchronized void getOfferAll() {
         boolean found = false;
         for (InventoryListing listing : listings) {
             if (listing.isActive()) {
@@ -128,7 +128,7 @@ public class Offer {
     public void setStatus(boolean status) { oStatus = status; }
     public boolean getStatus() { return oStatus; }
 
-    public void getAccept(Offer[] ignored) {
+    public synchronized void getAccept(Offer[] ignored) {
         for (PurchaseRequest request : purchaseRequests) {
             if (request.getStatus() == PurchaseRequestStatus.ACCEPTED) {
                 InventoryListing listing = requireListing(request.getListingId());
@@ -139,7 +139,7 @@ public class Offer {
 
     public void setAccept() { oAccept = true; }
 
-    public int setAccept(int requestNumber, int months, boolean accept) {
+    public synchronized int setAccept(int requestNumber, int months, boolean accept) {
         PurchaseRequest request = requireRequest(requestNumber);
         InventoryListing listing = requireListing(request.getListingId());
         if (!accept) {
@@ -164,23 +164,23 @@ public class Offer {
         return listing.getPrice();
     }
 
-    public void rejectAllOffers() {
+    public synchronized void rejectAllOffers() {
         for (PurchaseRequest request : purchaseRequests) if (request.isPending()) request.reject();
         refreshPendingFlag();
         System.out.println("\nMessage: All Pending Offers REJECTED!! ");
     }
 
-    public void removeOffer(int listingNumber) {
+    public synchronized void removeOffer(int listingNumber) {
         InventoryListing listing = requireListing(listingNumber);
         listing.remove();
         System.out.println(listing.describe() + "\nMessage: Car Listing Removed!! ");
     }
 
     public boolean getAccept() { return oAccept; }
-    public Car getCarDB(int listingNumber) { return requireListing(listingNumber).getCar(); }
-    public int getListingCount() { return listings.size(); }
-    public List<InventoryListing> getListings() { return Collections.unmodifiableList(new ArrayList<>(listings)); }
-    public List<PurchaseRequest> getPurchaseRequests() { return Collections.unmodifiableList(new ArrayList<>(purchaseRequests)); }
+    public synchronized Car getCarDB(int listingNumber) { return requireListing(listingNumber).getCar(); }
+    public synchronized int getListingCount() { return listings.size(); }
+    public synchronized List<InventoryListing> getListings() { return Collections.unmodifiableList(new ArrayList<>(listings)); }
+    public synchronized List<PurchaseRequest> getPurchaseRequests() { return Collections.unmodifiableList(new ArrayList<>(purchaseRequests)); }
 
     private InventoryListing requireListing(int listingNumber) {
         if (listingNumber < 0 || listingNumber >= listings.size()) throw new IllegalArgumentException("unknown listing number: " + listingNumber);
