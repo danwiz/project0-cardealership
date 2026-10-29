@@ -88,6 +88,51 @@ class OfferCharacterizationTest {
     }
 
     @Test
+    @Tag("TARGET-BEHAVIOR")
+    void purchaseRequestsDoNotConsumeVehicleListingSlots() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 8);
+        for (int i = 0; i < 5; i++) {
+            offer.setpOffer("request-" + i, 0);
+        }
+
+        offer.registerOffer("Toyota", "Corolla", 2020, 9000, "yes", 2);
+
+        assertEquals(15000, offer.getListingPrice(0));
+        assertEquals(9000, offer.getListingPrice(1));
+        assertEquals(2, offer.getListingStock(1));
+        assertEquals("request-0", offer.getPendingBuyer(0));
+    }
+
+    @Test
+    @Tag("TARGET-BEHAVIOR")
+    void completedRequestsReleaseCapacityWithoutChangingFifoOrder() {
+        Offer offer = new Offer();
+        offer.registerOffer("Honda", "Accord", 2018, 12000, "yes", 21);
+        for (int i = 0; i < 20; i++) {
+            offer.setpOffer("buyer-" + i, 0);
+        }
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.setpOffer("overflow", 0));
+
+        assertEquals(1000, offer.setAccept(0, 12, true));
+        assertEquals("buyer-1", offer.getPendingBuyer(0));
+
+        offer.setpOffer("replacement", 0);
+        // The new request joins the end rather than overtaking old requests.
+        assertEquals("buyer-1", offer.getPendingBuyer(0));
+        for (int i = 1; i < 20; i++) {
+            assertEquals("buyer-" + i, offer.getPendingBuyer(0));
+            assertEquals(1000, offer.setAccept(0, 12, true));
+        }
+        assertEquals("replacement", offer.getPendingBuyer(0));
+        assertEquals(1000, offer.setAccept(0, 12, true));
+        assertEquals(0, offer.getListingStock(0));
+        assertThrows(IllegalArgumentException.class,
+                () -> offer.getPendingBuyer(0));
+    }
+
+    @Test
     void soldOutListingCannotReceiveNewPurchaseRequest() {
         Offer offer = new Offer();
         offer.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
