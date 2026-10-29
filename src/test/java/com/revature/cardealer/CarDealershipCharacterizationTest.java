@@ -113,6 +113,26 @@ class CarDealershipCharacterizationTest {
 
     @Test
     @Tag("security")
+    void customerCannotSubmitRequestForMissingInventory() throws Throwable {
+        String username = uniqueUsername("missing-listing");
+        replaceScanner("1\n" + username + "\nsecret\n");
+        invokePerformUserAction("1");
+
+        Field inventoryField = CarDealership.class.getDeclaredField("Carlot");
+        inventoryField.setAccessible(true);
+        Offer inventory = (Offer) inventoryField.get(null);
+        Field pendingIndex = Offer.class.getDeclaredField("opIndex");
+        pendingIndex.setAccessible(true);
+        int before = pendingIndex.getInt(inventory);
+
+        replaceScanner(username + "\nsecret\n1\n19\n");
+        invokePerformUserAction("2");
+
+        assertEquals(before, pendingIndex.getInt(inventory));
+    }
+
+    @Test
+    @Tag("security")
     void viewingInventoryAsCustomerDoesNotAddVehicles() throws Throwable {
         String username = uniqueUsername("viewer");
         replaceScanner("1\n" + username + "\nsecret\n");
