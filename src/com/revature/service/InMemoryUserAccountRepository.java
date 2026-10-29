@@ -17,25 +17,37 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
 
     private final Map<String, User> usersByUsername = new LinkedHashMap<>();
 
+    /**
+     * Create-only persistence boundary. A prior findByUsername check is
+     * advisory; the duplicate check and insertion must be atomic here.
+     * Account updates require a separate, explicitly authorized operation.
+     */
     @Override
-    public User save(User user) {
+    public synchronized User save(User user) {
         User stored = copy(Objects.requireNonNull(user, "user"));
-        usersByUsername.put(stored.getUsername(), stored);
+        String username = stored.getUsername();
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("username must not be blank");
+        }
+        if (usersByUsername.containsKey(username)) {
+            throw new IllegalArgumentException("username is already registered");
+        }
+        usersByUsername.put(username, stored);
         return copy(stored);
     }
 
     @Override
-    public Optional<User> findByUsername(String username) {
+    public synchronized Optional<User> findByUsername(String username) {
         return Optional.ofNullable(usersByUsername.get(username)).map(InMemoryUserAccountRepository::copy);
     }
 
     @Override
-    public boolean removeByUsername(String username) {
+    public synchronized boolean removeByUsername(String username) {
         return usersByUsername.remove(username) != null;
     }
 
     @Override
-    public List<User> findAll() {
+    public synchronized List<User> findAll() {
         List<User> copies = new ArrayList<>();
         for (User user : usersByUsername.values()) {
             copies.add(copy(user));

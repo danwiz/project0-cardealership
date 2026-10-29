@@ -77,6 +77,8 @@ class AuthorizedInventoryServiceTest {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         saveAccount(repository, "employee", "secret", AccountRole.EMPLOYEE);
         AuthorizedInventoryService service = new AuthorizedInventoryService(repository, new Offer());
+        // Recreate fixture state explicitly: repository.save is create-only.
+        org.junit.jupiter.api.Assertions.assertTrue(repository.removeByUsername("employee"));
         saveAccount(repository, "employee", "secret", AccountRole.CUSTOMER);
         assertThrows(SecurityException.class,
                 () -> service.removeVehicle(credentials("employee", "secret"), 0));

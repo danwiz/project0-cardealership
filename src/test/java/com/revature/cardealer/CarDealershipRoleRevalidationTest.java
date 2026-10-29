@@ -47,6 +47,9 @@ class CarDealershipRoleRevalidationTest {
         User demoted = new User();
         demoted.setUsername("trusted-admin");
         demoted.setRole(AccountRole.CUSTOMER);
+        // Test fixture recreates stored state; production role changes need
+        // an explicitly authorized account-update operation.
+        assertTrue(repository.removeByUsername("trusted-admin"));
         repository.save(demoted);
         assertFalse(CarDealership.isCurrentRoleAuthorized(repository, administrator,
                 Permission.MANAGE_PERSISTENCE));
