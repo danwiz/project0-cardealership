@@ -110,6 +110,101 @@ class PostgresqlPurchasePermitBoundaryTest {
         assertEquals(1, f.rows("owned_vehicles"));
     }
 
+    @Test
+    void readOnlyReceiptDifferentiatesUnconfirmedCommitAndInconsistentState() throws Exception {
+        Fixture f = fixture("receipt");
+        UUID permit = f.issue(0, "buyer", "reviewer", 12, 600, false);
+
+        Receipt before = f.receipt(permit, 0, 12);
+        assertEquals("NOT_CONFIRMED", before.outcome);
+        assertEquals(null, before.contract);
+        assertEquals(null, before.price);
+        assertDenied(() -> f.receipt(UUID.randomUUID(), 0, 12));
+        assertDenied(() -> f.receipt(permit, 1, 12));
+        assertDenied(() -> f.receipt(permit, 0, 24));
+        assertDenied(() -> f.receiptAs(f.reader, permit, 0, 12));
+        assertDenied(() -> f.receiptAs(f.writer, permit, 0, 12));
+        assertDenied(() -> f.execute(f.reconciler,
+                "SELECT * FROM purchase_approval_permits"));
+        assertDenied(() -> f.execute(f.reconciler,
+                "UPDATE purchase_requests SET status = 'ACCEPTED' WHERE request_id = 0"));
+
+        assertEquals(24000, f.approve(permit, 0, 12));
+        Receipt after = f.receipt(permit, 0, 12);
+        assertEquals("COMMITTED", after.outcome);
+        assertEquals("ACQ-000000", after.contract);
+        assertEquals(Integer.valueOf(24000), after.price);
+        assertEquals(1, f.rows("owned_vehicles"));
+        assertEquals(1, f.rows("payment_plans"));
+
+        // Owner-side corruption is detected, not reported as a valid receipt.
+        f.execute(f.owner, "UPDATE payment_plans SET purchase_price = 1");
+        Receipt inconsistent = f.receipt(permit, 0, 12);
+        assertEquals("INCONSISTENT", inconsistent.outcome);
+        assertEquals(null, inconsistent.contract);
+        assertEquals(null, inconsistent.price);
+        assertEquals(1, f.rows("owned_vehicles"));
+    }
+
+    @Test
+    void simulatedLostReplyAfterCommittedWriteIsReconciledWithoutReapproval() throws Exception {
+        Fixture f = fixture("lost_reply");
+        UUID permit = f.issue(0, "buyer", "reviewer", 12, 600, false);
+
+        // Simulates only the caller losing an acknowledgement AFTER PostgreSQL
+        // completed COMMIT. It is NOT a real network fault / failover test.
+        SQLException lostReply = assertThrows(SQLException.class, () -> {
+            assertEquals(24000, f.approve(permit, 0, 12));
+            throw new SQLException("simulated lost response after committed purchase", "08006");
+        });
+        assertEquals("08006", lostReply.getSQLState());
+
+        Receipt receipt = f.receipt(permit, 0, 12);
+        assertEquals("COMMITTED", receipt.outcome);
+        assertEquals("ACQ-000000", receipt.contract);
+        assertEquals(Integer.valueOf(24000), receipt.price);
+        assertTrue(f.consumed(permit));
+        assertEquals(0, f.inventory.listings().get(0).getStockQuantity());
+        assertEquals(1, f.rows("owned_vehicles"));
+        assertEquals(1, f.rows("payment_plans"));
+        // Reconciliation must NEVER invoke the purchase a second time.
+        assertDenied(() -> f.approve(permit, 0, 12));
+        assertEquals(1, f.rows("owned_vehicles"));
+    }
+
+    @Test
+    void failedPurchaseRemainsNotConfirmedAndCannotBeMistakenForCommitted() throws Exception {
+        Fixture f = fixture("receipt_rollback");
+        UUID permit = f.issue(0, "buyer", "reviewer", 12, 600, false);
+        f.execute(f.owner, "CREATE FUNCTION " + f.schema
+                + ".deny_receipt_ownership() RETURNS trigger LANGUAGE plpgsql AS "
+                + "$fault$ BEGIN RAISE EXCEPTION 'test-only failure' "
+                + "USING ERRCODE = '23514'; END; $fault$");
+        f.execute(f.owner, "CREATE TRIGGER deny_receipt_ownership BEFORE INSERT ON "
+                + f.schema + ".owned_vehicles FOR EACH ROW EXECUTE FUNCTION "
+                + f.schema + ".deny_receipt_ownership()");
+        try {
+            assertEquals("23514",
+                    assertThrows(SQLException.class, () -> f.approve(permit, 0, 12)).getSQLState());
+            Receipt receipt = f.receipt(permit, 0, 12);
+            assertEquals("NOT_CONFIRMED", receipt.outcome);
+            assertEquals(null, receipt.contract);
+            assertEquals(null, receipt.price);
+            assertFalse(f.consumed(permit));
+            assertTrue(f.inventory.purchaseRequests().get(0).isPending());
+            assertEquals(1, f.inventory.listings().get(0).getStockQuantity());
+            assertEquals(0, f.rows("owned_vehicles"));
+            assertEquals(0, f.rows("payment_plans"));
+        } finally {
+            f.execute(f.owner, "DROP TRIGGER deny_receipt_ownership ON " + f.schema
+                    + ".owned_vehicles");
+        }
+        // A fresh, explicitly authorized call can still complete the
+        // unconsumed permit, but the receipt itself never submits that call.
+        assertEquals(24000, f.approve(permit, 0, 12));
+        assertEquals("COMMITTED", f.receipt(permit, 0, 12).outcome);
+    }
+
     private static Fixture fixture(String scenario) throws Exception {
         String url = System.getenv("DEALERSHIP_PG_TEST_URL");
         String user = System.getenv("DEALERSHIP_PG_TEST_USER");
