@@ -115,7 +115,7 @@ class CarDealershipCharacterizationTest {
     @Tag("security")
     void viewingInventoryAsCustomerDoesNotAddVehicles() throws Throwable {
         String username = uniqueUsername("viewer");
-        replaceScanner("1\\n" + username + "\\nsecret\\n");
+        replaceScanner("1\n" + username + "\nsecret\n");
         invokePerformUserAction("1");
 
         Field inventoryField = CarDealership.class.getDeclaredField("Carlot");
@@ -125,7 +125,7 @@ class CarDealershipCharacterizationTest {
         indexField.setAccessible(true);
         int before = indexField.getInt(inventory);
 
-        replaceScanner(username + "\\nsecret\\n1\\n");
+        replaceScanner(username + "\nsecret\n1\n");
         invokePerformUserAction("2");
 
         assertEquals(before, indexField.getInt(inventory));
