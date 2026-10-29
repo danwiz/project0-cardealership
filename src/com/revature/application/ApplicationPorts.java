@@ -39,6 +39,11 @@ public final class ApplicationPorts {
         Car carForListing(int listingId);
     }
 
+    /** A whole-purchase boundary, not separate inventory and ownership writes. */
+    public interface PurchaseApproval {
+        int approve(User reviewer, int requestId, int paymentMonths, boolean rejectOtherPending);
+    }
+
     public interface Ownership {
         void addOwnedVehicle(Car car, int purchasePrice, int paymentMonths);
 
