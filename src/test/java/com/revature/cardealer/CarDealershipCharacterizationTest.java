@@ -113,6 +113,26 @@ class CarDealershipCharacterizationTest {
 
     @Test
     @Tag("security")
+    void viewingInventoryAsCustomerDoesNotAddVehicles() throws Throwable {
+        String username = uniqueUsername("viewer");
+        replaceScanner("1\\n" + username + "\\nsecret\\n");
+        invokePerformUserAction("1");
+
+        Field inventoryField = CarDealership.class.getDeclaredField("Carlot");
+        inventoryField.setAccessible(true);
+        Offer inventory = (Offer) inventoryField.get(null);
+        Field indexField = Offer.class.getDeclaredField("oIndex");
+        indexField.setAccessible(true);
+        int before = indexField.getInt(inventory);
+
+        replaceScanner(username + "\\nsecret\\n1\\n");
+        invokePerformUserAction("2");
+
+        assertEquals(before, indexField.getInt(inventory));
+    }
+
+    @Test
+    @Tag("security")
     void switchingToPublicActionClearsPreviousPrivilegedSession() throws Throwable {
         String username = uniqueUsername("session-admin");
         provisionStaff(username, "secret", AccountRole.ADMINISTRATOR);
