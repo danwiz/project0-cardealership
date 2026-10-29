@@ -43,6 +43,15 @@ public class CustomerLoginService extends UserLoginService {
         vehiclesByCustomer.computeIfAbsent(username, ignored -> new ArrayList<>()).add(record);
     }
 
+    /** Accepts a fully validated, preconstructed ownership record. */
+    public void addPreparedPurchaseForCustomer(String username, OwnedVehicle record) {
+        if (username == null || username.trim().isEmpty()) {
+            throw new IllegalArgumentException("buyer username must not be blank");
+        }
+        java.util.Objects.requireNonNull(record, "ownership record");
+        vehiclesByCustomer.computeIfAbsent(username, ignored -> new ArrayList<>()).add(record);
+    }
+
     public List<OwnedVehicle> getOwnedVehicleRecords(String username) {
         if (username == null || username.trim().isEmpty()) {
             throw new IllegalArgumentException("buyer username must not be blank");
