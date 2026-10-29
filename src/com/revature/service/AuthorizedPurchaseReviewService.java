@@ -4,6 +4,9 @@ import java.util.Objects;
 
 import com.revature.cardealer.Offer;
 import com.revature.cardealer.Car;
+import com.revature.cardealer.OwnedVehicle;
+import com.revature.cardealer.PaymentPlan;
+import com.revature.cardealer.Car;
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
 
@@ -12,6 +15,7 @@ public final class AuthorizedPurchaseReviewService {
     private final UserLoginService login;
     private final RoleAuthorizationService authorization = new RoleAuthorizationService();
     private final Offer offers;
+    private final UserAccountRepository accounts;
     private final UserAccountRepository accounts;
 
     public AuthorizedPurchaseReviewService(UserAccountRepository accounts, Offer offers) {
@@ -57,6 +61,39 @@ public final class AuthorizedPurchaseReviewService {
                 new com.revature.cardealer.PaymentPlan(price, months));
         offers.setAccept(offerNumber, months, true);
         customers.recordPurchaseForCustomer(buyer, vehicle, price, months);
+    }
+
+    private User loginAccount(String username) {
+        return accounts.findByUsername(username)
+                .orElseThrow(() -> new SecurityException("pending buyer account no longer exists"));
+    }
+
+    /**
+     * Prepares ownership before consuming a pending request or decrementing stock.
+     * Validation failures therefore leave the offer unchanged. This is an
+     * in-memory coordination boundary, not a durable database transaction.
+     */
+    public synchronized OwnedVehicle approveAndRecord(User reviewer, int offerNumber,
+            int months, CustomerLoginService customers) {
+        requireReviewer(reviewer);
+        Objects.requireNonNull(customers, "customers");
+        if (months <= 0) {
+            throw new IllegalArgumentException("payment term must be positive");
+        }
+        String buyer = offers.getPendingBuyer(offerNumber);
+        User account = loginAccount(buyer);
+        if (account.getRole() != com.revature.cardealer.AccountRole.CUSTOMER) {
+            throw new SecurityException("pending buyer is not a customer");
+        }
+        int price = offers.getListingPrice(offerNumber);
+        if (offers.getListingStock(offerNumber) <= 0) {
+            throw new IllegalStateException("no inventory available");
+        }
+        Car vehicle = Objects.requireNonNull(offers.getCarDB(offerNumber), "listing vehicle");
+        OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
+        offers.setAccept(offerNumber, months, true);
+        customers.addPreparedPurchaseForCustomer(buyer, ownership);
+        return ownership;
     }
 
     private User loginAccount(String username) {
