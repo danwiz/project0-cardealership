@@ -76,6 +76,11 @@ public class RoleAuthorizationService {
                 persisted.getUsername(), persisted.getRole(), persisted.getPassword()));
     }
 
+    /** True only when this policy checks an authenticated session against persisted accounts. */
+    public boolean enforcesVerifiedSessions() {
+        return repositorySupplier != null;
+    }
+
     public void clearVerifiedSessions() {
         sessions.clear();
     }
