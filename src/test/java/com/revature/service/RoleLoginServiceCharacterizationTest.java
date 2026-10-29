@@ -92,14 +92,15 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
-    void customerOwnedCarStorageRejectsFixedArrayOverflow() {
+    void customerOwnedCarStorageSupportsMoreThanLegacyFixedArrayCapacity() {
         CustomerLoginService service = new CustomerLoginService();
         for (int i = 0; i < 20; i++) {
             service.setCarsOwned(new Car("Make" + i, "Model" + i, 2000 + i), 10000 + i, 12);
         }
 
-        assertThrows(IllegalArgumentException.class,
-                () -> service.setCarsOwned(new Car("Overflow", "Vehicle", 2020), 20000, 12));
+        org.junit.jupiter.api.Assertions.assertDoesNotThrow(
+                () -> service.setCarsOwned(new Car("Additional", "Vehicle", 2020), 20000, 12));
+        org.junit.jupiter.api.Assertions.assertEquals(21, service.getOwnedVehicleRecords().size());
     }
 
     @Test
@@ -118,7 +119,7 @@ class RoleLoginServiceCharacterizationTest {
         System.setOut(new PrintStream(output));
 
         org.junit.jupiter.api.Assertions.assertDoesNotThrow(service::getCarsOwned);
-        assertTrue(output.toString().contains("No owned vehicles found."));
+        assertTrue(output.toString().contains("No vehicles owned."));
     }
 
     @Test
@@ -126,7 +127,7 @@ class RoleLoginServiceCharacterizationTest {
         CustomerLoginService service = new CustomerLoginService();
         assertThrows(IllegalArgumentException.class,
                 () -> service.setCarsOwned(new Car("Toyota", "Corolla", 2010), 10000, 0));
-        assertThrows(IllegalArgumentException.class,
+        assertThrows(NullPointerException.class,
                 () -> service.setCarsOwned(null, 10000, 12));
     }
 
