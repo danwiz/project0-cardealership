@@ -63,7 +63,8 @@ public final class ConsoleCommandHandler {
         this.authenticateAccount = new AuthenticateAccountCommand(identity, domain);
         this.manageInventory = new ManageInventoryCommand(domain, domain);
         this.requestPurchase = new RequestPurchaseCommand(domain, domain);
-        this.reviewPurchaseRequest = new ReviewPurchaseRequestCommand(domain, domain, domain);
+        this.reviewPurchaseRequest = new ReviewPurchaseRequestCommand(
+                domain, domain, domain, application.getPurchaseApproval());
         this.recordPayment = new RecordPaymentCommand(application);
         this.saveState = new SaveStateCommand(context);
         this.loadState = new LoadStateCommand(context);

@@ -13,6 +13,7 @@ import com.revature.repository.jdbc.JdbcDatabase;
 import com.revature.repository.jdbc.JdbcInventoryRepository;
 import com.revature.repository.jdbc.JdbcOwnershipRepository;
 import com.revature.repository.jdbc.JdbcPaymentProcessor;
+import com.revature.repository.jdbc.JdbcPurchaseApprovalService;
 import com.revature.repository.jdbc.JdbcPaymentTransactionRepository;
 import com.revature.repository.jdbc.JdbcUserAccountRepository;
 import com.revature.service.InMemoryUserAccountRepository;
@@ -43,7 +44,7 @@ public final class DealershipCompositionRoot {
         LedgerPaymentTransactionRepository payments = new LedgerPaymentTransactionRepository(context.getPayments());
         return new ConfiguredDealershipApplication(configuration, context, accounts, inventory,
                 customer -> ownership, customer -> payments,
-                customer -> new InMemoryPaymentProcessor(ownership, payments));
+                customer -> new InMemoryPaymentProcessor(ownership, payments), null);
     }
 
     private static ConfiguredDealershipApplication createJdbc(InfrastructureConfiguration configuration) {
@@ -57,7 +58,7 @@ public final class DealershipCompositionRoot {
         return new ConfiguredDealershipApplication(configuration, context, accounts, inventory,
                 customer -> new JdbcOwnershipRepository(database, customer),
                 customer -> new JdbcPaymentTransactionRepository(database, customer),
-                customer -> paymentProcessor);
+                customer -> paymentProcessor, new JdbcPurchaseApprovalService(database));
     }
 
     private static DealershipApplicationContext newContext(UserAccountRepository accounts,

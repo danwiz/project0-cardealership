@@ -12,6 +12,7 @@ public final class ReviewPurchaseRequestCommand {
     private final ApplicationPorts.Authorization authorization;
     private final ApplicationPorts.Inventory inventory;
     private final ApplicationPorts.Ownership ownership;
+    private final ApplicationPorts.PurchaseApproval atomicApproval;
 
     public ReviewPurchaseRequestCommand(DealershipApplicationContext context) {
         this(new ContextDomainAdapter(context), new ContextDomainAdapter(context),
@@ -20,14 +21,24 @@ public final class ReviewPurchaseRequestCommand {
 
     public ReviewPurchaseRequestCommand(ApplicationPorts.Authorization authorization,
             ApplicationPorts.Inventory inventory, ApplicationPorts.Ownership ownership) {
+        this(authorization, inventory, ownership, null);
+    }
+
+    public ReviewPurchaseRequestCommand(ApplicationPorts.Authorization authorization,
+            ApplicationPorts.Inventory inventory, ApplicationPorts.Ownership ownership,
+            ApplicationPorts.PurchaseApproval atomicApproval) {
         this.authorization = Objects.requireNonNull(authorization, "authorization");
         this.inventory = Objects.requireNonNull(inventory, "inventory");
         this.ownership = Objects.requireNonNull(ownership, "ownership");
+        this.atomicApproval = atomicApproval;
     }
 
     public int approve(User actor, int requestId, int paymentMonths, boolean rejectOtherPending) {
         authorization.requireAuthorized(actor, Permission.REVIEW_PURCHASE_REQUESTS);
         if (paymentMonths <= 0) throw new IllegalArgumentException("payment months must be positive");
+        if (atomicApproval != null) {
+            return atomicApproval.approve(actor, requestId, paymentMonths, rejectOtherPending);
+        }
         if (requestId < 0 || requestId >= inventory.purchaseRequests().size()) {
             throw new IllegalArgumentException("unknown purchase request number: " + requestId);
         }
