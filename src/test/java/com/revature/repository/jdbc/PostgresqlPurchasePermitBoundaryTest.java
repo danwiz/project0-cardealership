@@ -124,13 +124,17 @@ class PostgresqlPurchasePermitBoundaryTest {
         String schema = "apermit_" + scenario + "_" + id;
         String writerRole = "apwriter_" + id;
         String readerRole = "apreader_" + id;
+        String reconcilerRole = "apreceipt_" + id;
         String writerPassword = "disposable-ci-only-writer";
         String readerPassword = "disposable-ci-only-reader";
+        String reconcilerPassword = "disposable-ci-only-reconciler";
         JdbcDatabase admin = new JdbcDatabase(url, user, password);
         try (Connection conn = admin.openConnection(); Statement ddl = conn.createStatement()) {
             ddl.execute("CREATE SCHEMA " + schema);
             ddl.execute("CREATE ROLE " + writerRole + " LOGIN PASSWORD '" + writerPassword + "'");
             ddl.execute("CREATE ROLE " + readerRole + " LOGIN PASSWORD '" + readerPassword + "'");
+            ddl.execute("CREATE ROLE " + reconcilerRole
+                    + " LOGIN PASSWORD '" + reconcilerPassword + "'");
         }
 
         String scopedUrl = url + "?currentSchema=" + schema;
@@ -149,6 +153,8 @@ class PostgresqlPurchasePermitBoundaryTest {
 
         String function = loadFunction()
                 .replace("__SCHEMA__", schema).replace("__WRITER__", writerRole);
+        String receiptFunction = loadReceiptFunction()
+                .replace("__SCHEMA__", schema).replace("__RECONCILER__", reconcilerRole);
         // No PUBLIC EXECUTE exposure, including between CREATE and REVOKE.
         try (Connection conn = admin.openConnection(); Statement ddl = conn.createStatement()) {
             conn.setAutoCommit(false);
@@ -160,10 +166,15 @@ class PostgresqlPurchasePermitBoundaryTest {
                         + "revoked boolean NOT NULL DEFAULT false, consumed_at timestamptz, "
                         + "contract_id varchar(20), purchase_price integer)");
                 ddl.execute(function);
+                ddl.execute(receiptFunction);
                 ddl.execute("REVOKE ALL ON FUNCTION " + schema
                         + ".approve_purchase_with_permit(uuid, integer, integer) FROM PUBLIC");
+                ddl.execute("REVOKE ALL ON FUNCTION " + schema
+                        + ".reconcile_purchase_permit(uuid, integer, integer) FROM PUBLIC");
                 ddl.execute("GRANT USAGE ON SCHEMA " + schema + " TO "
-                        + writerRole + ", " + readerRole);
+                        + writerRole + ", " + readerRole + ", " + reconcilerRole);
+                ddl.execute("GRANT EXECUTE ON FUNCTION " + schema
+                        + ".reconcile_purchase_permit(uuid, integer, integer) TO " + reconcilerRole);
                 ddl.execute("GRANT EXECUTE ON FUNCTION " + schema
                         + ".approve_purchase_with_permit(uuid, integer, integer) TO " + writerRole);
                 ddl.execute("GRANT SELECT ON " + schema + ".schema_history, "
@@ -176,7 +187,8 @@ class PostgresqlPurchasePermitBoundaryTest {
         }
         return new Fixture(schema, owner,
                 new JdbcDatabase(scopedUrl, writerRole, writerPassword),
-                new JdbcDatabase(scopedUrl, readerRole, readerPassword), inventory);
+                new JdbcDatabase(scopedUrl, readerRole, readerPassword),
+                new JdbcDatabase(scopedUrl, reconcilerRole, reconcilerPassword), inventory);
     }
 
     private static String loadFunction() throws Exception {
@@ -187,9 +199,28 @@ class PostgresqlPurchasePermitBoundaryTest {
         }
     }
 
+    private static String loadReceiptFunction() throws Exception {
+        try (InputStream stream = PostgresqlPurchasePermitBoundaryTest.class
+                .getResourceAsStream("/postgresql/trusted_purchase_receipt_ci.sql")) {
+            if (stream == null) throw new IllegalStateException("CI receipt function not present");
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
     private static void assertDenied(org.junit.jupiter.api.function.Executable call) {
         SQLException error = assertThrows(SQLException.class, call);
         assertEquals("42501", error.getSQLState());
+    }
+
+    private static final class Receipt {
+        final String outcome;
+        final String contract;
+        final Integer price;
+        Receipt(String outcome, String contract, Integer price) {
+            this.outcome = outcome;
+            this.contract = contract;
+            this.price = price;
+        }
     }
 
     private static final class Fixture {
@@ -197,14 +228,16 @@ class PostgresqlPurchasePermitBoundaryTest {
         final JdbcDatabase owner;
         final JdbcDatabase writer;
         final JdbcDatabase reader;
+        final JdbcDatabase reconciler;
         final JdbcInventoryRepository inventory;
 
         Fixture(String schema, JdbcDatabase owner, JdbcDatabase writer,
-                JdbcDatabase reader, JdbcInventoryRepository inventory) {
+                JdbcDatabase reader, JdbcDatabase reconciler, JdbcInventoryRepository inventory) {
             this.schema = schema;
             this.owner = owner;
             this.writer = writer;
             this.reader = reader;
+            this.reconciler = reconciler;
             this.inventory = inventory;
         }
 
@@ -262,6 +295,29 @@ class PostgresqlPurchasePermitBoundaryTest {
                 try (ResultSet result = call.executeQuery()) {
                     if (!result.next()) throw new IllegalStateException("missing SQL response");
                     return result.getInt(1);
+                }
+            }
+        }
+
+        Receipt receipt(UUID permit, int requestId, int months) throws SQLException {
+            return receiptAs(reconciler, permit, requestId, months);
+        }
+
+        Receipt receiptAs(JdbcDatabase db, UUID permit, int requestId, int months)
+                throws SQLException {
+            try (Connection conn = db.openConnection();
+                    PreparedStatement query = conn.prepareStatement("SELECT * FROM " + schema
+                            + ".reconcile_purchase_permit(?, ?, ?)")) {
+                query.setObject(1, permit);
+                query.setInt(2, requestId);
+                query.setInt(3, months);
+                try (ResultSet result = query.executeQuery()) {
+                    if (!result.next()) throw new IllegalStateException("receipt result missing");
+                    Receipt receipt = new Receipt(result.getString("outcome"),
+                            result.getString("acquisition_contract"),
+                            (Integer) result.getObject("authorized_price"));
+                    if (result.next()) throw new IllegalStateException("receipt must be single-row");
+                    return receipt;
                 }
             }
         }
