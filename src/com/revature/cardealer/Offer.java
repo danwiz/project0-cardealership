@@ -27,8 +27,12 @@ public class Offer {
     public static Offer restore(List<InventoryListing> restoredListings,
             List<PurchaseRequest> restoredRequests) {
         Offer offer = new Offer();
-        offer.listings.addAll(Objects.requireNonNull(restoredListings, "restoredListings"));
-        offer.purchaseRequests.addAll(Objects.requireNonNull(restoredRequests, "restoredRequests"));
+        for (InventoryListing listing : Objects.requireNonNull(restoredListings, "restoredListings")) {
+            offer.listings.add(snapshotListing(Objects.requireNonNull(listing, "listing")));
+        }
+        for (PurchaseRequest request : Objects.requireNonNull(restoredRequests, "restoredRequests")) {
+            offer.purchaseRequests.add(Objects.requireNonNull(request, "request").snapshot());
+        }
         offer.refreshPendingFlag();
         return offer;
     }
@@ -76,7 +80,7 @@ public class Offer {
     }
 
     public void setOffer(Car details, int price, String avail, int amount) {
-        cDetails = details;
+        cDetails = snapshotCar(Objects.requireNonNull(details, "details"));
         oPrice = price;
         oAvail = parseAvailability(avail) && amount > 0 ? "yes" : "no";
         oAmt = amount;
@@ -177,10 +181,27 @@ public class Offer {
     }
 
     public boolean getAccept() { return oAccept; }
-    public synchronized Car getCarDB(int listingNumber) { return requireListing(listingNumber).getCar(); }
+    public synchronized Car getCarDB(int listingNumber) { return snapshotCar(requireListing(listingNumber).getCar()); }
     public synchronized int getListingCount() { return listings.size(); }
-    public synchronized List<InventoryListing> getListings() { return Collections.unmodifiableList(new ArrayList<>(listings)); }
-    public synchronized List<PurchaseRequest> getPurchaseRequests() { return Collections.unmodifiableList(new ArrayList<>(purchaseRequests)); }
+    public synchronized List<InventoryListing> getListings() {
+        List<InventoryListing> result = new ArrayList<>();
+        for (InventoryListing listing : listings) result.add(snapshotListing(listing));
+        return Collections.unmodifiableList(result);
+    }
+    public synchronized List<PurchaseRequest> getPurchaseRequests() {
+        List<PurchaseRequest> result = new ArrayList<>();
+        for (PurchaseRequest request : purchaseRequests) result.add(request.snapshot());
+        return Collections.unmodifiableList(result);
+    }
+
+    private static Car snapshotCar(Car car) {
+        return new Car(car.getCarMake(), car.getCarModel(), car.getCarYear());
+    }
+
+    private static InventoryListing snapshotListing(InventoryListing listing) {
+        return new InventoryListing(listing.getId(), snapshotCar(listing.getCar()),
+                listing.getPrice(), listing.getStockQuantity(), listing.isActive());
+    }
 
     private InventoryListing requireListing(int listingNumber) {
         if (listingNumber < 0 || listingNumber >= listings.size()) throw new IllegalArgumentException("unknown listing number: " + listingNumber);
