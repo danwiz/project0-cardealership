@@ -110,7 +110,7 @@ public class CarDealership {
         }
 
         User account = authenticated.get();
-        if (!authorization.isAuthorized(account, permission)) {
+        if (!isCurrentRoleAuthorized(account, permission)) {
             currentAccount = null;
             System.out.println("access denied");
             return Optional.empty();
@@ -118,6 +118,16 @@ public class CarDealership {
 
         currentAccount = account;
         return authenticated;
+    }
+
+    private static boolean isCurrentRoleAuthorized(User account, Permission permission) {
+        if (account == null || account.getUsername() == null) {
+            return false;
+        }
+        return USER_REPOSITORY.findByUsername(account.getUsername())
+                .filter(stored -> stored.getRole() == account.getRole())
+                .filter(stored -> authorization.isAuthorized(stored, permission))
+                .isPresent();
     }
 
     private static void showCustomerMenu(User account) {
