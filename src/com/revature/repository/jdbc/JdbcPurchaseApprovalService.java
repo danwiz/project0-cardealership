@@ -112,7 +112,8 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
 
     private static boolean isUncertainConnectionFailure(SQLException failure) {
         String state = failure.getSQLState();
-        return state == null || state.startsWith("08");
+        // 40003 is SQL standard/PostgreSQL "statement_completion_unknown".
+        return state == null || state.startsWith("08") || "40003".equals(state);
     }
 
     private int approveInTransaction(Connection connection, User reviewer,
