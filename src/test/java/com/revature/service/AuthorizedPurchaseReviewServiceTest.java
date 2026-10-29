@@ -107,8 +107,8 @@ class AuthorizedPurchaseReviewServiceTest {
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
         AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, new Offer());
         assertThrows(IllegalArgumentException.class,
-                () -> service.approve(user("staff", "secret"), -1, 12));
+                () -> service.approveForCustomer(user("staff", "secret"), -1, 12, new CustomerLoginService(repository)));
         assertThrows(IllegalArgumentException.class,
-                () -> service.approve(user("staff", "secret"), 0, 0));
+                () -> service.approveForCustomer(user("staff", "secret"), 0, 0, new CustomerLoginService(repository)));
     }
 }
