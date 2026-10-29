@@ -239,7 +239,7 @@ public class CarDealership {
         System.out.println("\nEnter Number of Months Customer has to pay: ");
         int months = Integer.parseInt(scan.nextLine());
 
-        if (months > 0 && offerNumber > 0) {
+        if (months > 0 && offerNumber >= 0) {
             int price = purchaseReviewService.approve(getUserInfo(), offerNumber, months);
             cls.setCarsOwned(Carlot.getCarDB(offerNumber), price, months);
         } else {
