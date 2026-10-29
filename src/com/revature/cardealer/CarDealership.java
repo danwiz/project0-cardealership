@@ -243,7 +243,7 @@ public class CarDealership {
         System.out.println("\nMessage: Reject all other pending offers? [Yes] or [No]: ");
         String input = scan.nextLine();
         if ("yes".equalsIgnoreCase(input) || "y".equalsIgnoreCase(input)) {
-            Carlot.rejectAllOffers();
+            purchaseReviewService.rejectAll(getUserInfo());
         }
     }
 
