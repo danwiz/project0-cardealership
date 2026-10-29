@@ -180,6 +180,20 @@ class JdbcPurchaseApprovalServiceTest {
     }
 
     @Test
+    void cannotConstructJdbcPurchaseServiceWithPolicyOnlyAuthorization() {
+        JdbcDatabase database = newDatabase("purchase_policy_configuration");
+        assertThrows(SecurityException.class,
+                () -> new JdbcPurchaseApprovalService(database, new RoleAuthorizationService()));
+        RoleAuthorizationService configured = new RoleAuthorizationService();
+        configured.requireVerifiedSessions(() -> new JdbcUserAccountRepository(database));
+        assertTrue(configured.enforcesVerifiedSessions());
+        // A properly configured instance has no implicit authenticated reviewer.
+        JdbcPurchaseApprovalService service = new JdbcPurchaseApprovalService(database, configured);
+        assertThrows(SecurityException.class,
+                () -> service.approve(new User(), 0, 12, false));
+    }
+
+    @Test
     void directExecutorRejectsCopiedStoredAccountWithoutVerifiedSession() {
         JdbcDatabase database = newDatabase("purchase_public_api_boundary");
         User reviewer = account(database, "reviewer", AccountRole.EMPLOYEE);
