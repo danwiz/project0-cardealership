@@ -61,6 +61,7 @@ public class CarDealership {
     }
 
     private static void performUserAction(String option) {
+        currentAccount = null;
         switch (option) {
         case "1":
             registerAccount();
