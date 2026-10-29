@@ -47,8 +47,19 @@ public final class AuthorizedPurchaseReviewService {
             }
             // Prepare a complete ownership record before consuming the pending request.
             OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
-            offers.setAccept(offerNumber, months, true);
+            // Stage ownership first, then consume the offer. If offer approval
+            // fails, remove only the exact staged record before propagating.
             customers.addPreparedPurchaseForCustomer(buyer, ownership);
+            try {
+                offers.setAccept(offerNumber, months, true);
+            } catch (RuntimeException | Error failure) {
+                try {
+                    customers.removePreparedPurchaseForCustomer(buyer, ownership);
+                } catch (RuntimeException | Error rollbackFailure) {
+                    failure.addSuppressed(rollbackFailure);
+                }
+                throw failure;
+            }
         }
     }
 
