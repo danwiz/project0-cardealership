@@ -51,7 +51,7 @@ public final class AuthorizedPurchaseReviewService {
             // fails, remove only the exact staged record before propagating.
             customers.addPreparedPurchaseForCustomer(buyer, ownership);
             try {
-                offers.setAccept(offerNumber, months, true);
+                offers.acceptWithRollback(offerNumber, months);
             } catch (RuntimeException | Error failure) {
                 try {
                     customers.removePreparedPurchaseForCustomer(buyer, ownership);
