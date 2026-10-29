@@ -121,10 +121,15 @@ public class CarDealership {
     }
 
     static boolean isCurrentRoleAuthorized(User account, Permission permission) {
-        if (account == null || account.getUsername() == null) {
+        return isCurrentRoleAuthorized(USER_REPOSITORY, account, permission);
+    }
+
+    static boolean isCurrentRoleAuthorized(UserAccountRepository repository, User account,
+            Permission permission) {
+        if (repository == null || account == null || account.getUsername() == null) {
             return false;
         }
-        return USER_REPOSITORY.findByUsername(account.getUsername())
+        return repository.findByUsername(account.getUsername())
                 .filter(stored -> stored.getRole() == account.getRole())
                 .filter(stored -> authorization.isAuthorized(stored, permission))
                 .isPresent();
