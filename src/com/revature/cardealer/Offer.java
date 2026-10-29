@@ -68,6 +68,7 @@ public class Offer {
 		if (cname == null || cname.trim().isEmpty()
 				|| onum < 0 || onum >= offerDB.length
 				|| offerDB[onum] == null || offerDB[onum].isEmpty()
+				|| listingStock[onum] <= 0
 				|| opIndex >= cpOffer.length || oIndex >= oOfferDB.length) {
 			throw new IllegalArgumentException("Invalid purchase request or request capacity exhausted");
 		}
@@ -103,6 +104,11 @@ public class Offer {
 	}
 
 	public void registerOffer(String make, String model, int year, int price, String avail, int amt) {
+		if (oIndex >= offerDB.length || price < 0 || amt < 0
+				|| make == null || make.trim().isEmpty()
+				|| model == null || model.trim().isEmpty()) {
+			throw new IllegalArgumentException("Invalid vehicle listing or listing capacity exhausted");
+		}
 
 		cDetails = new Car(make, model, year);
 		setOffer(cDetails, price, avail, amt);
