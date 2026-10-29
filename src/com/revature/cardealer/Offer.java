@@ -87,16 +87,18 @@ public class Offer {
 	
 	
 	public void getpOffers() {
-		
-		for (int i = 0; i <= cpOffer.length; i++) {
-			if(cpOffer[i]!=0 && cName[i] !=null)
-			{
-				int j = cpOffer[i];
-				System.out.println(offerDB[j] + "   |--->  Pending Offer:   " + cName[j]);
-			}
-		System.out.println("\nWe have no Cars to at this Time!");
+		if (opIndex == 0) {
+			System.out.println("No pending purchase requests.");
+			return;
 		}
-
+		for (int i = 0; i < opIndex; i++) {
+			if (cName[i] != null && !cName[i].isEmpty()) {
+				int listing = cpOffer[i];
+				if (listing >= 0 && listing < offerDB.length && offerDB[listing] != null) {
+					System.out.println(offerDB[listing] + "   |--->  Pending Offer:   " + cName[i]);
+				}
+			}
+		}
 	}
 
 	public void registerOffer(String make, String model, int year, int price, String avail, int amt) {
