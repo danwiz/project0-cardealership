@@ -233,29 +233,30 @@ public class Offer {
 	}
 	// serches
 	public int setAccept(int onum, int mth, boolean accept) {
-		if (accept) {
-			
-			
-			for (int i = 0; i >= cpOffer.length; i++) {
-				if (cpOffer[i]==onum ) {//onum is offer number
-					oAmt = oAmt - 1;
-					oAccept = true;
-					//System.out.println("Please Enter Number of Monthly Payments: ");					
-					System.out.println(offerDB[onum] + "   Offer Accepted: " + cName[onum]);
-					oMpay = cpPrice[onum]/mth;
-					oDetails= offerDB[onum] + "   Offer Accepted: " + cName[onum]+"   Monthly Payment:  "+oMpay; //remember to update amt
-					oCName = cName[onum];
-					oOfferDB[oIndex]=this;   //stores this offer in offerDB
-					oIndex++;
-					return oMpay;
-					// Offer accept = offerDB[i];
-				} else
-					oAccept = false;
-			}
-
+		if (!accept || onum < 0 || onum >= offerDB.length || mth <= 0
+				|| offerDB[onum] == null || offerDB[onum].isEmpty()) {
+			throw new IllegalArgumentException("Invalid approval request");
 		}
-		return cpPrice[onum];
-
+		for (int i = 0; i < opIndex; i++) {
+			if (cpOffer[i] == onum && cName[i] != null) {
+				if (oAmt <= 0) {
+					throw new IllegalStateException("No inventory available for approval");
+				}
+				String buyer = cName[i];
+				int monthlyPayment = cpPrice[onum] / mth;
+				oAmt--;
+				oAccept = true;
+				oMpay = monthlyPayment;
+				oCName = buyer;
+				oDetails = offerDB[onum] + "   Offer Accepted: " + buyer
+						+ "   Monthly Payment:  " + monthlyPayment;
+				cName[i] = null;
+				cpOffer[i] = 0;
+				System.out.println(oDetails);
+				return monthlyPayment;
+			}
+		}
+		throw new IllegalArgumentException("No matching pending purchase request");
 	}
 
 	public void rejectAllOffers() {
