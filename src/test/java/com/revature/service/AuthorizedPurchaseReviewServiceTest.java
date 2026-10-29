@@ -64,6 +64,22 @@ class AuthorizedPurchaseReviewServiceTest {
 
     @Test
     @Tag("security")
+    void pendingBuyerLookupRequiresReviewerAndReturnsRequester() {
+        UserAccountRepository repository = new InMemoryUserAccountRepository();
+        store(repository, "staff", "secret", AccountRole.EMPLOYEE);
+        store(repository, "buyer", "secret", AccountRole.CUSTOMER);
+        Offer offers = new Offer();
+        offers.registerOffer("Honda", "Accord", 2018, 15000, "yes", 1);
+        offers.setpOffer("buyer", 0);
+        AuthorizedPurchaseReviewService service = new AuthorizedPurchaseReviewService(repository, offers);
+        org.junit.jupiter.api.Assertions.assertEquals("buyer",
+                service.pendingBuyer(user("staff", "secret"), 0));
+        assertThrows(SecurityException.class,
+                () -> service.pendingBuyer(user("buyer", "secret"), 0));
+    }
+
+    @Test
+    @Tag("security")
     void authorizedEmployeeReceivesInputValidation() {
         UserAccountRepository repository = new InMemoryUserAccountRepository();
         store(repository, "staff", "secret", AccountRole.EMPLOYEE);
