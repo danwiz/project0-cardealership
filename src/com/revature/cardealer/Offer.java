@@ -272,6 +272,35 @@ public class Offer {
 		oAccept=true;	
 	}
 	// serches
+	/**
+	 * Performs a reversible approval when called under the shared Offer monitor.
+	 * A failure after any inventory or request mutation restores the captured
+	 * fields before propagating the original exception.
+	 */
+	public synchronized int acceptWithRollback(int onum, int mth) {
+		int[] stockBefore = listingStock.clone();
+		int[] requestsBefore = cpOffer.clone();
+		String[] buyersBefore = cName.clone();
+		int amountBefore = oAmt;
+		int monthlyBefore = oMpay;
+		boolean acceptedBefore = oAccept;
+		String buyerBefore = oCName;
+		String detailsBefore = oDetails;
+		try {
+			return setAccept(onum, mth, true);
+		} catch (RuntimeException | Error failure) {
+			System.arraycopy(stockBefore, 0, listingStock, 0, listingStock.length);
+			System.arraycopy(requestsBefore, 0, cpOffer, 0, cpOffer.length);
+			System.arraycopy(buyersBefore, 0, cName, 0, cName.length);
+			oAmt = amountBefore;
+			oMpay = monthlyBefore;
+			oAccept = acceptedBefore;
+			oCName = buyerBefore;
+			oDetails = detailsBefore;
+			throw failure;
+		}
+	}
+
 	public synchronized int setAccept(int onum, int mth, boolean accept) {
 		if (!accept || onum < 0 || onum >= offerDB.length || mth <= 0
 				|| offerDB[onum] == null || offerDB[onum].isEmpty()) {
