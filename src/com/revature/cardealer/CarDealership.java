@@ -6,6 +6,7 @@ import java.util.Scanner;
 import com.revature.DAOService.DAOService;
 import com.revature.DAOService.DataDAO;
 import com.revature.service.AdminLoginService;
+import com.revature.service.AuthorizedInventoryService;
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
 import com.revature.service.InMemoryUserAccountRepository;
@@ -33,6 +34,8 @@ public class CarDealership {
     private static User currentAccount;
 
     static Offer Carlot = new Offer();
+    private static final AuthorizedInventoryService inventoryService =
+            new AuthorizedInventoryService(USER_REPOSITORY, Carlot);
     static Payments PaymentsDB = new Payments();
 
     DataDAO cDao = new DAOService();
@@ -183,7 +186,7 @@ public class CarDealership {
 
         if ("1".equals(option)) {
             requireCurrentRole(account, Permission.MANAGE_INVENTORY);
-            manageInventory();
+            manageInventory(account);
         } else if ("2".equals(option)) {
             requireCurrentRole(account, Permission.REVIEW_PURCHASE_REQUESTS);
             reviewPurchaseRequests();
@@ -195,7 +198,7 @@ public class CarDealership {
         }
     }
 
-    private static void manageInventory() {
+    private static void manageInventory(User account) {
         System.out.println("Welcome to The Car Dealership");
         Carlot.getOfferAll();
         System.out.println("\n[1] Add Car to Lot: ");
