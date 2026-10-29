@@ -21,6 +21,7 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
     @Override
     public synchronized User save(User user) {
         User snapshot = copy(Objects.requireNonNull(user, "user"));
+        requireText(snapshot.getUsername(), "username");
         if (usersByUsername.containsKey(snapshot.getUsername())) {
             throw new IllegalArgumentException("username is already registered");
         }
@@ -61,17 +62,17 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
     }
 
     @Override
-    public Optional<User> findByUsername(String username) {
+    public synchronized Optional<User> findByUsername(String username) {
         return Optional.ofNullable(usersByUsername.get(username)).map(InMemoryUserAccountRepository::copy);
     }
 
     @Override
-    public boolean removeByUsername(String username) {
+    public synchronized boolean removeByUsername(String username) {
         return usersByUsername.remove(username) != null;
     }
 
     @Override
-    public List<User> findAll() {
+    public synchronized List<User> findAll() {
         List<User> copies = new ArrayList<>();
         for (User account : usersByUsername.values()) copies.add(copy(account));
         return Collections.unmodifiableList(copies);
