@@ -132,6 +132,30 @@ class RoleLoginServiceCharacterizationTest {
     }
 
     @Test
+    void customerPaymentsUpdateTheCorrectVehicleAndRejectOverpayment() {
+        CustomerLoginService service = new CustomerLoginService();
+        service.setCarsOwned(new Car("Honda", "Accord", 2018), 12000, 12);
+        service.setCarsOwned(new Car("Toyota", "Corolla", 2020), 6000, 6);
+        service.recordPayment(0, 1000);
+        service.setPayments(500);
+        org.junit.jupiter.api.Assertions.assertEquals(11000,
+                service.getOwnedVehicle(0).getPaymentPlan().getRemainingBalance());
+        org.junit.jupiter.api.Assertions.assertEquals(5500,
+                service.getOwnedVehicle(1).getPaymentPlan().getRemainingBalance());
+        assertThrows(IllegalArgumentException.class, () -> service.recordPayment(1, 6000));
+        org.junit.jupiter.api.Assertions.assertEquals(5500,
+                service.getOwnedVehicle(1).getPaymentPlan().getRemainingBalance());
+    }
+
+    @Test
+    void paymentsWithoutAnOwnedVehicleFailClosed() {
+        CustomerLoginService service = new CustomerLoginService();
+        assertThrows(IllegalStateException.class, () -> service.setPayments(100));
+        assertThrows(IndexOutOfBoundsException.class, () -> service.recordPayment(0, 100));
+        assertThrows(IllegalArgumentException.class, () -> service.setPayments((String[]) null));
+    }
+
+    @Test
     void administratorDeleteAllUsersOnlyEmitsWarningText() {
         AdminLoginService service = new AdminLoginService();
         ByteArrayOutputStream output = new ByteArrayOutputStream();
