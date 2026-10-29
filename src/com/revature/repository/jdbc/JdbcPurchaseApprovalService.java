@@ -24,9 +24,11 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
     private final JdbcDatabase database;
     private final RoleAuthorizationService authorization;
     private final FailureHook failureHook;
+    // One initial attempt plus two conflict-only retries; never retry arbitrary SQL errors.
+    static final int MAX_TRANSACTION_ATTEMPTS = 3;
 
     enum Stage { AFTER_STOCK, AFTER_REQUEST, AFTER_OWNERSHIP, AFTER_PLAN, AFTER_REJECTIONS }
-    @FunctionalInterface interface FailureHook { void after(Stage stage); }
+    @FunctionalInterface interface FailureHook { void after(Stage stage) throws SQLException; }
 
     public JdbcPurchaseApprovalService(JdbcDatabase database, RoleAuthorizationService authorization) {
         this(database, authorization, stage -> { });
@@ -46,36 +48,63 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
 
     @Override
     public int approve(User reviewer, int requestId, int paymentMonths, boolean rejectOtherPending) {
-        // The application-port reference is public: do not trust command-layer authorization alone.
-        // Production composition supplies the verified-session policy from its application context.
-        authorization.requireAuthorized(reviewer, Permission.REVIEW_PURCHASE_REQUESTS);
         if (requestId < 0) throw new IllegalArgumentException("request id must not be negative");
         if (paymentMonths <= 0) throw new IllegalArgumentException("payment months must be positive");
         if (reviewer == null || reviewer.getUsername() == null
                 || reviewer.getRole() == null || reviewer.getPassword() == null) {
             throw new SecurityException("verified reviewer identity required");
         }
-        try (Connection connection = database.openConnection()) {
-            connection.setAutoCommit(false);
-            connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
-            try {
-                int price = approveInTransaction(
-                        connection, reviewer, requestId, paymentMonths, rejectOtherPending);
-                connection.commit();
-                return price;
-            } catch (SQLException | RuntimeException failure) {
+
+        for (int attempt = 1; attempt <= MAX_TRANSACTION_ATTEMPTS; attempt++) {
+            // Each attempt must independently revalidate the live verified session.
+            // Do not retain an authorization decision through a transaction retry.
+            authorization.requireAuthorized(reviewer, Permission.REVIEW_PURCHASE_REQUESTS);
+            try (Connection connection = database.openConnection()) {
+                connection.setAutoCommit(false);
+                connection.setTransactionIsolation(Connection.TRANSACTION_SERIALIZABLE);
                 try {
-                    connection.rollback();
-                } catch (SQLException rollbackFailure) {
-                    failure.addSuppressed(rollbackFailure);
+                    int price = approveInTransaction(
+                            connection, reviewer, requestId, paymentMonths, rejectOtherPending);
+                    connection.commit();
+                    return price;
+                } catch (SQLException | RuntimeException failure) {
+                    try {
+                        connection.rollback();
+                    } catch (SQLException rollbackFailure) {
+                        failure.addSuppressed(rollbackFailure);
+                    }
+                    throw failure;
                 }
-                throw failure;
+            } catch (SQLException failure) {
+                // 40001 and 40P01 denote server-aborted serialization/deadlock
+                // transactions. Reexecute the *whole* unit of work, with the
+                // exact same durable request ID and terms, at most twice more.
+                if (isRetryableTransactionConflict(failure)) {
+                    if (attempt < MAX_TRANSACTION_ATTEMPTS) continue;
+                    throw new IllegalStateException(
+                            "atomic JDBC purchase conflict after bounded retries", failure);
+                }
+                // A broken connection/unknown SQL state may have lost the reply
+                // *after* COMMIT; never automatically assume rollback or create
+                // another request. Operators must reconcile by request/contract ID.
+                if (isUncertainConnectionFailure(failure)) {
+                    throw new IllegalStateException(
+                            "JDBC purchase outcome uncertain; reconcile the same request ID before retry",
+                            failure);
+                }
+                throw new IllegalStateException("atomic JDBC purchase approval failed", failure);
             }
-        } catch (SQLException failure) {
-            // In case of uncertain commit or a serialization failure, the caller
-            // must retry using the same request ID and terms; never create a new request.
-            throw new IllegalStateException("atomic JDBC purchase approval failed", failure);
         }
+        throw new AssertionError("unreachable JDBC transaction retry state");
+    }
+
+    private static boolean isRetryableTransactionConflict(SQLException failure) {
+        return "40001".equals(failure.getSQLState()) || "40P01".equals(failure.getSQLState());
+    }
+
+    private static boolean isUncertainConnectionFailure(SQLException failure) {
+        String state = failure.getSQLState();
+        return state == null || state.startsWith("08");
     }
 
     private int approveInTransaction(Connection connection, User reviewer,
