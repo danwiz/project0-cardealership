@@ -145,7 +145,7 @@ class CarDealershipCharacterizationTest {
         indexField.setAccessible(true);
         int before = indexField.getInt(inventory);
 
-        replaceScanner(username + "\nsecret\n1\n0\n");
+        replaceScanner(username + "\nsecret\n2\n");
         invokePerformUserAction("2");
 
         assertEquals(before, indexField.getInt(inventory));
