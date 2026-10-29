@@ -227,6 +227,7 @@ public class CarDealership {
 
     private static void reviewPurchaseRequests(User account) {
         System.out.println("Pending Purchase Requests: \n");
+        requireCurrentRole(account, Permission.REVIEW_PURCHASE_REQUESTS);
         Carlot.getpOffers();
         System.out.println("\nSelect an Offer to Approve: ");
         int offerNumber = Integer.parseInt(scan.nextLine());
