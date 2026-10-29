@@ -54,44 +54,15 @@ public final class AuthorizedPurchaseReviewService {
         if (offers.getListingStock(offerNumber) <= 0) {
             throw new IllegalStateException("No inventory available for approval");
         }
-        // Construct and validate the ownership record before mutating the offer.
-        new com.revature.cardealer.OwnedVehicle(vehicle,
-                new com.revature.cardealer.PaymentPlan(price, months));
+        // Prepare a complete ownership record before consuming the pending request.
+        OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
         offers.setAccept(offerNumber, months, true);
-        customers.recordPurchaseForCustomer(buyer, vehicle, price, months);
+        customers.addPreparedPurchaseForCustomer(buyer, ownership);
     }
 
     private User loginAccount(String username) {
         return accounts.findByUsername(username)
                 .orElseThrow(() -> new SecurityException("pending buyer account no longer exists"));
-    }
-
-    /**
-     * Prepares ownership before consuming a pending request or decrementing stock.
-     * Validation failures therefore leave the offer unchanged. This is an
-     * in-memory coordination boundary, not a durable database transaction.
-     */
-    public synchronized OwnedVehicle approveAndRecord(User reviewer, int offerNumber,
-            int months, CustomerLoginService customers) {
-        requireReviewer(reviewer);
-        Objects.requireNonNull(customers, "customers");
-        if (months <= 0) {
-            throw new IllegalArgumentException("payment term must be positive");
-        }
-        String buyer = offers.getPendingBuyer(offerNumber);
-        User account = loginAccount(buyer);
-        if (account.getRole() != com.revature.cardealer.AccountRole.CUSTOMER) {
-            throw new SecurityException("pending buyer is not a customer");
-        }
-        int price = offers.getListingPrice(offerNumber);
-        if (offers.getListingStock(offerNumber) <= 0) {
-            throw new IllegalStateException("no inventory available");
-        }
-        Car vehicle = Objects.requireNonNull(offers.getCarDB(offerNumber), "listing vehicle");
-        OwnedVehicle ownership = new OwnedVehicle(vehicle, new PaymentPlan(price, months));
-        offers.setAccept(offerNumber, months, true);
-        customers.addPreparedPurchaseForCustomer(buyer, ownership);
-        return ownership;
     }
 
     /**
