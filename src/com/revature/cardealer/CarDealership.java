@@ -120,7 +120,7 @@ public class CarDealership {
         return authenticated;
     }
 
-    private static boolean isCurrentRoleAuthorized(User account, Permission permission) {
+    static boolean isCurrentRoleAuthorized(User account, Permission permission) {
         if (account == null || account.getUsername() == null) {
             return false;
         }
