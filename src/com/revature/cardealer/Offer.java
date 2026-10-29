@@ -69,7 +69,7 @@ public class Offer {
 				|| onum < 0 || onum >= offerDB.length
 				|| offerDB[onum] == null || offerDB[onum].isEmpty()
 				|| listingStock[onum] <= 0
-				|| opIndex >= cpOffer.length || oIndex >= oOfferDB.length) {
+				|| opIndex >= cpOffer.length) {
 			throw new IllegalArgumentException("Invalid purchase request or request capacity exhausted");
 		}
 		cpOffer[opIndex] = onum;
@@ -80,9 +80,7 @@ public class Offer {
 		
 		System.out.println("["+onum+"]"+ offerDB[onum] + "     Pending Offer for : " + cName[opIndex]);
 		oPending=true;
-		oOfferDB[oIndex]=this;
-		oIndex++;
-		opIndex++;
+		opIndex++;  // Only the active request count changes; listing capacity is independent.
 
 	}
 
@@ -281,6 +279,7 @@ public class Offer {
 		int[] stockBefore = listingStock.clone();
 		int[] requestsBefore = cpOffer.clone();
 		String[] buyersBefore = cName.clone();
+		int pendingCountBefore = opIndex;
 		int amountBefore = oAmt;
 		int monthlyBefore = oMpay;
 		boolean acceptedBefore = oAccept;
@@ -292,6 +291,7 @@ public class Offer {
 			System.arraycopy(stockBefore, 0, listingStock, 0, listingStock.length);
 			System.arraycopy(requestsBefore, 0, cpOffer, 0, cpOffer.length);
 			System.arraycopy(buyersBefore, 0, cName, 0, cName.length);
+			opIndex = pendingCountBefore;
 			oAmt = amountBefore;
 			oMpay = monthlyBefore;
 			oAccept = acceptedBefore;
@@ -320,8 +320,15 @@ public class Offer {
 				oCName = buyer;
 				oDetails = offerDB[onum] + "   Offer Accepted: " + buyer
 						+ "   Monthly Payment:  " + monthlyPayment;
-				cName[i] = null;
-				cpOffer[i] = 0;
+				// Compact the FIFO queue; otherwise completed requests exhaust
+				// fixed capacity and newly reused holes overtake older buyers.
+				for (int pending = i; pending < opIndex - 1; pending++) {
+					cName[pending] = cName[pending + 1];
+					cpOffer[pending] = cpOffer[pending + 1];
+				}
+				cName[opIndex - 1] = null;
+				cpOffer[opIndex - 1] = 0;
+				opIndex--;
 				System.out.println(oDetails);
 				return monthlyPayment;
 			}
