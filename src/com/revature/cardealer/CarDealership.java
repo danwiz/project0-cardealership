@@ -270,10 +270,12 @@ public class CarDealership {
     }
 
     public void loadData() {
+        requireCurrentRole(currentAccount, Permission.MANAGE_PERSISTENCE);
         cDao.readData("CarDealer" + ".dat").getCustomerLoginService();
     }
 
     public void saveData() {
+        requireCurrentRole(currentAccount, Permission.MANAGE_PERSISTENCE);
         Data myData = new Data(cls, els, customer, employee, Carlot, PaymentsDB);
         cDao.createData(myData);
     }
