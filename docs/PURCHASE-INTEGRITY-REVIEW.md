@@ -28,3 +28,10 @@ Status: draft PR #82; not merged into master.
 - Review direct Offer approval call sites and decide whether to restrict them or route them through the authorized purchase service.
 - Define an explicit transaction/idempotency model before introducing persistence or payments.
 - Preserve historical source and provenance; no direct modifications to master from this PR.
+
+## Direct-call audit (integration branch)
+
+- `CarDealership.reviewPurchaseRequests` calls `AuthorizedPurchaseReviewService.approveForCustomer`; no direct `setAccept` call was found in this console entry point.
+- `AuthorizedPurchaseReviewService` is the coordinated purchase call site for `Offer.setAccept(int,int,boolean)` in the inspected production files.
+- `Offer` still exposes public `setAccept()` and `setAccept(int,int,boolean)` methods. Their visibility allows external code to bypass the coordinated ownership ledger; a full-repository search and API migration are required before claiming enforcement across all consumers.
+- This review is scoped to the three inspected production files; it does not certify every repository path or external caller.
