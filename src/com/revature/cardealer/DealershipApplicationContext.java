@@ -98,7 +98,14 @@ public final class DealershipApplicationContext {
     public Payments getPayments() { return payments; }
     public RoleAuthorizationService getAuthorizationService() { return authorizationService; }
     public SnapshotRehydrator getSnapshotRehydrator() { return snapshotRehydrator; }
-    public DataDAO getDataStore() { return dataStore; }
+    /** Historical no-actor data-store escape hatch is disabled. */
+    @Deprecated
+    public DataDAO getDataStore() {
+        throw new SecurityException("direct snapshot IO requires authenticated persistence commands");
+    }
+
+    /** Trusted application-adapter capability: callers must enforce MANAGE_PERSISTENCE. */
+    public DataDAO getAuthorizedDataStore() { return dataStore; }
     public User getCurrentAccount() { return currentAccount; }
     public void setCurrentAccount(User currentAccount) {
         this.currentAccount = currentAccount;
