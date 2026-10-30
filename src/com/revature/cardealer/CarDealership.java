@@ -62,4 +62,6 @@ public class CarDealership {
 
     public LoadResult loadData() { return handler().loadData(); }
     public SaveResult saveData() { return handler().saveData(); }
+    public LoadResult loadData(User actor) { return handler().loadData(actor); }
+    public SaveResult saveData(User actor) { return handler().saveData(actor); }
 }

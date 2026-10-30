@@ -57,10 +57,11 @@ public final class ApplicationPorts {
         }
     }
 
+    /** Persisted file operations require a verified actor on every boundary. */
     public interface Persistence {
-        SaveResult save(Data source, String filename);
-        LoadResult load(String filename);
-        Data snapshotSource();
-        void activateLoadedSnapshot(LoadResult result);
+        SaveResult save(User actor, Data source, String filename);
+        LoadResult load(User actor, String filename);
+        Data snapshotSource(User actor);
+        void activateLoadedSnapshot(User actor, LoadResult result);
     }
 }

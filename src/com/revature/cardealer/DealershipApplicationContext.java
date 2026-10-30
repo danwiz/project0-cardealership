@@ -4,6 +4,9 @@ import java.util.Objects;
 
 import com.revature.DAOService.DAOService;
 import com.revature.DAOService.DataDAO;
+import com.revature.DAOService.LoadResult;
+import com.revature.DAOService.SaveResult;
+import com.revature.service.Permission;
 import com.revature.service.AdminLoginService;
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
@@ -98,7 +101,32 @@ public final class DealershipApplicationContext {
     public Payments getPayments() { return payments; }
     public RoleAuthorizationService getAuthorizationService() { return authorizationService; }
     public SnapshotRehydrator getSnapshotRehydrator() { return snapshotRehydrator; }
-    public DataDAO getDataStore() { return dataStore; }
+    /** Historical no-actor data-store escape hatch is disabled. */
+    @Deprecated
+    public DataDAO getDataStore() {
+        throw new SecurityException("direct snapshot IO requires authenticated persistence commands");
+    }
+
+    /** Operation-level authorization is mandatory before any snapshot disk IO. */
+    public SaveResult saveAuthorizedSnapshot(User actor, Data data, String filename) {
+        requireSnapshotAuthority(actor, filename);
+        return dataStore.saveData(data, filename);
+    }
+
+    public LoadResult loadAuthorizedSnapshot(User actor, String filename) {
+        requireSnapshotAuthority(actor, filename);
+        return dataStore.loadData(filename);
+    }
+
+    private void requireSnapshotAuthority(User actor, String filename) {
+        if (!authorizationService.enforcesVerifiedSessions()) {
+            throw new SecurityException("verified sessions required for snapshot IO");
+        }
+        authorizationService.requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
+        if (!"CarDealer.dat".equals(filename)) {
+            throw new SecurityException("unapproved snapshot file");
+        }
+    }
     public User getCurrentAccount() { return currentAccount; }
     public void setCurrentAccount(User currentAccount) {
         this.currentAccount = currentAccount;
