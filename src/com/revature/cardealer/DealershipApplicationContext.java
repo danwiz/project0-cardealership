@@ -4,6 +4,9 @@ import java.util.Objects;
 
 import com.revature.DAOService.DAOService;
 import com.revature.DAOService.DataDAO;
+import com.revature.DAOService.LoadResult;
+import com.revature.DAOService.SaveResult;
+import com.revature.service.Permission;
 import com.revature.service.AdminLoginService;
 import com.revature.service.CustomerLoginService;
 import com.revature.service.EmployeeLoginService;
@@ -104,8 +107,16 @@ public final class DealershipApplicationContext {
         throw new SecurityException("direct snapshot IO requires authenticated persistence commands");
     }
 
-    /** Trusted application-adapter capability: callers must enforce MANAGE_PERSISTENCE. */
-    public DataDAO getAuthorizedDataStore() { return dataStore; }
+    /** Operation-level authorization is mandatory before any snapshot disk IO. */
+    public SaveResult saveAuthorizedSnapshot(User actor, Data data, String filename) {
+        authorizationService.requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
+        return dataStore.saveData(data, filename);
+    }
+
+    public LoadResult loadAuthorizedSnapshot(User actor, String filename) {
+        authorizationService.requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
+        return dataStore.loadData(filename);
+    }
     public User getCurrentAccount() { return currentAccount; }
     public void setCurrentAccount(User currentAccount) {
         this.currentAccount = currentAccount;
