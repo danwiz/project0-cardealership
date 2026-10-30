@@ -9,6 +9,8 @@ public class User implements Serializable {
     private String username;
     private String password;
     private AccountRole role = AccountRole.CUSTOMER;
+    // Opaque server-issued generation; never treat a caller-supplied value as authentication.
+    private String sessionRevision;
 
     public String getUsername() {
         return this.username;
@@ -32,5 +34,11 @@ public class User implements Serializable {
 
     public void setRole(AccountRole role) {
         this.role = role;
+    }
+
+    public String getSessionRevision() { return sessionRevision; }
+
+    public void setSessionRevision(String sessionRevision) {
+        this.sessionRevision = sessionRevision;
     }
 }
