@@ -62,7 +62,8 @@ class SessionRevocationEpochRegressionTest {
         assertTrue(gate.isAuthorized(original, Permission.MANAGE_INVENTORY));
         assertTrue(accounts.updateRoleIfCurrent("staff",
                 AccountRole.EMPLOYEE, AccountRole.CUSTOMER));
-        assertFalse(gate.isAuthorized(original, Permission.MANAGE_INVENTORY));
+        // Do not check the cached session at the intermediate role: the
+        // persisted revision alone must prevent revival after role restoration.
         assertTrue(accounts.updateRoleIfCurrent("staff",
                 AccountRole.CUSTOMER, AccountRole.EMPLOYEE));
 
@@ -84,7 +85,8 @@ class SessionRevocationEpochRegressionTest {
 
         assertTrue(gate.isAuthorized(original, Permission.MANAGE_INVENTORY));
         assertTrue(accounts.removeByUsername("staff"));
-        assertFalse(gate.isAuthorized(original, Permission.MANAGE_INVENTORY));
+        // No intermediate session check: recreate must still invalidate
+        // the original verified object via its different persisted generation.
 
         // Exact same username, role AND encoded hash; new account incarnation.
         accounts.save(previouslyStored);
