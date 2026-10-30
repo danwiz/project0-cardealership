@@ -184,6 +184,44 @@ jobs:
         run: |
           set -o pipefail
           mvn --batch-mode --no-transfer-progress verify 2>&1 | tee ci-logs/verify-java-${{ matrix.java }}.log
+      - name: Preserve full-suite XML reports before tag probe
+        shell: bash
+        run: cp -a target/surefire-reports ci-full-suite-reports
+
+      - name: Verify uppercase SECURITY tag selection is nonempty and exact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mvn --batch-mode --no-transfer-progress \
+            -Dgroups=SECURITY \
+            -Dtest=UserLoginServiceCharacterizationTest \
+            -DfailIfNoTests=true \
+            test 2>&1 | tee ci-logs/security-tag-java-${{ matrix.java }}.log
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          path = Path("target/surefire-reports/TEST-com.revature.service.UserLoginServiceCharacterizationTest.xml")
+          if not path.is_file():
+              raise SystemExit("Missing SECURITY-filtered Surefire XML report")
+          suite = ET.parse(path).getroot()
+          names = {case.get("name") for case in suite.findall("testcase")}
+          expected = {
+              "authenticationDoesNotPrintStoredPasswordToStandardOutput",
+              "registrationStoresAnEncodedPasswordInsteadOfPlaintext",
+          }
+          if names != expected:
+              raise SystemExit(f"SECURITY selection mismatch: {sorted(names)} != {sorted(expected)}")
+          for field, expected_number in (("tests", 2), ("failures", 0), ("errors", 0), ("skipped", 0)):
+              if int(suite.get(field, "-1")) != expected_number:
+                  raise SystemExit(f"SECURITY {field} check failed: {suite.get(field)}")
+          Path("ci-logs/security-tag-verdict.txt").write_text(
+              "Uppercase SECURITY filter verified: 2 selected, 0 failures/errors/skips\n"
+              + "\n".join(sorted(names)) + "\n", encoding="utf-8"
+          )
+          print(Path("ci-logs/security-tag-verdict.txt").read_text())
+          PY
+
       - name: Upload Maven diagnostics
         if: always()
         uses: actions/upload-artifact@v6
@@ -197,7 +235,8 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: surefire-reports-java-${{ matrix.java }}
-          path: target/surefire-reports/
+          # Keep the original 346-test reports, not the two-test filter rerun.
+          path: ci-full-suite-reports/
           if-no-files-found: warn
           retention-days: 14
 
