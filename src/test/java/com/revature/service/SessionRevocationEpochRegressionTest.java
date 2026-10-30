@@ -87,7 +87,8 @@ class SessionRevocationEpochRegressionTest {
         assertFalse(gate.isAuthorized(original, Permission.MANAGE_INVENTORY));
 
         // Exact same username, role AND encoded hash; new account incarnation.
-        User recreated = accounts.save(previouslyStored);
+        accounts.save(previouslyStored);
+        User recreated = accounts.findByUsername("staff").orElseThrow(AssertionError::new);
         assertNotEquals(previouslyStored.getSessionRevision(), recreated.getSessionRevision(),
                 "new account incarnation must get a new durable session revision");
         assertFalse(gate.isAuthorized(original, Permission.MANAGE_INVENTORY),
