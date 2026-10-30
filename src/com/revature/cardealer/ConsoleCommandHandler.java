@@ -209,13 +209,18 @@ public final class ConsoleCommandHandler {
         }
         io.writeLine("You are now an Admin\n [1] Serialize and Save Data\n [2] Deserialize and Load Data");
         String input = io.readLine();
-        if ("1".equals(input)) saveData();
-        else if ("2".equals(input)) loadData();
+        if ("1".equals(input)) saveData(account);
+        else if ("2".equals(input)) loadData(account);
     }
 
     public LoadResult loadData() {
+        throw new SecurityException("verified administrator required for direct snapshot load");
+    }
+
+    public LoadResult loadData(User actor) {
+        context.getAuthorizationService().requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
         if (jdbcMode) return LoadResult.invalidContent("file loading is disabled while JDBC persistence is active");
-        LoadResult result = loadState.execute(STATE_FILE);
+        LoadResult result = loadState.execute(actor, STATE_FILE);
         if (result.isSuccess()) io.writeLine("Application state loaded and activated.");
         else if (result.getStatus() == LoadResult.Status.INVALID_CONTENT) io.writeLine("Load rejected [INVALID_CONTENT]: " + result.getMessage());
         else io.writeLine("Load failed [" + result.getStatus() + "]: " + result.getMessage());
@@ -223,8 +228,13 @@ public final class ConsoleCommandHandler {
     }
 
     public SaveResult saveData() {
+        throw new SecurityException("verified administrator required for direct snapshot save");
+    }
+
+    public SaveResult saveData(User actor) {
+        context.getAuthorizationService().requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
         if (jdbcMode) return SaveResult.invalidInput("file saving is disabled while JDBC persistence is active");
-        SaveResult result = saveState.execute(STATE_FILE);
+        SaveResult result = saveState.execute(actor, STATE_FILE);
         io.writeLine(result.isSuccess() ? "Application state saved."
                 : "Save failed [" + result.getStatus() + "]: " + result.getMessage());
         return result;
