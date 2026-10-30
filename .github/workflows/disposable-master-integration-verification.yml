@@ -1,0 +1,145 @@
+name: Disposable master integration verification
+
+# Controlled source merge experiment in an ephemeral runner only.
+# No push, no GitHub release, no production credentials, and no cross-repo import.
+on:
+  push:
+    branches:
+      - security/integration-candidate-master-pbkdf2-parity-20261029
+    paths:
+      - .github/workflows/disposable-master-integration-verification.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-test-disposable-tree:
+    name: Ephemeral master ancestry + Java ${{ matrix.java }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        java: ['11', '17']
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: dealership_ci_owner
+          POSTGRES_PASSWORD: ci-only-postgres-fixture
+          POSTGRES_DB: dealership_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dealership_ci_owner -d dealership_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DEALERSHIP_PG_TEST_URL: jdbc:postgresql://localhost:5432/dealership_ci
+      DEALERSHIP_PG_TEST_USER: dealership_ci_owner
+      DEALERSHIP_PG_TEST_PASSWORD: ci-only-postgres-fixture
+      PINNED_MASTER: 90741d3abe51d9cc002aaeb1dacae27b933fba10
+      PINNED_CANDIDATE: 0cbad314956ad1d36542d30afa6519a1bbfecdce
+      PINNED_MASTER_BASE: 9c242f9880a18a7749621a6ed5f6d53d3ee5fcdc
+      EXPECTED_REHEARSAL_HEAD: e4b21e123d443079be2ccffd826a62c5d64f0c49
+
+    steps:
+      - name: Fetch complete source ancestry without retained credentials
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify source pins, resolve six known master conflicts, create local merge
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p local-integration-evidence
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_REHEARSAL_HEAD"
+          test "$(git rev-parse refs/remotes/origin/master)" = "$PINNED_MASTER"
+          test "$(git merge-base "$PINNED_MASTER" "$PINNED_CANDIDATE")" = "$PINNED_MASTER_BASE"
+          git switch -c disposable/master-candidate "$PINNED_MASTER"
+
+          set +e
+          git merge --no-commit --no-ff "$PINNED_CANDIDATE" > local-integration-evidence/merge-output.txt 2>&1
+          merge_result=$?
+          set -e
+          test "$merge_result" -eq 1
+
+          git ls-files -u > local-integration-evidence/unmerged-before-resolution.txt
+          conflict_count="$(cut -f2 local-integration-evidence/unmerged-before-resolution.txt | sort -u | grep -c .)"
+          test "$conflict_count" -eq 6
+
+          # Only these six reviewed paths are selected from the candidate:
+          # never run a global 'ours' or 'theirs' resolution.
+          for path in \
+            .github/workflows/maven-ci.yml \
+            src/test/java/com/revature/DAOService/DAOServiceCharacterizationTest.java \
+            src/test/java/com/revature/cardealer/CarDealershipCharacterizationTest.java \
+            src/test/java/com/revature/cardealer/OfferCharacterizationTest.java \
+            src/test/java/com/revature/cardealer/PaymentsCharacterizationTest.java \
+            src/test/java/com/revature/service/RoleLoginServiceCharacterizationTest.java; do
+            git checkout --theirs -- "$path"
+            git add -- "$path"
+          done
+
+          test -z "$(git ls-files -u)"
+          git diff --cached --check
+          git -c user.name='CI rehearsal only' -c user.email='ci-rehearsal@example.invalid' \
+            commit --no-gpg-sign -m 'test: ephemeral master/candidate merge — do not publish' \
+            > local-integration-evidence/local-commit-message.txt
+          test "$(git rev-parse HEAD^1)" = "$PINNED_MASTER"
+          test "$(git rev-parse HEAD^2)" = "$PINNED_CANDIDATE"
+
+          {
+            printf 'This commit exists only in this ephemeral CI runner.\n'
+            printf 'Local merged commit: %s\n' "$(git rev-parse HEAD)"
+            printf 'Integrated tree SHA: %s\n' "$(git rev-parse HEAD^{tree})"
+            printf 'First parent (master): %s\n' "$(git rev-parse HEAD^1)"
+            printf 'Second parent (candidate): %s\n' "$(git rev-parse HEAD^2)"
+            printf 'Explicitly resolved paths: 6\n'
+            printf 'Original master unchanged; no push or release performed.\n'
+          } > local-integration-evidence/local-merge-details.txt
+          git diff --name-status "$PINNED_CANDIDATE" HEAD > local-integration-evidence/auto-merge-vs-candidate.txt
+          git status --short > local-integration-evidence/status-after-merge.txt
+
+      - name: Set up test Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+          cache: maven
+
+      - name: Set logical decoding in disposable CI PostgreSQL only
+        shell: bash
+        run: |
+          set -euo pipefail
+          pg_container='${{ job.services.postgres.id }}'
+          docker exec "$pg_container" psql -U dealership_ci_owner -d dealership_ci -v ON_ERROR_STOP=1 -c "ALTER SYSTEM SET wal_level = 'logical'"
+          docker restart "$pg_container"
+          for attempt in {1..30}; do
+            if docker exec "$pg_container" pg_isready -U dealership_ci_owner -d dealership_ci >/dev/null 2>&1; then
+              break
+            fi
+            sleep 1
+          done
+          test "$(docker exec "$pg_container" psql -U dealership_ci_owner -d dealership_ci -At -c 'SHOW wal_level')" = 'logical'
+
+      - name: Test actual ephemeral merged ancestry on selected Java
+        shell: bash
+        run: |
+          set -o pipefail
+          mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee local-integration-evidence/maven-verify.log
+
+      - name: Upload textual merge and test logs (no Git bundle)
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ephemeral-master-merge-java-${{ matrix.java }}
+          path: local-integration-evidence/
+          if-no-files-found: error
+          retention-days: 14
