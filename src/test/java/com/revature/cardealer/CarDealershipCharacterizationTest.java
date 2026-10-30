@@ -3,6 +3,7 @@ package com.revature.cardealer;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -106,10 +107,8 @@ class CarDealershipCharacterizationTest {
             throw new AssertionError(exception);
         }
 
-        LoadResult result = new CarDealership().loadData();
-
-        assertEquals(LoadResult.Status.NOT_FOUND, result.getStatus());
-        assertTrue(output.toString(StandardCharsets.UTF_8).contains("Load failed [NOT_FOUND]"));
+        assertThrows(SecurityException.class, () -> new CarDealership().loadData());
+        // The unauthenticated public entry point must deny before looking at disk.
     }
 
     private static ByteArrayOutputStream captureOutput() throws Exception {
