@@ -12,6 +12,9 @@ public class UserLoginService {
     private final UserAccountRepository userRepository;
     private final UserAccountRepository administrativeRepository;
     private final PasswordHasher passwordHasher;
+    // Default null: legacy credentials are denied until an authorized migration
+    // explicitly provisions a trusted, scoped credential writer.
+    private final LegacyPbkdf2CredentialUpgrade legacyCredentialUpgrade;
 
     public UserLoginService() {
         this(new InMemoryUserAccountRepository(), new Pbkdf2PasswordHasher());
@@ -37,9 +40,21 @@ public class UserLoginService {
 
     public UserLoginService(UserAccountRepository userRepository,
             UserAccountRepository administrativeRepository, PasswordHasher passwordHasher) {
+        this(userRepository, administrativeRepository, passwordHasher, null);
+    }
+
+    /**
+     * The migration capability is opt-in and must be supplied by a trusted
+     * operator with an approved credential-only writer. Ordinary runtime
+     * composition does not grant it or weaken modern hash verification.
+     */
+    public UserLoginService(UserAccountRepository userRepository,
+            UserAccountRepository administrativeRepository, PasswordHasher passwordHasher,
+            LegacyPbkdf2CredentialUpgrade legacyCredentialUpgrade) {
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository");
         this.administrativeRepository = administrativeRepository;
         this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher");
+        this.legacyCredentialUpgrade = legacyCredentialUpgrade;
     }
 
     /** Public self-registration always creates a CUSTOMER. */
@@ -141,8 +156,16 @@ public class UserLoginService {
         if (credentials == null || isBlank(credentials.getUsername()) || credentials.getPassword() == null) {
             return Optional.empty();
         }
-        return userRepository.findByUsername(credentials.getUsername())
-                .filter(account -> passwordHasher.matches(credentials.getPassword(), account.getPassword()));
+        Optional<User> persisted = userRepository.findByUsername(credentials.getUsername());
+        if (!persisted.isPresent()) return Optional.empty();
+        if (passwordHasher.matches(credentials.getPassword(), persisted.get().getPassword())) {
+            return persisted;
+        }
+        if (legacyCredentialUpgrade == null) return Optional.empty();
+        // Verification of a historical 120k hash, its CAS rotation and a fresh
+        // persisted 600k account read are required before authentication succeeds.
+        return legacyCredentialUpgrade.verifyAndUpgrade(
+                persisted.get(), credentials.getPassword(), userRepository, passwordHasher);
     }
 
     public boolean authenticateUser(User credentials) {
