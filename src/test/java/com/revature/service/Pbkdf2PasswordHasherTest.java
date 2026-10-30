@@ -1,5 +1,6 @@
 package com.revature.service;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -10,7 +11,7 @@ import org.junit.jupiter.api.Test;
 class Pbkdf2PasswordHasherTest {
 
     @Test
-    @Tag("SECURITY")
+    @Tag("security")
     void encodedPasswordMatchesOriginalPlaintext() {
         PasswordHasher hasher = new Pbkdf2PasswordHasher();
 
@@ -22,7 +23,7 @@ class Pbkdf2PasswordHasherTest {
     }
 
     @Test
-    @Tag("SECURITY")
+    @Tag("security")
     void identicalPasswordsReceiveDifferentRandomSalts() {
         PasswordHasher hasher = new Pbkdf2PasswordHasher();
 
@@ -32,6 +33,19 @@ class Pbkdf2PasswordHasherTest {
         assertNotEquals(first, second);
         assertTrue(hasher.matches("secret", first));
         assertTrue(hasher.matches("secret", second));
+    }
+
+    @Test
+    @Tag("security")
+    void rejectsUntrustedWorkFactorsBeforeHashing() {
+        PasswordHasher hasher = new Pbkdf2PasswordHasher();
+        String encoded = hasher.hash("secret");
+        String[] fields = encoded.split("\\$", -1);
+
+        assertEquals("600000", fields[1]);
+        assertFalse(hasher.matches("secret", "pbkdf2$120000$" + fields[2] + "$" + fields[3]));
+        assertFalse(hasher.matches("secret", "pbkdf2$2147483647$" + fields[2] + "$" + fields[3]));
+        assertFalse(hasher.matches("secret", "pbkdf2$600000$" + fields[2] + "$" + fields[3] + "junk"));
     }
 
     @Test
