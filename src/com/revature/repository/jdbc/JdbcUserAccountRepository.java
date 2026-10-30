@@ -27,19 +27,18 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public User save(User user) {
         validate(user);
-        String sql = "INSERT INTO accounts (username, encoded_credential, role, session_revision) "
-                + "VALUES (?, ?, ?, ?)";
-        UUID generation = UUID.randomUUID();
+        // DB owner supplies a fresh revision DEFAULT; restricted INSERT roles must not
+        // gain permission to specify or reuse the session revision themselves.
+        String sql = "INSERT INTO accounts (username, encoded_credential, role) VALUES (?, ?, ?)";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, user.getUsername());
             statement.setString(2, user.getPassword());
             statement.setString(3, user.getRole().name());
-            statement.setObject(4, generation);
             statement.executeUpdate();
-            User stored = copy(user);
-            stored.setSessionRevision(generation.toString());
-            return stored;
+            // An INSERT-only SQL identity cannot SELECT the owner-issued revision.
+            // A later authenticated repository read obtains the durable value.
+            return copy(user);
         } catch (SQLException exception) {
             if ("23505".equals(exception.getSQLState())) {
                 throw new IllegalArgumentException("username is already registered", exception);
@@ -54,14 +53,18 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         requireText(username, "username");
         requireText(expectedEncoded, "expected encoded credential");
         requireText(replacementEncoded, "replacement encoded credential");
-        String sql = "UPDATE accounts SET encoded_credential = ?, session_revision = ? "
-                + "WHERE username = ? AND encoded_credential = ?";
+        String sql = database.isH2()
+                ? "UPDATE accounts SET encoded_credential = ?, session_revision = ? "
+                    + "WHERE username = ? AND encoded_credential = ?"
+                : "UPDATE accounts SET encoded_credential = ? "
+                    + "WHERE username = ? AND encoded_credential = ?";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, replacementEncoded);
-            statement.setObject(2, UUID.randomUUID());
-            statement.setString(3, username);
-            statement.setString(4, expectedEncoded);
+            int keyIndex = 2;
+            if (database.isH2()) statement.setObject(keyIndex++, UUID.randomUUID());
+            statement.setString(keyIndex++, username);
+            statement.setString(keyIndex, expectedEncoded);
             return statement.executeUpdate() == 1;
         } catch (SQLException exception) {
             throw new IllegalStateException("could not rotate account credential", exception);
@@ -82,12 +85,15 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
                     throw new SecurityException("cannot demote the last administrator");
                 }
             }
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "UPDATE accounts SET role = ?, session_revision = ? WHERE username = ? AND role = ?")) {
+            String sql = database.isH2()
+                    ? "UPDATE accounts SET role = ?, session_revision = ? WHERE username = ? AND role = ?"
+                    : "UPDATE accounts SET role = ? WHERE username = ? AND role = ?";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 statement.setString(1, replacementRole.name());
-                statement.setObject(2, UUID.randomUUID());
-                statement.setString(3, username);
-                statement.setString(4, expectedRole.name());
+                int keyIndex = 2;
+                if (database.isH2()) statement.setObject(keyIndex++, UUID.randomUUID());
+                statement.setString(keyIndex++, username);
+                statement.setString(keyIndex, expectedRole.name());
                 return statement.executeUpdate() == 1;
             }
         });
@@ -135,7 +141,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         List<User> accounts = new ArrayList<>();
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(
-                        "SELECT username, encoded_credential, role FROM accounts ORDER BY username");
+                        "SELECT username, encoded_credential, role, session_revision FROM accounts ORDER BY username");
                 ResultSet result = statement.executeQuery()) {
             while (result.next()) accounts.add(map(result));
             return Collections.unmodifiableList(accounts);
