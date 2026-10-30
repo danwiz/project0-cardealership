@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /** Owns JDBC connection creation and applies ordered schema migrations. */
 public final class JdbcDatabase {
-    public static final int CURRENT_SCHEMA_VERSION = 4;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
 
     private final String url;
     private final String username;
@@ -78,6 +78,11 @@ public final class JdbcDatabase {
                 if (version < 4) {
                     applyVersionFour(connection);
                     recordVersion(connection, 4, "one-time administrator bootstrap audit");
+                    version = 4;
+                }
+                if (version < 5) {
+                    applyVersionFive(connection);
+                    recordVersion(connection, 5, "durable account session revocation generation");
                 }
                 if (currentVersion(connection) != CURRENT_SCHEMA_VERSION) throw new IllegalStateException("unsupported schema version");
                 connection.commit();
@@ -171,6 +176,18 @@ public final class JdbcDatabase {
                 "bootstrap_id INTEGER PRIMARY KEY CHECK (bootstrap_id = 1), " +
                 "initial_admin_username VARCHAR(100) NOT NULL, " +
                 "completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+    }
+
+    /** Each SQL-created account gets a fresh durable generation, including bootstrap/legacy inserts. */
+    private static void applyVersionFive(Connection connection) throws SQLException {
+        String database = connection.getMetaData().getDatabaseProductName();
+        if ("H2".equalsIgnoreCase(database)) {
+            execute(connection, "ALTER TABLE accounts ADD COLUMN session_revision UUID NOT NULL DEFAULT RANDOM_UUID()");
+        } else if ("PostgreSQL".equalsIgnoreCase(database)) {
+            execute(connection, "ALTER TABLE accounts ADD COLUMN session_revision UUID NOT NULL DEFAULT gen_random_uuid()");
+        } else {
+            throw new SQLException("session generation migration supports only H2 and PostgreSQL");
+        }
     }
 
     private static void execute(Connection connection, String sql) throws SQLException {
