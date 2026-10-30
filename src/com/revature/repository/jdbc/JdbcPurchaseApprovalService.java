@@ -51,7 +51,8 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
         if (requestId < 0) throw new IllegalArgumentException("request id must not be negative");
         if (paymentMonths <= 0) throw new IllegalArgumentException("payment months must be positive");
         if (reviewer == null || reviewer.getUsername() == null
-                || reviewer.getRole() == null || reviewer.getPassword() == null) {
+                || reviewer.getRole() == null || reviewer.getPassword() == null
+                || reviewer.getSessionRevision() == null) {
             throw new SecurityException("verified reviewer identity required");
         }
 
@@ -120,11 +121,12 @@ public final class JdbcPurchaseApprovalService implements ApplicationPorts.Purch
             int requestId, int months, boolean rejectOthers) throws SQLException {
         // Revalidate persisted privilege under the same transaction that writes.
         try (PreparedStatement statement = connection.prepareStatement(
-                "SELECT role, encoded_credential FROM accounts WHERE username = ? FOR UPDATE")) {
+                "SELECT role, encoded_credential, session_revision FROM accounts WHERE username = ? FOR UPDATE")) {
             statement.setString(1, reviewer.getUsername());
             try (ResultSet row = statement.executeQuery()) {
                 if (!row.next() || !Objects.equals(reviewer.getPassword(), row.getString("encoded_credential"))
                         || !Objects.equals(reviewer.getRole().name(), row.getString("role"))
+                        || !Objects.equals(reviewer.getSessionRevision(), row.getString("session_revision"))
                         || (reviewer.getRole() != AccountRole.EMPLOYEE
                             && reviewer.getRole() != AccountRole.ADMINISTRATOR)) {
                     throw new SecurityException("reviewer no longer has persisted approval authority");
