@@ -97,11 +97,11 @@ class PostgresqlSessionRevisionMigrationTest {
         // Even a direct SQL credential update must revoke an old session
         // without giving a restricted writer UPDATE on session_revision.
         try (Connection connection = database.openConnection();
-                PreparedStatement direct = connection.prepareStatement(
+                PreparedStatement directUpdate = connection.prepareStatement(
                         "UPDATE accounts SET encoded_credential = ? WHERE username = ?")) {
-            direct.setString(1, new Pbkdf2PasswordHasher().hash("A-New-Secret123!"));
-            direct.setString(2, "legacy_one");
-            assertEquals(1, direct.executeUpdate());
+            directUpdate.setString(1, new Pbkdf2PasswordHasher().hash("A-New-Secret123!"));
+            directUpdate.setString(2, "legacy_one");
+            assertEquals(1, directUpdate.executeUpdate());
         }
         String rotated = repository.findByUsername("legacy_one").orElseThrow(AssertionError::new)
                 .getSessionRevision();
