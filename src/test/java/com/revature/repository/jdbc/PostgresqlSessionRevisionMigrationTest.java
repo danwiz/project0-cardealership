@@ -52,6 +52,8 @@ class PostgresqlSessionRevisionMigrationTest {
         // Recreate the schema-v4 *shape* and version marker to rehearse the
         // additive upgrade with populated accounts; never run on user data.
         try (Connection connection = database.openConnection(); Statement s = connection.createStatement()) {
+            s.execute("DROP TRIGGER account_session_revision_rotation ON accounts");
+            s.execute("DROP FUNCTION rotate_account_session_revision()");
             s.execute("ALTER TABLE accounts DROP COLUMN session_revision");
             s.execute("DELETE FROM schema_history WHERE version = 5");
         }
