@@ -111,6 +111,67 @@ class PostgresqlCommitAckTransportLossTest {
         assertEquals(1, count(direct, "owned_vehicles"));
     }
 
+
+    @Test
+    void actualDroppedOutboundCommitNeverCreatesAnUnconfirmedPurchase()
+            throws Exception {
+        String base = System.getenv("DEALERSHIP_PG_TEST_URL");
+        String user = System.getenv("DEALERSHIP_PG_TEST_USER");
+        String pass = System.getenv("DEALERSHIP_PG_TEST_PASSWORD");
+        Assumptions.assumeTrue("true".equalsIgnoreCase(System.getenv("CI"))
+                        && "jdbc:postgresql://localhost:5432/dealership_ci".equals(base)
+                        && "dealership_ci_owner".equals(user)
+                        && "ci-only-postgres-fixture".equals(pass),
+                "requires only the isolated PostgreSQL 16 GitHub Actions service");
+
+        String schema = "precommit_" + UUID.randomUUID().toString().replace("-", "");
+        JdbcDatabase owner = new JdbcDatabase(base, user, pass);
+        try (Connection c = owner.openConnection(); Statement statement = c.createStatement()) {
+            statement.execute("CREATE SCHEMA " + schema);
+        }
+        String directUrl = base + "?currentSchema=" + schema;
+        JdbcDatabase direct = new JdbcDatabase(directUrl, user, pass);
+        direct.migrate();
+        ConfiguredDealershipApplication app = DealershipCompositionRoot.create(
+                InfrastructureConfiguration.jdbc(directUrl, user, pass));
+        TestAccounts.seed(new JdbcUserAccountRepository(direct),
+                AccountRole.EMPLOYEE, "reviewer", "reviewer-password");
+        app.getContext().getCustomerLoginService().registerUser("buyer", "buyer-password");
+        User reviewer = AuthenticatedAccounts.login(
+                app, AccountRole.EMPLOYEE, "reviewer", "reviewer-password");
+        JdbcInventoryRepository inventory = new JdbcInventoryRepository(direct);
+        inventory.addListing("Toyota", "Corolla", 2023, 19000, 2);
+        inventory.requestPurchase("buyer", 0);
+
+        // Cut actual TCP *before* the COMMIT wire frame reaches the backend.
+        // An error reply does not prove rollback; only independent DB readback
+        // under this isolated, no-other-writer fixture establishes unchanged state.
+        try (CommitAckDropProxy proxy = new CommitAckDropProxy(true)) {
+            String proxiedUrl = "jdbc:postgresql://127.0.0.1:" + proxy.port()
+                    + "/dealership_ci?currentSchema=" + schema
+                    + "&sslmode=disable&preferQueryMode=simple"
+                    + "&connectTimeout=5&socketTimeout=8";
+            JdbcDatabase proxied = new JdbcDatabase(proxiedUrl, user, pass);
+            JdbcPurchaseApprovalService approval = new JdbcPurchaseApprovalService(
+                    proxied, app.getContext().getAuthorizationService());
+
+            IllegalStateException uncertain = assertThrows(IllegalStateException.class,
+                    () -> approval.approve(reviewer, 0, 12, false));
+            assertTrue(proxy.awaitDroppedCommit(),
+                    "proxy must prove the outbound COMMIT was actually withheld");
+            assertTrue(uncertain.getMessage().contains("uncertain"),
+                    "lost transport must be treated as unknown by the caller");
+        }
+
+        assertTrue(inventory.purchaseRequests().get(0).isPending(),
+                "no COMMIT reached the server; all tentative writes must roll back");
+        assertEquals(2, inventory.listings().get(0).getStockQuantity());
+        assertEquals(0, count(direct, "owned_vehicles"));
+        assertEquals(0, count(direct, "payment_plans"));
+        // No automatic or implicit retry. A production NOT_CONFIRMED receipt
+        // would require a separate trusted authorization/reconciliation decision.
+    }
+
     private static int count(JdbcDatabase db, String table) throws Exception {
         if (!"owned_vehicles".equals(table) && !"payment_plans".equals(table)) {
             throw new IllegalArgumentException("unexpected count table");
@@ -137,8 +198,12 @@ class PostgresqlCommitAckTransportLossTest {
         private final AtomicBoolean running = new AtomicBoolean(true);
         private final AtomicBoolean firstCutClaimed = new AtomicBoolean();
         private final CountDownLatch droppedCommit = new CountDownLatch(1);
+        private final boolean dropBeforeCommit;
 
-        CommitAckDropProxy() throws IOException {
+        CommitAckDropProxy() throws IOException { this(false); }
+
+        CommitAckDropProxy(boolean dropBeforeCommit) throws IOException {
+            this.dropBeforeCommit = dropBeforeCommit;
             listener = new ServerSocket(0, 8, InetAddress.getByName("127.0.0.1"));
             workers.execute(() -> {
                 while (running.get()) {
@@ -179,6 +244,15 @@ class PostgresqlCommitAckTransportLossTest {
                     if (outbound) {
                         if (!firstCutClaimed.get() && contains(window, COMMIT)
                                 && firstCutClaimed.compareAndSet(false, true)) {
+                            if (dropBeforeCommit) {
+                                // Do not forward a single byte of the COMMIT
+                                // query frame; close both sockets to force
+                                // PostgreSQL to abandon its open transaction.
+                                droppedCommit.countDown();
+                                source.close();
+                                destination.close();
+                                return;
+                            }
                             holding.set(true);
                         }
                         output.write(data, 0, bytes);
