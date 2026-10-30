@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
@@ -26,6 +27,8 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public User save(User user) {
         validate(user);
+        // DB owner supplies a fresh revision DEFAULT; restricted INSERT roles must not
+        // gain permission to specify or reuse the session revision themselves.
         String sql = "INSERT INTO accounts (username, encoded_credential, role) VALUES (?, ?, ?)";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
@@ -33,7 +36,11 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
             statement.setString(2, user.getPassword());
             statement.setString(3, user.getRole().name());
             statement.executeUpdate();
-            return copy(user);
+            // An INSERT-only SQL identity cannot SELECT the owner-issued revision.
+            // Never echo a caller-supplied stale incarnation token as if it were authoritative.
+            User inserted = copy(user);
+            inserted.setSessionRevision(null);
+            return inserted;
         } catch (SQLException exception) {
             if ("23505".equals(exception.getSQLState())) {
                 throw new IllegalArgumentException("username is already registered", exception);
@@ -48,13 +55,18 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         requireText(username, "username");
         requireText(expectedEncoded, "expected encoded credential");
         requireText(replacementEncoded, "replacement encoded credential");
-        String sql = "UPDATE accounts SET encoded_credential = ? "
-                + "WHERE username = ? AND encoded_credential = ?";
+        String sql = database.isH2()
+                ? "UPDATE accounts SET encoded_credential = ?, session_revision = ? "
+                    + "WHERE username = ? AND encoded_credential = ?"
+                : "UPDATE accounts SET encoded_credential = ? "
+                    + "WHERE username = ? AND encoded_credential = ?";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, replacementEncoded);
-            statement.setString(2, username);
-            statement.setString(3, expectedEncoded);
+            int keyIndex = 2;
+            if (database.isH2()) statement.setObject(keyIndex++, UUID.randomUUID());
+            statement.setString(keyIndex++, username);
+            statement.setString(keyIndex, expectedEncoded);
             return statement.executeUpdate() == 1;
         } catch (SQLException exception) {
             throw new IllegalStateException("could not rotate account credential", exception);
@@ -75,11 +87,15 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
                     throw new SecurityException("cannot demote the last administrator");
                 }
             }
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "UPDATE accounts SET role = ? WHERE username = ? AND role = ?")) {
+            String sql = database.isH2()
+                    ? "UPDATE accounts SET role = ?, session_revision = ? WHERE username = ? AND role = ?"
+                    : "UPDATE accounts SET role = ? WHERE username = ? AND role = ?";
+            try (PreparedStatement statement = connection.prepareStatement(sql)) {
                 statement.setString(1, replacementRole.name());
-                statement.setString(2, username);
-                statement.setString(3, expectedRole.name());
+                int keyIndex = 2;
+                if (database.isH2()) statement.setObject(keyIndex++, UUID.randomUUID());
+                statement.setString(keyIndex++, username);
+                statement.setString(keyIndex, expectedRole.name());
                 return statement.executeUpdate() == 1;
             }
         });
@@ -94,7 +110,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public Optional<User> findByUsername(String username) {
         if (username == null) return Optional.empty();
-        String sql = "SELECT username, encoded_credential, role FROM accounts WHERE username = ?";
+        String sql = "SELECT username, encoded_credential, role, session_revision FROM accounts WHERE username = ?";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, username);
@@ -127,7 +143,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         List<User> accounts = new ArrayList<>();
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(
-                        "SELECT username, encoded_credential, role FROM accounts ORDER BY username");
+                        "SELECT username, encoded_credential, role, session_revision FROM accounts ORDER BY username");
                 ResultSet result = statement.executeQuery()) {
             while (result.next()) accounts.add(map(result));
             return Collections.unmodifiableList(accounts);
@@ -180,6 +196,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         user.setUsername(result.getString("username"));
         user.setPassword(result.getString("encoded_credential"));
         user.setRole(AccountRole.valueOf(result.getString("role")));
+        user.setSessionRevision(result.getString("session_revision"));
         return user;
     }
 
@@ -188,6 +205,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         copy.setUsername(source.getUsername());
         copy.setPassword(source.getPassword());
         copy.setRole(source.getRole());
+        copy.setSessionRevision(source.getSessionRevision());
         return copy;
     }
 

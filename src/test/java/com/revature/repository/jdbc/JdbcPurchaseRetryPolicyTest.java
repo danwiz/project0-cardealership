@@ -107,11 +107,12 @@ class JdbcPurchaseRetryPolicyTest {
         private Fixture(String name) {
             database = JdbcDatabase.inMemory("retry_" + name + "_" + System.nanoTime());
             JdbcUserAccountRepository accounts = new JdbcUserAccountRepository(database);
-            reviewer = new User();
-            reviewer.setUsername("reviewer");
-            reviewer.setRole(AccountRole.EMPLOYEE);
-            reviewer.setPassword(new Pbkdf2PasswordHasher().hash("reviewer-password"));
-            accounts.save(reviewer);
+            User newReviewer = new User();
+            newReviewer.setUsername("reviewer");
+            newReviewer.setRole(AccountRole.EMPLOYEE);
+            newReviewer.setPassword(new Pbkdf2PasswordHasher().hash("reviewer-password"));
+            accounts.save(newReviewer);
+            reviewer = accounts.findByUsername("reviewer").orElseThrow(AssertionError::new);
             User buyer = new User();
             buyer.setUsername("buyer");
             buyer.setRole(AccountRole.CUSTOMER);

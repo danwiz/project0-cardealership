@@ -55,7 +55,7 @@ class AdministratorBootstrapServiceTest {
 
         JdbcDatabase restarted = new JdbcDatabase(url);
         restarted.migrate();
-        assertEquals(4, restarted.schemaVersion());
+        assertEquals(JdbcDatabase.CURRENT_SCHEMA_VERSION, restarted.schemaVersion());
         assertEquals(1, count(restarted, "administrator_bootstrap_state"));
         assertThrows(SecurityException.class,
                 () -> new AdministratorBootstrapService(restarted)

@@ -67,13 +67,16 @@ public class RoleAuthorizationService {
         }
         User persisted = source.get().findByUsername(account.getUsername())
                 .orElseThrow(() -> new SecurityException("authenticated account no longer exists"));
-        if (persisted.getRole() == null || persisted.getRole() != account.getRole()
+        if (persisted.getSessionRevision() == null
+                || !Objects.equals(persisted.getSessionRevision(), account.getSessionRevision())
+                || persisted.getRole() == null || persisted.getRole() != account.getRole()
                 || !Objects.equals(persisted.getPassword(), account.getPassword())
                 || !new Pbkdf2PasswordHasher().matches(credentials.getPassword(), persisted.getPassword())) {
             throw new SecurityException("authenticated identity does not match persisted credentials");
         }
         sessions.put(account, new VerifiedSession(
-                persisted.getUsername(), persisted.getRole(), persisted.getPassword()));
+                persisted.getUsername(), persisted.getRole(), persisted.getPassword(),
+                persisted.getSessionRevision()));
     }
 
     /** True only when this policy checks an authenticated session against persisted accounts. */
@@ -90,9 +93,17 @@ public class RoleAuthorizationService {
         Supplier<UserAccountRepository> source = repositorySupplier;
         if (source != null) {
             VerifiedSession session = sessions.get(account);
-            if (session == null || !session.matches(account)) return false;
+            if (session == null) return false;
+            if (!session.matches(account)) {
+                sessions.remove(account);
+                return false;
+            }
             Optional<User> current = source.get().findByUsername(session.username);
-            if (!current.isPresent() || !session.matches(current.get())) return false;
+            if (!current.isPresent() || !session.matches(current.get())) {
+                // A revoked actor must not reawaken if the same role/hash returns.
+                sessions.remove(account);
+                return false;
+            }
         }
         return PERMISSIONS_BY_ROLE.getOrDefault(account.getRole(), EnumSet.noneOf(Permission.class))
                 .contains(permission);
@@ -108,18 +119,23 @@ public class RoleAuthorizationService {
         private final String username;
         private final AccountRole role;
         private final String passwordHash;
+        private final String sessionRevision;
 
-        private VerifiedSession(String username, AccountRole role, String passwordHash) {
+        private VerifiedSession(String username, AccountRole role, String passwordHash,
+                String sessionRevision) {
             this.username = username;
             this.role = role;
             this.passwordHash = passwordHash;
+            this.sessionRevision = sessionRevision;
         }
 
         private boolean matches(User account) {
             return account != null
                     && Objects.equals(username, account.getUsername())
                     && role == account.getRole()
-                    && Objects.equals(passwordHash, account.getPassword());
+                    && Objects.equals(passwordHash, account.getPassword())
+                    && sessionRevision != null
+                    && Objects.equals(sessionRevision, account.getSessionRevision());
         }
     }
 }

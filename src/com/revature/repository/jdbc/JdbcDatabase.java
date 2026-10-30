@@ -9,7 +9,7 @@ import java.util.Objects;
 
 /** Owns JDBC connection creation and applies ordered schema migrations. */
 public final class JdbcDatabase {
-    public static final int CURRENT_SCHEMA_VERSION = 4;
+    public static final int CURRENT_SCHEMA_VERSION = 5;
 
     private final String url;
     private final String username;
@@ -40,6 +40,9 @@ public final class JdbcDatabase {
         return new JdbcDatabase("jdbc:h2:mem:" + requireText(name, "name")
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
     }
+
+    /** H2 is used only for isolated test/local stores; persistent SQL uses owner-controlled triggers. */
+    boolean isH2() { return url.regionMatches(true, 0, "jdbc:h2:", 0, "jdbc:h2:".length()); }
 
     public Connection openConnection() throws SQLException {
         if (credentialSource == null) {
@@ -78,6 +81,11 @@ public final class JdbcDatabase {
                 if (version < 4) {
                     applyVersionFour(connection);
                     recordVersion(connection, 4, "one-time administrator bootstrap audit");
+                    version = 4;
+                }
+                if (version < 5) {
+                    applyVersionFive(connection);
+                    recordVersion(connection, 5, "durable account session revocation generation");
                 }
                 if (currentVersion(connection) != CURRENT_SCHEMA_VERSION) throw new IllegalStateException("unsupported schema version");
                 connection.commit();
@@ -171,6 +179,30 @@ public final class JdbcDatabase {
                 "bootstrap_id INTEGER PRIMARY KEY CHECK (bootstrap_id = 1), " +
                 "initial_admin_username VARCHAR(100) NOT NULL, " +
                 "completed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)");
+    }
+
+    /** Each SQL-created account gets a fresh durable generation, including bootstrap/legacy inserts. */
+    private static void applyVersionFive(Connection connection) throws SQLException {
+        String database = connection.getMetaData().getDatabaseProductName();
+        if ("H2".equalsIgnoreCase(database)) {
+            execute(connection, "ALTER TABLE accounts ADD COLUMN session_revision UUID NOT NULL DEFAULT RANDOM_UUID()");
+        } else if ("PostgreSQL".equalsIgnoreCase(database)) {
+            execute(connection, "ALTER TABLE accounts ADD COLUMN session_revision UUID NOT NULL DEFAULT gen_random_uuid()");
+            // Owner-held BEFORE trigger advances revocation even for existing
+            // restricted writers that can update ONLY encoded_credential.
+            execute(connection, "CREATE FUNCTION rotate_account_session_revision() RETURNS trigger "
+                    + "LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $revision$ "
+                    + "BEGIN IF OLD.role IS DISTINCT FROM NEW.role "
+                    + "OR OLD.encoded_credential IS DISTINCT FROM NEW.encoded_credential "
+                    + "THEN NEW.session_revision := pg_catalog.gen_random_uuid(); END IF; "
+                    + "RETURN NEW; END; $revision$");
+            execute(connection, "REVOKE ALL ON FUNCTION rotate_account_session_revision() FROM PUBLIC");
+            execute(connection, "CREATE TRIGGER account_session_revision_rotation "
+                    + "BEFORE UPDATE OF role, encoded_credential ON accounts "
+                    + "FOR EACH ROW EXECUTE FUNCTION rotate_account_session_revision()");
+        } else {
+            throw new SQLException("session generation migration supports only H2 and PostgreSQL");
+        }
     }
 
     private static void execute(Connection connection, String sql) throws SQLException {

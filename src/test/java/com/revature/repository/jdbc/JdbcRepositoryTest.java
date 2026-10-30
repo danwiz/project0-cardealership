@@ -30,7 +30,7 @@ class JdbcRepositoryTest {
 
         assertEquals(JdbcDatabase.CURRENT_SCHEMA_VERSION, database.schemaVersion());
         try (Connection connection = database.openConnection(); Statement statement = connection.createStatement()) {
-            assertEquals(4, count(statement, "schema_history"));
+            assertEquals(JdbcDatabase.CURRENT_SCHEMA_VERSION, count(statement, "schema_history"));
             assertEquals(0, count(statement, "accounts"));
             assertEquals(0, count(statement, "administrator_bootstrap_state"));
             assertEquals(0, count(statement, "inventory_listings"));

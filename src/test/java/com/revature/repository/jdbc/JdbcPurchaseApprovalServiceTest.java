@@ -221,7 +221,9 @@ class JdbcPurchaseApprovalServiceTest {
         user.setUsername(username);
         user.setPassword(new Pbkdf2PasswordHasher().hash("fixture-password-" + username));
         user.setRole(role);
-        return new JdbcUserAccountRepository(database).save(user);
+        JdbcUserAccountRepository accounts = new JdbcUserAccountRepository(database);
+        accounts.save(user);
+        return accounts.findByUsername(username).orElseThrow(AssertionError::new);
     }
 
     private static int count(JdbcDatabase database, String table) {
