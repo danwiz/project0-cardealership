@@ -45,7 +45,7 @@ jobs:
       PINNED_MASTER: 90741d3abe51d9cc002aaeb1dacae27b933fba10
       PINNED_CANDIDATE: 0cbad314956ad1d36542d30afa6519a1bbfecdce
       PINNED_MASTER_BASE: 9c242f9880a18a7749621a6ed5f6d53d3ee5fcdc
-      EXPECTED_REHEARSAL_HEAD: 9cf9f8ced8a9d5d02d9e1f97b75085e8903aa9a4
+      EXPECTED_REHEARSAL_HEAD: 9a3b69efe8897c97087697e9d8b836488dd944ca
 
     steps:
       - name: Fetch complete source ancestry without retained credentials
@@ -92,7 +92,11 @@ jobs:
           done
 
           test -z "$(git ls-files -u)"
-          git diff --cached --check
+          # Capture pre-existing whitespace flaws separately; do not silently
+          # rewrite archived application or documentation files in this test.
+          git diff --cached --check > local-integration-evidence/existing-whitespace-warnings.txt 2>&1 || true
+          # Block only whitespace newly introduced versus the tested candidate.
+          git diff --cached --check "$PINNED_CANDIDATE" > local-integration-evidence/new-whitespace-warnings.txt 2>&1
           git -c user.name='CI rehearsal only' -c user.email='ci-rehearsal@example.invalid' \
             commit --no-gpg-sign -m 'test: ephemeral master/candidate merge — do not publish' \
             > local-integration-evidence/local-commit-message.txt
