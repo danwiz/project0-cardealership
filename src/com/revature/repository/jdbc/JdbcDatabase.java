@@ -41,6 +41,9 @@ public final class JdbcDatabase {
                 + ";DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE");
     }
 
+    /** H2 is used only for isolated test/local stores; persistent SQL uses owner-controlled triggers. */
+    boolean isH2() { return url.regionMatches(true, 0, "jdbc:h2:", 0, "jdbc:h2:".length()); }
+
     public Connection openConnection() throws SQLException {
         if (credentialSource == null) {
             return DriverManager.getConnection(url, username, password);
@@ -185,6 +188,18 @@ public final class JdbcDatabase {
             execute(connection, "ALTER TABLE accounts ADD COLUMN session_revision UUID NOT NULL DEFAULT RANDOM_UUID()");
         } else if ("PostgreSQL".equalsIgnoreCase(database)) {
             execute(connection, "ALTER TABLE accounts ADD COLUMN session_revision UUID NOT NULL DEFAULT gen_random_uuid()");
+            // Owner-held BEFORE trigger advances revocation even for existing
+            // restricted writers that can update ONLY encoded_credential.
+            execute(connection, "CREATE FUNCTION rotate_account_session_revision() RETURNS trigger "
+                    + "LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog AS $revision$ "
+                    + "BEGIN IF OLD.role IS DISTINCT FROM NEW.role "
+                    + "OR OLD.encoded_credential IS DISTINCT FROM NEW.encoded_credential "
+                    + "THEN NEW.session_revision := pg_catalog.gen_random_uuid(); END IF; "
+                    + "RETURN NEW; END; $revision$");
+            execute(connection, "REVOKE ALL ON FUNCTION rotate_account_session_revision() FROM PUBLIC");
+            execute(connection, "CREATE TRIGGER account_session_revision_rotation "
+                    + "BEFORE UPDATE OF role, encoded_credential ON accounts "
+                    + "FOR EACH ROW EXECUTE FUNCTION rotate_account_session_revision()");
         } else {
             throw new SQLException("session generation migration supports only H2 and PostgreSQL");
         }
