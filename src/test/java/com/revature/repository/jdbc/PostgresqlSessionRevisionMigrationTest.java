@@ -91,5 +91,32 @@ class PostgresqlSessionRevisionMigrationTest {
         String updated = repository.findByUsername("legacy_one").orElseThrow(AssertionError::new)
                 .getSessionRevision();
         assertNotEquals(first, updated);
+
+        // Even a direct SQL credential update must revoke an old session
+        // without giving a restricted writer UPDATE on session_revision.
+        try (Connection connection = database.openConnection();
+                PreparedStatement direct = connection.prepareStatement(
+                        "UPDATE accounts SET encoded_credential = ? WHERE username = ?")) {
+            direct.setString(1, new Pbkdf2PasswordHasher().hash("A-New-Secret123!"));
+            direct.setString(2, "legacy_one");
+            assertEquals(1, direct.executeUpdate());
+        }
+        String rotated = repository.findByUsername("legacy_one").orElseThrow(AssertionError::new)
+                .getSessionRevision();
+        assertNotEquals(updated, rotated,
+                "owner-owned SQL trigger must rotate a revision without a column grant");
+
+        // A rolled-back change must not advance the durable generation.
+        try (Connection connection = database.openConnection();
+                PreparedStatement rollback = connection.prepareStatement(
+                        "UPDATE accounts SET encoded_credential = ? WHERE username = ?")) {
+            connection.setAutoCommit(false);
+            rollback.setString(1, "rolled-back-test-hash");
+            rollback.setString(2, "legacy_one");
+            assertEquals(1, rollback.executeUpdate());
+            connection.rollback();
+        }
+        assertEquals(rotated, repository.findByUsername("legacy_one")
+                .orElseThrow(AssertionError::new).getSessionRevision());
     }
 }
