@@ -37,8 +37,10 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
             statement.setString(3, user.getRole().name());
             statement.executeUpdate();
             // An INSERT-only SQL identity cannot SELECT the owner-issued revision.
-            // A later authenticated repository read obtains the durable value.
-            return copy(user);
+            // Never echo a caller-supplied stale incarnation token as if it were authoritative.
+            User inserted = copy(user);
+            inserted.setSessionRevision(null);
+            return inserted;
         } catch (SQLException exception) {
             if ("23505".equals(exception.getSQLState())) {
                 throw new IllegalArgumentException("username is already registered", exception);
