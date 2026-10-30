@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Objects;
+import java.util.UUID;
 
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
@@ -25,6 +26,8 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
         if (usersByUsername.containsKey(snapshot.getUsername())) {
             throw new IllegalArgumentException("username is already registered");
         }
+        // Never retain a caller-provided generation, including when restoring snapshots.
+        snapshot.setSessionRevision(UUID.randomUUID().toString());
         usersByUsername.put(snapshot.getUsername(), snapshot);
         return copy(snapshot);
     }
@@ -37,6 +40,7 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
         if (current == null || !Objects.equals(current.getPassword(), expectedEncoded)) return false;
         User updated = copy(current);
         updated.setPassword(replacementEncoded);
+        updated.setSessionRevision(UUID.randomUUID().toString());
         usersByUsername.put(username, updated);
         return true;
     }
@@ -50,6 +54,7 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
         if (current == null || current.getRole() != expectedRole) return false;
         User updated = copy(current);
         updated.setRole(replacementRole);
+        updated.setSessionRevision(UUID.randomUUID().toString());
         usersByUsername.put(username, updated);
         return true;
     }
@@ -82,6 +87,7 @@ public class InMemoryUserAccountRepository implements UserAccountRepository {
         result.setUsername(source.getUsername());
         result.setPassword(source.getPassword());
         result.setRole(source.getRole());
+        result.setSessionRevision(source.getSessionRevision());
         return result;
     }
 }
