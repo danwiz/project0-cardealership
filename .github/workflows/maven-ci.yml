@@ -3,6 +3,8 @@ name: Maven CI
 on:
   push:
     branches:
+      # Preserve the default-branch push CI gate from master.
+      - master
       - refactor/baseline-and-characterization
       - refactor/authentication-remediation
       - refactor/account-repository
@@ -198,3 +200,38 @@ jobs:
           path: target/surefire-reports/
           if-no-files-found: warn
           retention-days: 14
+
+  diagnostics:
+    name: Diagnostics for Java ${{ matrix.java }}
+    if: always()
+    needs: verify
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        java:
+          - '11'
+          - '17'
+
+    steps:
+      - name: Download Maven diagnostics
+        uses: actions/download-artifact@v6
+        with:
+          name: maven-diagnostics-java-${{ matrix.java }}
+          path: diagnostics
+
+      - name: Print relevant Maven diagnostic tail
+        shell: bash
+        run: |
+          echo "Maven diagnostics for Java ${{ matrix.java }}"
+          if [[ -f diagnostics/compile-java-${{ matrix.java }}.log ]]; then
+            tail -n 60 diagnostics/compile-java-${{ matrix.java }}.log
+          elif [[ -f diagnostics/test-java-${{ matrix.java }}.log ]]; then
+            tail -n 60 diagnostics/test-java-${{ matrix.java }}.log
+          elif [[ -f diagnostics/verify-java-${{ matrix.java }}.log ]]; then
+            tail -n 60 diagnostics/verify-java-${{ matrix.java }}.log
+          else
+            echo "No Maven diagnostic log was found."
+            exit 1
+          fi
