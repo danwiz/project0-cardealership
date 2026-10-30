@@ -9,6 +9,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.UUID;
 
 import com.revature.cardealer.AccountRole;
 import com.revature.cardealer.User;
@@ -26,14 +27,19 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public User save(User user) {
         validate(user);
-        String sql = "INSERT INTO accounts (username, encoded_credential, role) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO accounts (username, encoded_credential, role, session_revision) "
+                + "VALUES (?, ?, ?, ?)";
+        UUID generation = UUID.randomUUID();
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, user.getUsername());
             statement.setString(2, user.getPassword());
             statement.setString(3, user.getRole().name());
+            statement.setObject(4, generation);
             statement.executeUpdate();
-            return copy(user);
+            User stored = copy(user);
+            stored.setSessionRevision(generation.toString());
+            return stored;
         } catch (SQLException exception) {
             if ("23505".equals(exception.getSQLState())) {
                 throw new IllegalArgumentException("username is already registered", exception);
@@ -48,13 +54,14 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         requireText(username, "username");
         requireText(expectedEncoded, "expected encoded credential");
         requireText(replacementEncoded, "replacement encoded credential");
-        String sql = "UPDATE accounts SET encoded_credential = ? "
+        String sql = "UPDATE accounts SET encoded_credential = ?, session_revision = ? "
                 + "WHERE username = ? AND encoded_credential = ?";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, replacementEncoded);
-            statement.setString(2, username);
-            statement.setString(3, expectedEncoded);
+            statement.setObject(2, UUID.randomUUID());
+            statement.setString(3, username);
+            statement.setString(4, expectedEncoded);
             return statement.executeUpdate() == 1;
         } catch (SQLException exception) {
             throw new IllegalStateException("could not rotate account credential", exception);
@@ -76,10 +83,11 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
                 }
             }
             try (PreparedStatement statement = connection.prepareStatement(
-                    "UPDATE accounts SET role = ? WHERE username = ? AND role = ?")) {
+                    "UPDATE accounts SET role = ?, session_revision = ? WHERE username = ? AND role = ?")) {
                 statement.setString(1, replacementRole.name());
-                statement.setString(2, username);
-                statement.setString(3, expectedRole.name());
+                statement.setObject(2, UUID.randomUUID());
+                statement.setString(3, username);
+                statement.setString(4, expectedRole.name());
                 return statement.executeUpdate() == 1;
             }
         });
@@ -94,7 +102,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
     @Override
     public Optional<User> findByUsername(String username) {
         if (username == null) return Optional.empty();
-        String sql = "SELECT username, encoded_credential, role FROM accounts WHERE username = ?";
+        String sql = "SELECT username, encoded_credential, role, session_revision FROM accounts WHERE username = ?";
         try (Connection connection = database.openConnection();
                 PreparedStatement statement = connection.prepareStatement(sql)) {
             statement.setString(1, username);
@@ -180,6 +188,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         user.setUsername(result.getString("username"));
         user.setPassword(result.getString("encoded_credential"));
         user.setRole(AccountRole.valueOf(result.getString("role")));
+        user.setSessionRevision(result.getString("session_revision"));
         return user;
     }
 
@@ -188,6 +197,7 @@ public final class JdbcUserAccountRepository implements UserAccountRepository {
         copy.setUsername(source.getUsername());
         copy.setPassword(source.getPassword());
         copy.setRole(source.getRole());
+        copy.setSessionRevision(source.getSessionRevision());
         return copy;
     }
 
