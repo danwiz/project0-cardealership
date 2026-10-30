@@ -1,0 +1,81 @@
+name: Historical public Git source archive rehearsal
+
+# Short-lived artifact from already-public Git refs. No GitHub write scope,
+# tokens, cloud credentials, GitHub deployment, or production data.
+on:
+  push:
+    branches:
+      - security/integration-candidate-master-pbkdf2-parity-20261029
+    paths:
+      - .github/workflows/public-source-archive-rehearsal.yml
+
+permissions:
+  contents: read
+
+jobs:
+  archive-and-restore:
+    name: Public source Git bundle and restore proof
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Verify source repository and source head
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Create read-only mirror and verify a full Git bundle
+        shell: bash
+        env:
+          EXPECTED_PREVIOUS_HEAD: 6802dadc7e68e663d3945c5f4d38417617978132
+          PINNED_MASTER: 90741d3abe51d9cc002aaeb1dacae27b933fba10
+          PINNED_SHORT: 086fbf91294f74fe4bd967256498ef94e92c501a
+          PINNED_CANDIDATE_SOURCE: 0cbad314956ad1d36542d30afa6519a1bbfecdce
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
+          umask 077
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PREVIOUS_HEAD"
+          mkdir -p evidence archive
+          git clone --mirror --quiet https://github.com/danwiz/project0-cardealership.git mirror.git
+          test "$(git -C mirror.git rev-parse refs/heads/master)" = "$PINNED_MASTER"
+          test "$(git -C mirror.git rev-parse refs/heads/fix/atomic-account-create-20261029)" = "$PINNED_SHORT"
+          test "$(git -C mirror.git cat-file -t "$PINNED_CANDIDATE_SOURCE")" = commit
+          git -C mirror.git fsck --full --strict > evidence/fsck.txt 2>&1
+          git -C mirror.git show-ref | sort > evidence/refs.txt
+          git -C mirror.git bundle create "$(pwd)/archive/project0-cardealership-all-refs.bundle" --all
+          git -C mirror.git bundle verify "$(pwd)/archive/project0-cardealership-all-refs.bundle" > evidence/bundle-verify.txt 2>&1
+          git clone --quiet archive/project0-cardealership-all-refs.bundle restored
+          test "$(git -C restored rev-parse refs/remotes/origin/master)" = "$PINNED_MASTER"
+          test "$(git -C restored cat-file -t "$PINNED_CANDIDATE_SOURCE")" = commit
+          test "$(git -C restored cat-file -t "$PINNED_SHORT")" = commit
+          git -C restored fsck --full --strict > evidence/restore-fsck.txt 2>&1
+          ( cd archive && sha256sum project0-cardealership-all-refs.bundle > project0-cardealership-all-refs.bundle.sha256 )
+          cp evidence/refs.txt archive/refs.txt
+          cp evidence/bundle-verify.txt archive/bundle-verify.txt
+          cp evidence/restore-fsck.txt archive/restore-fsck.txt
+          {
+            echo "Public Git repository archival rehearsal"
+            echo "Repository: danwiz/project0-cardealership"
+            echo "Bundle scope: all fetched advertised refs and their reachable objects, no LFS or GitHub issue/PR metadata"
+            echo "Master: $PINNED_MASTER"
+            echo "Short: $PINNED_SHORT"
+            echo "Candidate source commit: $PINNED_CANDIDATE_SOURCE"
+            echo "Archive workflow head: $(git rev-parse HEAD)"
+            echo "Mirror fsck: PASS"
+            echo "Bundle verify: PASS"
+            echo "Bundle restore clone and fsck: PASS"
+            echo "GitHub artifact retention: 1 day; independently transfer to a private archive destination"
+            echo "No source branch pushed, merged or tagged"
+          } > archive/README-VERIFY.txt
+          wc -c archive/project0-cardealership-all-refs.bundle >> archive/README-VERIFY.txt
+          cat archive/README-VERIFY.txt
+          cat archive/project0-cardealership-all-refs.bundle.sha256
+
+      - name: Upload short-lived historical Git bundle for private off-GitHub preservation
+        if: success()
+        uses: actions/upload-artifact@v6
+        with:
+          name: public-dealership-full-git-bundle
+          path: archive/
+          if-no-files-found: error
+          retention-days: 1
