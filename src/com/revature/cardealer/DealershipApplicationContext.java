@@ -109,13 +109,23 @@ public final class DealershipApplicationContext {
 
     /** Operation-level authorization is mandatory before any snapshot disk IO. */
     public SaveResult saveAuthorizedSnapshot(User actor, Data data, String filename) {
-        authorizationService.requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
+        requireSnapshotAuthority(actor, filename);
         return dataStore.saveData(data, filename);
     }
 
     public LoadResult loadAuthorizedSnapshot(User actor, String filename) {
-        authorizationService.requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
+        requireSnapshotAuthority(actor, filename);
         return dataStore.loadData(filename);
+    }
+
+    private void requireSnapshotAuthority(User actor, String filename) {
+        if (!authorizationService.enforcesVerifiedSessions()) {
+            throw new SecurityException("verified sessions required for snapshot IO");
+        }
+        authorizationService.requireAuthorized(actor, Permission.MANAGE_PERSISTENCE);
+        if (!"CarDealer.dat".equals(filename)) {
+            throw new SecurityException("unapproved snapshot file");
+        }
     }
     public User getCurrentAccount() { return currentAccount; }
     public void setCurrentAccount(User currentAccount) {
