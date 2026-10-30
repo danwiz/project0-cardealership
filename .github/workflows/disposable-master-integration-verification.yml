@@ -45,7 +45,7 @@ jobs:
       PINNED_MASTER: 90741d3abe51d9cc002aaeb1dacae27b933fba10
       PINNED_CANDIDATE: 0cbad314956ad1d36542d30afa6519a1bbfecdce
       PINNED_MASTER_BASE: 9c242f9880a18a7749621a6ed5f6d53d3ee5fcdc
-      EXPECTED_REHEARSAL_HEAD: e4b21e123d443079be2ccffd826a62c5d64f0c49
+      EXPECTED_REHEARSAL_HEAD: 9cf9f8ced8a9d5d02d9e1f97b75085e8903aa9a4
 
     steps:
       - name: Fetch complete source ancestry without retained credentials
@@ -63,6 +63,10 @@ jobs:
           test "$(git rev-parse refs/remotes/origin/master)" = "$PINNED_MASTER"
           test "$(git merge-base "$PINNED_MASTER" "$PINNED_CANDIDATE")" = "$PINNED_MASTER_BASE"
           git switch -c disposable/master-candidate "$PINNED_MASTER"
+          # Local-only identity is required even for an uncommitted merge.
+          # It does not modify global Git config or authenticate to GitHub.
+          git config --local user.name 'CI rehearsal only'
+          git config --local user.email 'ci-rehearsal@example.invalid'
 
           set +e
           git merge --no-commit --no-ff "$PINNED_CANDIDATE" > local-integration-evidence/merge-output.txt 2>&1
