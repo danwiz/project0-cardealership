@@ -92,6 +92,19 @@ jobs:
           done
 
           test -z "$(git ls-files -u)"
+          # The seventh, non-conflicting auto-merged characterization test
+          # changed uppercase security tags into lowercase labels. Since JUnit
+          # tags are case-sensitive, deliberately restore the reviewed modern
+          # file including its safe unauthenticated-deletion regression.
+          login_test='src/test/java/com/revature/service/UserLoginServiceCharacterizationTest.java'
+          git restore --source="$PINNED_CANDIDATE" --staged --worktree -- "$login_test"
+          test "$(git hash-object "$login_test")" = "$(git rev-parse "$PINNED_CANDIDATE:$login_test")"
+          grep -q '@Tag("SECURITY")' "$login_test"
+          grep -q 'void unauthenticatedDeletionFailsClosed()' "$login_test"
+          if grep -q 'void removeUserMakesPreviouslyRegisteredUserUnavailable()' "$login_test"; then
+            echo 'STOP: untrusted deletion regression was restored' >&2
+            exit 69
+          fi
           # Capture pre-existing whitespace flaws separately; do not silently
           # rewrite archived application or documentation files in this test.
           git diff --cached --check > local-integration-evidence/existing-whitespace-warnings.txt 2>&1 || true
@@ -102,6 +115,10 @@ jobs:
             > local-integration-evidence/local-commit-message.txt
           test "$(git rev-parse HEAD^1)" = "$PINNED_MASTER"
           test "$(git rev-parse HEAD^2)" = "$PINNED_CANDIDATE"
+          # The earlier provisional merge differed from the candidate only
+          # in the auto-merged login-test tags. This accepted-in-CI resolution
+          # must therefore preserve the candidate's complete source tree.
+          test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$PINNED_CANDIDATE^{tree}")"
 
           {
             printf 'This commit exists only in this ephemeral CI runner.\n'
