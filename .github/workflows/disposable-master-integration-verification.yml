@@ -45,7 +45,7 @@ jobs:
       PINNED_MASTER: 90741d3abe51d9cc002aaeb1dacae27b933fba10
       PINNED_CANDIDATE: 0cbad314956ad1d36542d30afa6519a1bbfecdce
       PINNED_MASTER_BASE: 9c242f9880a18a7749621a6ed5f6d53d3ee5fcdc
-      EXPECTED_REHEARSAL_HEAD: 16a15c9b02fffe13a810174efe7df0ab02ad63c2
+      EXPECTED_REHEARSAL_HEAD: dc1e596bb9efbe610bb6beedbf09a76184adb59c
 
     steps:
       - name: Fetch complete source ancestry without retained credentials
@@ -159,6 +159,46 @@ jobs:
         run: |
           set -o pipefail
           mvn --batch-mode --no-transfer-progress clean verify 2>&1 | tee local-integration-evidence/maven-verify.log
+
+      - name: Prove uppercase SECURITY-filtered JUnit cases actually execute
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Run against the *two-parent disposable merge*, not the branch
+          # working tree. Failure to select both tests blocks this workflow.
+          test "$(git rev-parse HEAD^{tree})" = "$(git rev-parse "$PINNED_CANDIDATE^{tree}")"
+          mvn --batch-mode --no-transfer-progress \
+            -Dgroups=SECURITY \
+            -Dtest=UserLoginServiceCharacterizationTest \
+            -DfailIfNoTests=true \
+            test 2>&1 | tee local-integration-evidence/security-tag-selection.log
+          python3 - <<'PY'
+          from pathlib import Path
+          from xml.etree import ElementTree as ET
+
+          path = Path("target/surefire-reports/TEST-com.revature.service.UserLoginServiceCharacterizationTest.xml")
+          if not path.is_file():
+              raise SystemExit("Security-tag JUnit XML report missing")
+          report = ET.parse(path).getroot()
+          actual = {case.attrib["name"] for case in report.findall("testcase")}
+          expected = {
+              "authenticationDoesNotPrintStoredPasswordToStandardOutput",
+              "registrationStoresAnEncodedPasswordInsteadOfPlaintext",
+          }
+          if actual != expected:
+              raise SystemExit(f"SECURITY tag selection mismatch: expected={sorted(expected)} actual={sorted(actual)}")
+          if any(int(report.attrib.get(key, "-1")) != number for key, number in
+                 (("tests", 2), ("errors", 0), ("failures", 0), ("skipped", 0))):
+              raise SystemExit(f"Unexpected security-filtered JUnit report totals: {report.attrib}")
+          output = Path("local-integration-evidence/security-tag-selection.txt")
+          output.write_text(
+              "Validated uppercase SECURITY JUnit filter on disposable merged tree\n"
+              + "executed=2 failed=0 skipped=0\n"
+              + "\n".join(sorted(actual)) + "\n",
+              encoding="utf-8",
+          )
+          print(output.read_text())
+          PY
 
       - name: Upload textual merge and test logs (no Git bundle)
         if: always()
