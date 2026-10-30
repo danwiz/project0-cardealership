@@ -41,12 +41,12 @@ public final class ContextPersistenceAdapter implements ApplicationPorts.Persist
 
     @Override public SaveResult save(User actor, Data source, String filename) {
         requireSnapshotAuthority(actor, filename);
-        return context.getAuthorizedDataStore().saveData(source, filename);
+        return context.saveAuthorizedSnapshot(actor, source, filename);
     }
 
     @Override public LoadResult load(User actor, String filename) {
         requireSnapshotAuthority(actor, filename);
-        return context.getAuthorizedDataStore().loadData(filename);
+        return context.loadAuthorizedSnapshot(actor, filename);
     }
 
     @Override public Data snapshotSource(User actor) {
