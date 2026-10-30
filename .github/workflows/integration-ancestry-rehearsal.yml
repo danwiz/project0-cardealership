@@ -1,0 +1,108 @@
+name: Read-only Git integration ancestry rehearsal
+
+# This diagnostic workflow operates only on an unmerged integration branch.
+# It never pushes, opens PRs, merges, deploys, publishes Git bundles, or reads secrets.
+on:
+  push:
+    branches:
+      - security/integration-candidate-master-pbkdf2-parity-20261029
+    paths:
+      - .github/workflows/integration-ancestry-rehearsal.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  source-ancestry:
+    name: Non-destructive Git merge-tree inspection
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out complete public Git history (no retained credentials)
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify pinned source references and rehearse two merges
+        shell: bash
+        env:
+          PINNED_MASTER: 90741d3abe51d9cc002aaeb1dacae27b933fba10
+          PINNED_SHORT: 086fbf91294f74fe4bd967256498ef94e92c501a
+          PINNED_CANDIDATE: 0cbad314956ad1d36542d30afa6519a1bbfecdce
+          PINNED_MASTER_BASE: 9c242f9880a18a7749621a6ed5f6d53d3ee5fcdc
+          PINNED_SHORT_BASE: ad8d03574c7f048b236c9d24f0c03ac54dffcbd7
+        run: |
+          set -euo pipefail
+          mkdir -p rehearsal-results
+
+          # This workflow's first commit must be an addition to the exact
+          # 346-test source candidate. Fail closed on unreviewed branch drift.
+          test "$(git rev-parse HEAD^)" = "$PINNED_CANDIDATE"
+          test "$(git rev-parse refs/remotes/origin/master)" = "$PINNED_MASTER"
+          test "$(git rev-parse refs/remotes/origin/fix/atomic-account-create-20261029)" = "$PINNED_SHORT"
+          test "$(git merge-base "$PINNED_MASTER" "$PINNED_CANDIDATE")" = "$PINNED_MASTER_BASE"
+          test "$(git merge-base "$PINNED_SHORT" "$PINNED_CANDIDATE")" = "$PINNED_SHORT_BASE"
+
+          git fsck --full --strict > rehearsal-results/git-fsck.txt 2>&1
+          git --version > rehearsal-results/git-version.txt
+          git show-ref > rehearsal-results/all-refs.txt
+          {
+            printf 'Rehearsal workflow HEAD: %s\n' "$(git rev-parse HEAD)"
+            printf 'Source candidate: %s\n' "$PINNED_CANDIDATE"
+            printf 'Protected master: %s\n' "$PINNED_MASTER"
+            printf 'Short branch: %s\n' "$PINNED_SHORT"
+            printf 'Master common ancestor: %s\n' "$PINNED_MASTER_BASE"
+            printf 'Short common ancestor: %s\n' "$PINNED_SHORT_BASE"
+            printf 'Read-only scope; merge results are not release approval.\n'
+          } > rehearsal-results/pinned-refs.txt
+
+          git diff --name-status "$PINNED_MASTER_BASE" "$PINNED_MASTER" > rehearsal-results/master-side-changes.txt
+          git diff --name-status "$PINNED_MASTER_BASE" "$PINNED_CANDIDATE" > rehearsal-results/candidate-since-master-base.txt
+          git diff --name-status "$PINNED_SHORT_BASE" "$PINNED_SHORT" > rehearsal-results/short-side-changes.txt
+          git diff --name-status "$PINNED_SHORT_BASE" "$PINNED_CANDIDATE" > rehearsal-results/candidate-since-short-base.txt
+
+          for pair in master short; do
+            if [ "$pair" = master ]; then
+              left="$PINNED_MASTER"
+            else
+              left="$PINNED_SHORT"
+            fi
+            set +e
+            git merge-tree --write-tree "$left" "$PINNED_CANDIDATE" > "rehearsal-results/merge-tree-$pair.txt" 2>&1
+            result=$?
+            set -e
+            if [ "$result" -gt 1 ]; then
+              echo "Unexpected git merge-tree failure: $pair code=$result" >&2
+              exit "$result"
+            fi
+            if [ "$result" -eq 0 ]; then
+              status="CLEAN_MERGE_TREE"
+            else
+              status="MERGE_CONFLICTS_REPORTED"
+            fi
+            printf '%s exit_code=%s status=%s\n' "$pair" "$result" "$status" >> rehearsal-results/merge-summary.txt
+            grep '^CONFLICT ' "rehearsal-results/merge-tree-$pair.txt" > "rehearsal-results/conflicts-$pair.txt" || true
+          done
+
+          cat > rehearsal-results/README.txt <<'EOF'
+          Results were produced by git merge-tree --write-tree on actual Git objects.
+          The first line of each merge-tree report is a local virtual merge tree hash,
+          not an accepted commit. Exit=1 means Git reported merge conflicts;
+          exit=0 means Git produced a clean merge tree.
+          CI success here means the rehearsal completed, NOT that either merge
+          is conflict free, reviewed, or authorized. No branch was changed.
+          These reports exclude any full Git bundle and exclude secret material
+          intentionally; an independent offline archive is a separate open gate.
+          EOF
+
+      - name: Upload textual ancestry and conflict evidence only
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: dealership-read-only-merge-rehearsal
+          path: rehearsal-results/
+          if-no-files-found: error
+          retention-days: 14
