@@ -11,7 +11,9 @@ mkdir -p "$(dirname "$OUT")"
   echo "short=$SHORT"
   echo "long=$LONG"
   echo "expected_merge_base=$BASE"
-  git -C "$REPO" fetch --no-tags origin refs/heads/fix/atomic-account-create-20261029 refs/heads/security/postgres-commit-ack-transport-loss-20261029
+  git -C "$REPO" fetch --no-tags origin refs/heads/fix/atomic-account-create-20261029
+  test "$(git -C "$REPO" rev-parse FETCH_HEAD)" = "$SHORT" || { echo "Short-branch SHA drift"; exit 8; }
+  git -C "$REPO" fetch --no-tags origin refs/heads/security/postgres-commit-ack-transport-loss-20261029
   test "$(git -C "$REPO" rev-parse FETCH_HEAD)" = "$LONG" || { echo "Long-branch SHA drift"; exit 8; }
   for ref in "$SHORT" "$LONG" "$BASE"; do git -C "$REPO" cat-file -e "$ref^{commit}" || { echo "Missing commit $ref"; exit 8; }; done
   actual="$(git -C "$REPO" merge-base "$SHORT" "$LONG")"
