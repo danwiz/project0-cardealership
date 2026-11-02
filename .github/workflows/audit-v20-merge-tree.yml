@@ -23,6 +23,15 @@ jobs:
         run: |
           set -euo pipefail
           bash repository/audit-v20/run-merge-tree.sh repository "$RUNNER_TEMP/merge-tree-v20.txt"
+      - name: Show bounded virtual-merge diagnostics
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/merge-tree-v20.txt" ]]; then
+            tail -n 110 "$RUNNER_TEMP/merge-tree-v20.txt"
+          else
+            echo "No merge-tree output generated"
+          fi
       - name: Upload review evidence even on failing gate
         if: always()
         uses: actions/upload-artifact@v4
