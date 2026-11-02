@@ -1,0 +1,33 @@
+name: Review-only car-dealership virtual merge v2.0
+on:
+  pull_request:
+    paths:
+      - 'audit-v20/**'
+      - '.github/workflows/audit-v20-merge-tree.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  virtual-merge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - name: Checkout ephemeral review branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          path: repository
+      - name: Verify immutable refs and simulate merge without updating branches
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash repository/audit-v20/run-merge-tree.sh repository "$RUNNER_TEMP/merge-tree-v20.txt"
+      - name: Upload review evidence even on failing gate
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: car-dealership-v20-merge-tree
+          path: ${{ runner.temp }}/merge-tree-v20.txt
+          if-no-files-found: warn
+          retention-days: 30
