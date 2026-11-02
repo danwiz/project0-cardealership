@@ -50,53 +50,8 @@ on:
       - 'security/**'
       # Documentation/strategy increments receive the same push verification.
       - 'strategy/**'
+  # Verify every PR base, including newly created stacked integration branches.
   pull_request:
-    branches:
-      - master
-      - refactor/baseline-and-characterization
-      - refactor/authentication-remediation
-      - refactor/account-repository
-      - refactor/credential-hardening
-      - refactor/role-authorization
-      - refactor/console-authorization-boundary
-      - refactor/ownership-payment-records
-      - refactor/payment-ledger
-      - refactor/inventory-purchase-requests
-      - refactor/versioned-persistence
-      - refactor/runtime-rehydration
-      - refactor/application-context-command-handlers
-      - refactor/application-command-services
-      - refactor/query-response-models
-      - refactor/application-ports-adapters
-      - refactor/repository-domain-ports
-      - refactor/jdbc-repositories
-      - refactor/jdbc-inventory-repository
-      - refactor/jdbc-ownership-repository
-      - refactor/jdbc-payment-transaction-repository
-      - refactor/jdbc-application-composition
-      - refactor/configured-console-runtime
-      - refactor/application-payment-workflow
-      - refactor/ownership-linked-payment-transactions
-      - refactor/stable-ownership-identifiers
-      - refactor/acquisition-contract-lifecycle
-      - refactor/acquisition-lifecycle-query
-      - security/role-escalation-regression-20261028
-      - security/one-time-jdbc-admin-bootstrap-20261028
-      - security/verified-principal-boundary-20261028
-      - security/jdbc-credential-and-db-boundary-20261028
-      - security/ddl-free-jdbc-runtime-20261028
-      - security/read-only-account-views-20261028
-      - security/explicit-account-mutation-20261028
-      - security/separate-account-administration-20261028
-      - security/jdbc-last-admin-guard-20261028
-      - security/offline-account-operator-20261028
-      - security/postgresql-account-role-validation-20261028
-      - security/postgresql-runtime-account-policy-20261028
-      - security/postgresql-account-owner-credential-20261028
-      - security/trusted-credential-writer-boundary-20261028
-      - security/postgresql-credential-audit-trigger-20261028
-      - 'security/**'
-      - 'strategy/**'
   workflow_dispatch:
 
 permissions:
